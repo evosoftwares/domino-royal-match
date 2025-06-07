@@ -44,19 +44,19 @@ const MatchmakingQueue: React.FC = () => {
   const [isUserInQueue, setIsUserInQueue] = useState(false);
   const [actionLoading, setActionLoading] = useState(false);
 
-  // Subscrição em tempo real para mudanças na fila e criação de jogos
+  // Subscrição em tempo real
   useEffect(() => {
     const queueChannel = supabase
       .channel('matchmaking-updates')
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'matchmaking_queue' },
-        () => fetchQueuePlayers() // Atualiza a UI quando a fila muda
+        () => fetchQueuePlayers()
       )
       .on(
         'postgres_changes',
         { event: 'INSERT', schema: 'public', table: 'games' },
-        (payload) => checkIfUserInGame(payload.new.id) // Inicia o redirecionamento quando um jogo é criado
+        (payload) => checkIfUserInGame(payload.new.id)
       )
       .subscribe();
 
@@ -65,7 +65,7 @@ const MatchmakingQueue: React.FC = () => {
     };
   }, [user]);
 
-  // ✅ REVISADO: Verifica se o usuário está em um jogo e o redireciona
+  // Verifica se o usuário foi incluído em um jogo e o redireciona
   const checkIfUserInGame = async (gameId: string) => {
     if (!user) return;
     try {
@@ -74,7 +74,7 @@ const MatchmakingQueue: React.FC = () => {
         .select('user_id')
         .eq('game_id', gameId)
         .eq('user_id', user.id)
-        .maybeSingle(); // Usar maybeSingle() é mais robusto que .single()
+        .maybeSingle();
 
       if (data) {
         toast.success('Partida encontrada! Redirecionando...');
@@ -85,16 +85,13 @@ const MatchmakingQueue: React.FC = () => {
     }
   };
 
-  // ❌ REMOVIDO: A função tryCreateGame foi removida. O backend agora cuida disso.
-
-  // ✅ REVISADO: A única responsabilidade desta função agora é buscar e mostrar os dados da fila.
+  // Busca e mostra os dados da fila
   const fetchQueuePlayers = async (isInitialLoad = false) => {
     if (isInitialLoad) {
       setQueueState(prev => ({ ...prev, isLoading: true, error: null }));
     } else {
       setQueueState(prev => ({ ...prev, isPolling: true, error: null }));
     }
-
     try {
       const { data: queueData, error: queueError } = await supabase
         .from('matchmaking_queue')
@@ -102,23 +99,18 @@ const MatchmakingQueue: React.FC = () => {
         .eq('status', 'searching')
         .order('created_at', { ascending: true })
         .limit(4);
-
       if (queueError) throw queueError;
-      
       if (!queueData || queueData.length === 0) {
         setQueueState({ players: [], isLoading: false, isPolling: false, error: null });
         setIsUserInQueue(false);
         return;
       }
-
       const userIds = queueData.map(item => item.user_id);
       const { data: profilesData, error: profilesError } = await supabase
         .from('profiles')
         .select('id, full_name, avatar_url')
         .in('id', userIds);
-        
       if (profilesError) throw profilesError;
-
       const profilesMap = new Map(profilesData.map(p => [p.id, p]));
       const players = queueData.map((item) => {
         const profile = profilesMap.get(item.user_id);
@@ -129,29 +121,24 @@ const MatchmakingQueue: React.FC = () => {
           joinedAt: item.created_at,
         };
       });
-
       setIsUserInQueue(user ? players.some(p => p.id === user.id) : false);
       setQueueState({ players, isLoading: false, isPolling: false, error: null });
-
     } catch (error: any) {
       console.error('Erro ao buscar fila:', error);
       setQueueState(prev => ({ ...prev, isLoading: false, isPolling: false, error: error.message }));
     }
   };
   
-  // ✅ REVISADO: Função para entrar na fila, agora chama a única função RPC "inteligente" e segura.
+  // Entra na fila chamando a função RPC segura
   const joinQueue = async () => {
     if (!user) {
       toast.error('Usuário não autenticado.');
       return;
     }
-
     setActionLoading(true);
     try {
       const { data, error } = await supabase.rpc('join_and_create_game_if_ready');
-
       if (error) throw error;
-
       const response = data as any;
       if (response.success) {
         toast.success(response.message);
@@ -166,7 +153,7 @@ const MatchmakingQueue: React.FC = () => {
     }
   };
 
-  // Função para sair da fila
+  // Sai da fila
   const leaveQueue = async () => {
     if (!user) return;
     setActionLoading(true);
@@ -175,10 +162,7 @@ const MatchmakingQueue: React.FC = () => {
         .from('matchmaking_queue')
         .delete()
         .eq('user_id', user.id);
-
       if (error) throw error;
-      
-      // A atualização da UI acontecerá pela assinatura em tempo real
       toast.success('Você saiu da fila.');
     } catch (error: any) {
       console.error('Erro ao sair da fila:', error);
@@ -188,25 +172,21 @@ const MatchmakingQueue: React.FC = () => {
     }
   };
 
-  // Efeitos para carregar dados iniciais, polling e limpar erros.
+  // Efeitos de carregamento e polling
   useEffect(() => {
     fetchQueuePlayers(true);
-    const interval = setInterval(() => {
-      fetchQueuePlayers();
-    }, 5000); // Polling pode ser um pouco menos frequente.
+    const interval = setInterval(() => fetchQueuePlayers(), 5000);
     return () => clearInterval(interval);
   }, []);
   
   useEffect(() => {
     if (queueState.error && !queueState.isLoading) {
-      const timer = setTimeout(() => {
-        setQueueState(prev => ({ ...prev, error: null }));
-      }, 5000);
+      const timer = setTimeout(() => setQueueState(prev => ({ ...prev, error: null })), 5000);
       return () => clearTimeout(timer);
     }
   }, [queueState.error, queueState.isLoading]);
 
-  // --- O CÓDIGO JSX ABAIXO NÃO PRECISA DE ALTERAÇÕES ---
+  // --- COMPONENTES VISUAIS (JSX) ---
 
   const PlayerSlot: React.FC<{ player: QueuePlayer; position: number }> = ({ player, position }) => (
     <div 
@@ -269,6 +249,7 @@ const MatchmakingQueue: React.FC = () => {
     );
   }
 
+  // ✅ CORRIGIDO: O JSX que define a aparência do componente foi restaurado.
   return (
     <Card className="max-w-2xl mx-auto bg-slate-900/95 border-slate-700/50 shadow-2xl">
       <CardHeader className="text-center relative bg-gradient-to-r from-blue-600/10 to-indigo-600/10 border-b border-slate-700/50">
