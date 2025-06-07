@@ -1,3 +1,4 @@
+
 import React from 'react';
 import { Button } from '@/components/ui/button';
 import { useNavigate } from 'react-router-dom';
@@ -23,8 +24,11 @@ const Index = () => {
           
           {/* User info and logout - Styled */}
           <div className="flex items-center justify-between sm:justify-center space-x-3">
-            {/* User info with elegant background */}
-            <div className="flex items-center space-x-2 bg-gradient-to-r from-purple-600/20 to-purple-500/20 backdrop-blur-sm border border-purple-400/30 rounded-full px-3 py-2 sm:px-4 sm:py-2">
+            {/* User info with elegant background - Now clickable */}
+            <div 
+              className="flex items-center space-x-2 bg-gradient-to-r from-purple-600/20 to-purple-500/20 backdrop-blur-sm border border-purple-400/30 rounded-full px-3 py-2 sm:px-4 sm:py-2 cursor-pointer hover:bg-purple-500/30 transition-all duration-200"
+              onClick={() => navigate('/profile')}
+            >
               <div className="bg-purple-500/80 rounded-full p-1.5">
                 <User className="h-3 w-3 sm:h-4 sm:w-4 text-white" />
               </div>
