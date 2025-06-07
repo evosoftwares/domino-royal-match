@@ -1,17 +1,56 @@
 
 import React from 'react';
+import { Button } from '@/components/ui/button';
+import { useNavigate } from 'react-router-dom';
+import { useAuth } from '@/hooks/useAuth';
 import MatchmakingQueue from "@/components/MatchmakingQueue";
 import UserBalance from "@/components/UserBalance";
+import { Wallet, User, LogOut } from 'lucide-react';
 
 const Index = () => {
+  const navigate = useNavigate();
+  const { user, logout } = useAuth();
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-purple-900 via-purple-800 to-black">
       <div className="container mx-auto px-4 py-8">
-        {/* Header */}
+        {/* Header com navegação */}
+        <div className="flex justify-between items-center mb-8">
+          <div className="flex items-center space-x-4">
+            <h1 className="text-3xl font-bold text-white">
+              Dominó Multiplayer
+            </h1>
+          </div>
+          
+          <div className="flex items-center space-x-4">
+            <Button
+              onClick={() => navigate('/dashboard')}
+              variant="outline"
+              size="sm"
+              className="text-white border-white hover:bg-white hover:text-purple-900"
+            >
+              <Wallet className="h-4 w-4 mr-2" />
+              Carteira
+            </Button>
+            
+            <div className="flex items-center space-x-2 text-white">
+              <User className="h-4 w-4" />
+              <span className="text-sm">{user?.name}</span>
+            </div>
+            
+            <Button
+              onClick={logout}
+              variant="ghost"
+              size="sm"
+              className="text-white hover:bg-white/20"
+            >
+              <LogOut className="h-4 w-4" />
+            </Button>
+          </div>
+        </div>
+
+        {/* Descrição */}
         <div className="text-center mb-8">
-          <h1 className="text-5xl font-bold text-white mb-4 tracking-tight">
-            Dominó Multiplayer
-          </h1>
           <p className="text-purple-200 text-lg mb-6">
             Jogue dominó em tempo real com amigos
           </p>
