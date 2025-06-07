@@ -21,23 +21,27 @@ const Index = () => {
             </h1>
           </div>
           
-          {/* User info and logout */}
-          <div className="flex items-center justify-between sm:justify-center space-x-2 text-white p-2 sm:p-0">
-            <div className="flex items-center space-x-2">
-              <User className="h-4 w-4" />
-              <span className="text-sm truncate max-w-[120px] sm:max-w-none">
+          {/* User info and logout - Styled */}
+          <div className="flex items-center justify-between sm:justify-center space-x-3">
+            {/* User info with elegant background */}
+            <div className="flex items-center space-x-2 bg-gradient-to-r from-purple-600/20 to-purple-500/20 backdrop-blur-sm border border-purple-400/30 rounded-full px-3 py-2 sm:px-4 sm:py-2">
+              <div className="bg-purple-500/80 rounded-full p-1.5">
+                <User className="h-3 w-3 sm:h-4 sm:w-4 text-white" />
+              </div>
+              <span className="text-white text-sm sm:text-base font-medium truncate max-w-[100px] sm:max-w-[150px]">
                 {user?.name}
               </span>
             </div>
             
+            {/* Logout button */}
             <Button
               onClick={logout}
               variant="ghost"
               size="sm"
-              className="text-white hover:bg-white/20 ml-2"
+              className="text-white hover:bg-purple-500/20 border border-purple-400/30 rounded-full px-3 py-2 transition-all duration-200 hover:border-purple-300/50"
             >
               <LogOut className="h-4 w-4" />
-              <span className="ml-1 sm:hidden">Sair</span>
+              <span className="ml-2 sm:hidden">Sair</span>
             </Button>
           </div>
         </div>
@@ -53,7 +57,7 @@ const Index = () => {
             {/* User Balance - Mobile optimized with click to dashboard */}
             <div className="flex justify-center mb-4 sm:mb-8">
               <div 
-                className="w-full max-w-sm sm:max-w-none cursor-pointer"
+                className="w-full max-w-sm sm:max-w-none cursor-pointer transition-transform duration-200 hover:scale-105"
                 onClick={() => navigate('/dashboard')}
               >
                 <UserBalance />
