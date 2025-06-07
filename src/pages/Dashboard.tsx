@@ -1,15 +1,18 @@
-import React from 'react';
+
+import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/hooks/useAuth';
 import { useWallet } from '@/hooks/useWallet';
 import WalletBalance from '@/components/wallet/WalletBalance';
 import TransactionForm from '@/components/wallet/TransactionForm';
 import TransactionHistory from '@/components/wallet/TransactionHistory';
-import { LogOut, User } from 'lucide-react';
+import DominoRules from '@/components/DominoRules';
+import { LogOut, User, BookOpen, ChevronDown, ChevronUp } from 'lucide-react';
 
 const Dashboard = () => {
   const { user, logout } = useAuth();
   const { wallet, transactions, loading } = useWallet();
+  const [showRules, setShowRules] = useState(false);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-purple-900 via-purple-800 to-black">
@@ -27,16 +30,39 @@ const Dashboard = () => {
               </p>
             </div>
           </div>
-          <Button
-            onClick={logout}
-            variant="outline"
-            size="sm"
-            className="text-white border-white hover:bg-white hover:text-purple-900"
-          >
-            <LogOut className="h-4 w-4 mr-2 text-purple-300" />
-            <span className="text-purple-300">Sair</span>
-          </Button>
+          <div className="flex items-center space-x-3">
+            <Button
+              onClick={() => setShowRules(!showRules)}
+              variant="outline"
+              size="sm"
+              className="text-white border-white hover:bg-white hover:text-purple-900"
+            >
+              <BookOpen className="h-4 w-4 mr-2" />
+              <span>Regras</span>
+              {showRules ? (
+                <ChevronUp className="h-4 w-4 ml-2" />
+              ) : (
+                <ChevronDown className="h-4 w-4 ml-2" />
+              )}
+            </Button>
+            <Button
+              onClick={logout}
+              variant="outline"
+              size="sm"
+              className="text-white border-white hover:bg-white hover:text-purple-900"
+            >
+              <LogOut className="h-4 w-4 mr-2 text-white" />
+              <span className="text-white">Sair</span>
+            </Button>
+          </div>
         </div>
+
+        {/* Rules Section */}
+        {showRules && (
+          <div className="mb-8">
+            <DominoRules />
+          </div>
+        )}
 
         {/* Balance Card */}
         <div className="mb-8">
