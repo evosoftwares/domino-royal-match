@@ -1,9 +1,11 @@
+
 // src/components/Dashboard.jsx
 
 import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/hooks/useAuth';
 import { useWallet } from '@/hooks/useWallet';
+import DominoRules from '@/components/DominoRules';
 import {
   LogOut,
   User,
@@ -13,6 +15,8 @@ import {
   EyeOff,
   ArrowUpRight,
   ArrowDownLeft,
+  ChevronDown,
+  ChevronUp,
 } from 'lucide-react';
 
 // --- Sub-componentes estilizados para este Dashboard ---
@@ -27,7 +31,7 @@ const ElegantWalletBalance = ({ balance }) => {
   }).format(balance);
 
   return (
-    <section className="glass-card p-6">
+    <section className="bg-white/5 backdrop-blur-lg border border-white/10 rounded-2xl p-6 shadow-xl">
       <div className="flex justify-between items-center mb-2">
         <h2 className="text-sm font-medium text-purple-200">Saldo Disponível</h2>
         <Button variant="ghost" size="icon" onClick={() => setIsVisible(!isVisible)} className="h-8 w-8 text-purple-200 hover:text-white">
@@ -55,7 +59,7 @@ const ElegantTransactionHistory = ({ transactions, loading }) => {
     };
 
     return (
-      <section className="glass-card h-full">
+      <section className="bg-white/5 backdrop-blur-lg border border-white/10 rounded-2xl shadow-xl h-full">
         <div className="p-6">
           <h2 className="font-semibold text-white text-lg">Histórico de Transações</h2>
         </div>
@@ -100,48 +104,67 @@ const Dashboard = () => {
   ];
   const transactions = realTransactions.length > 0 ? realTransactions : sampleTransactions;
 
-
   const [isRulesModalOpen, setIsRulesModalOpen] = useState(false);
+  const [isRulesExpanded, setIsRulesExpanded] = useState(false);
 
   return (
-    <>
-      <style jsx global>{`
-        .glass-card {
-          background: rgba(255, 255, 255, 0.05);
-          border-radius: 16px;
-          box-shadow: 0 4px 30px rgba(0, 0, 0, 0.1);
-          backdrop-filter: blur(10px);
-          -webkit-backdrop-filter: blur(10px);
-          border: 1px solid rgba(255, 255, 255, 0.1);
-        }
-      `}</style>
-
-      <div className="min-h-screen bg-slate-900 bg-gradient-to-br from-purple-900 via-slate-900 to-black text-white font-sans">
-        <div className="container mx-auto px-4 py-6 md:py-10">
-          
-          <header className="flex flex-col sm:flex-row justify-between items-center mb-8 md:mb-12 gap-4">
-            <div className="flex items-center gap-4">
-              <div className="w-12 h-12 rounded-full bg-purple-500/50 flex items-center justify-center">
-                <User className="h-6 w-6 text-white" />
-              </div>
-              <div>
-                <h1 className="text-xl md:text-2xl font-bold">Olá, {user?.name || 'Jogador'}!</h1>
-                <p className="text-sm text-purple-300">Pronto para a próxima partida?</p>
-              </div>
+    <div className="min-h-screen bg-slate-900 bg-gradient-to-br from-purple-900 via-slate-900 to-black text-white font-sans">
+      <div className="container mx-auto px-4 py-6 md:py-10">
+        
+        <header className="flex flex-col sm:flex-row justify-between items-center mb-8 md:mb-12 gap-4">
+          <div className="flex items-center gap-4">
+            <div className="w-12 h-12 rounded-full bg-purple-500/50 flex items-center justify-center">
+              <User className="h-6 w-6 text-white" />
             </div>
-            <div className="flex items-center gap-2">
-              <Button onClick={() => setIsRulesModalOpen(true)} variant="outline" className="border-white/20 hover:bg-white/10">
-                <BookOpen size={16} className="mr-2" />
-                <span className="hidden sm:inline">Regras</span>
-              </Button>
-              <Button onClick={logout} variant="destructive" className="bg-red-500/20 hover:bg-red-500/40 border border-red-500/30">
-                <LogOut size={16} className="mr-2" />
-                <span className="hidden sm:inline">Sair</span>
-              </Button>
+            <div>
+              <h1 className="text-xl md:text-2xl font-bold">Olá, {user?.name || 'Jogador'}!</h1>
+              <p className="text-sm text-purple-300">Pronto para a próxima partida?</p>
             </div>
-          </header>
+          </div>
+          <div className="flex items-center gap-2">
+            <Button onClick={() => setIsRulesModalOpen(true)} variant="outline" className="border-white/20 hover:bg-white/10">
+              <BookOpen size={16} className="mr-2" />
+              <span className="hidden sm:inline">Regras</span>
+            </Button>
+            <Button onClick={logout} variant="destructive" className="bg-red-500/20 hover:bg-red-500/40 border border-red-500/30">
+              <LogOut size={16} className="mr-2" />
+              <span className="hidden sm:inline">Sair</span>
+            </Button>
+          </div>
+        </header>
 
-          <main className="grid grid-cols-1 lg:grid-cols-5 gap-8">
+        <main className="space-y-8">
+          {/* Seção de Regras Colapsável */}
+          <section className="bg-white/5 backdrop-blur-lg border border-white/10 rounded-2xl shadow-xl">
+            <button
+              onClick={() => setIsRulesExpanded(!isRulesExpanded)}
+              className="w-full p-6 flex items-center justify-between text-left hover:bg-white/5 transition-colors rounded-2xl"
+            >
+              <div className="flex items-center gap-3">
+                <BookOpen className="h-6 w-6 text-amber-400" />
+                <div>
+                  <h2 className="text-xl font-semibold text-white">Regras do Dominó</h2>
+                  <p className="text-sm text-purple-300">Clique para ver o guia completo</p>
+                </div>
+              </div>
+              {isRulesExpanded ? (
+                <ChevronUp className="h-5 w-5 text-purple-300" />
+              ) : (
+                <ChevronDown className="h-5 w-5 text-purple-300" />
+              )}
+            </button>
+            
+            {isRulesExpanded && (
+              <div className="px-6 pb-6">
+                <div className="border-t border-white/10 pt-6">
+                  <DominoRules />
+                </div>
+              </div>
+            )}
+          </section>
+
+          {/* Grid Principal */}
+          <div className="grid grid-cols-1 lg:grid-cols-5 gap-8">
             {/* Coluna Esquerda: Ações Principais */}
             <div className="lg:col-span-2 space-y-8">
               <ElegantWalletBalance balance={wallet?.balance || 249.90} />
@@ -153,8 +176,8 @@ const Dashboard = () => {
             <div className="lg:col-span-3">
               <ElegantTransactionHistory transactions={transactions} loading={loading} />
             </div>
-          </main>
-        </div>
+          </div>
+        </main>
       </div>
 
       {/* Modal de Regras com Transição */}
@@ -167,12 +190,7 @@ const Dashboard = () => {
             className="relative w-full max-w-4xl max-h-[90vh] overflow-y-auto p-2 transition-all duration-300 ease-in-out"
             onClick={(e) => e.stopPropagation()} // Impede que o clique dentro do modal o feche
           >
-            {/* O componente DominoRules entra aqui */}
-            {/* <DominoRules /> */}
-            <div className="h-[200vh] glass-card p-6">
-                <h1 className="text-2xl">Componente de Regras</h1>
-                <p>O seu componente DominoRules será renderizado aqui.</p>
-            </div>
+            <DominoRules />
 
             <Button
               onClick={() => setIsRulesModalOpen(false)}
@@ -185,7 +203,7 @@ const Dashboard = () => {
           </div>
         </div>
       )}
-    </>
+    </div>
   );
 };
 
