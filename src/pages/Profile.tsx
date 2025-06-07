@@ -53,7 +53,15 @@ const Profile = () => {
       }
 
       if (data) {
-        setProfile(data);
+        // Map the database fields to the Profile interface, providing defaults for missing fields
+        setProfile({
+          id: data.id,
+          username: data.username || '',
+          full_name: data.full_name || '',
+          avatar_url: data.avatar_url || '',
+          bio: '', // Default empty since this field doesn't exist in the profiles table
+          phone: '' // Default empty since this field doesn't exist in the profiles table
+        });
       } else {
         // Criar perfil se não existir
         const { data: newProfile, error: createError } = await supabase
@@ -67,7 +75,16 @@ const Profile = () => {
           .single();
 
         if (createError) throw createError;
-        if (newProfile) setProfile(newProfile);
+        if (newProfile) {
+          setProfile({
+            id: newProfile.id,
+            username: newProfile.username || '',
+            full_name: newProfile.full_name || '',
+            avatar_url: newProfile.avatar_url || '',
+            bio: '',
+            phone: ''
+          });
+        }
       }
     } catch (error: any) {
       toast.error('Erro ao carregar perfil: ' + error.message);
@@ -87,9 +104,8 @@ const Profile = () => {
           id: user.id,
           username: profile.username,
           full_name: profile.full_name,
-          avatar_url: profile.avatar_url,
-          bio: profile.bio,
-          phone: profile.phone
+          avatar_url: profile.avatar_url
+          // Note: bio and phone are not saved since they don't exist in the profiles table
         });
 
       if (error) throw error;
@@ -185,7 +201,9 @@ const Profile = () => {
                   onChange={(e) => handleInputChange('phone', e.target.value)}
                   className="bg-white/10 border-white/20 text-white placeholder:text-white/60"
                   placeholder="(11) 99999-9999"
+                  disabled
                 />
+                <p className="text-xs text-gray-400">Campo desabilitado - não disponível no banco de dados</p>
               </div>
 
               {/* Avatar URL */}
@@ -214,7 +232,9 @@ const Profile = () => {
                   onChange={(e) => handleInputChange('bio', e.target.value)}
                   className="bg-white/10 border-white/20 text-white placeholder:text-white/60 min-h-[100px]"
                   placeholder="Conte um pouco sobre você..."
+                  disabled
                 />
+                <p className="text-xs text-gray-400">Campo desabilitado - não disponível no banco de dados</p>
               </div>
 
               {/* Save Button */}
