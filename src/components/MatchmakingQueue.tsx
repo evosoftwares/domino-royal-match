@@ -5,6 +5,8 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Skeleton } from '@/components/ui/skeleton';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
+import { useNavigate } from 'react-router-dom';
+import { toast } from 'sonner';
 import { 
   Loader2, 
   Users, 
@@ -32,6 +34,7 @@ interface QueueState {
 
 const MatchmakingQueue: React.FC = () => {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const [queueState, setQueueState] = useState<QueueState>({
     players: [],
     isLoading: true,
@@ -41,6 +44,96 @@ const MatchmakingQueue: React.FC = () => {
 
   const [isUserInQueue, setIsUserInQueue] = useState(false);
   const [actionLoading, setActionLoading] = useState(false);
+
+  // Subscrição em tempo real para mudanças na fila e criação de jogos
+  useEffect(() => {
+    const queueChannel = supabase
+      .channel('matchmaking-updates')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'matchmaking_queue'
+        },
+        async () => {
+          await fetchQueuePlayers();
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'games'
+        },
+        async (payload) => {
+          console.log('Novo jogo criado:', payload);
+          // Verificar se o usuário foi incluído neste jogo
+          await checkIfUserInGame(payload.new.id);
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(queueChannel);
+    };
+  }, [user]);
+
+  // Verificar se o usuário está em um jogo específico
+  const checkIfUserInGame = async (gameId: string) => {
+    if (!user) return;
+
+    try {
+      const { data } = await supabase
+        .from('game_players')
+        .select('*')
+        .eq('game_id', gameId)
+        .eq('user_id', user.id)
+        .single();
+
+      if (data) {
+        console.log('Usuário encontrado no jogo:', gameId);
+        toast.success('Partida encontrada! Redirecionando...');
+        
+        // Pequeno delay para mostrar a mensagem antes de redirecionar
+        setTimeout(() => {
+          navigate(`/game/${gameId}`);
+        }, 1500);
+      }
+    } catch (error) {
+      console.error('Erro ao verificar se usuário está no jogo:', error);
+    }
+  };
+
+  // Tentar criar jogo quando a fila estiver com 4 jogadores
+  const tryCreateGame = async () => {
+    try {
+      console.log('Tentando criar jogo...');
+      const { data, error } = await supabase.rpc('create_game_when_ready');
+      
+      if (error) {
+        console.error('Erro ao tentar criar jogo:', error);
+        return;
+      }
+      
+      const response = data as any;
+      
+      if (response?.success) {
+        console.log('Jogo criado com sucesso:', response.game_id);
+        toast.success('Partida criada! Verificando participantes...');
+        
+        // Verificar se o usuário atual está no jogo
+        if (response.game_id) {
+          await checkIfUserInGame(response.game_id);
+        }
+      } else {
+        console.log('Não foi possível criar jogo:', response?.message);
+      }
+    } catch (error) {
+      console.error('Erro ao tentar criar jogo:', error);
+    }
+  };
 
   // Função para buscar jogadores da fila com dados reais
   const fetchQueuePlayers = async (isInitialLoad = false) => {
@@ -185,6 +278,11 @@ const MatchmakingQueue: React.FC = () => {
       // Atualizar estado local imediatamente
       setIsUserInQueue(true);
       await fetchQueuePlayers();
+
+      // Tentar criar jogo após entrar na fila
+      setTimeout(() => {
+        tryCreateGame();
+      }, 1000);
 
     } catch (error: any) {
       console.error('Erro ao entrar na fila:', error);

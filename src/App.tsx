@@ -10,6 +10,7 @@ import Index from "./pages/Index";
 import Dashboard from "./pages/Dashboard";
 import Profile from "./pages/Profile";
 import Auth from "./pages/Auth";
+import Game from "./pages/Game";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -31,6 +32,11 @@ const App = () => (
             <Route path="/dashboard" element={
               <ProtectedRoute>
                 <Dashboard />
+              </ProtectedRoute>
+            } />
+            <Route path="/game/:gameId" element={
+              <ProtectedRoute>
+                <Game />
               </ProtectedRoute>
             } />
             <Route path="/" element={

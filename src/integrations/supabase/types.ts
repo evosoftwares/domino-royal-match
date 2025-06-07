@@ -309,6 +309,10 @@ export type Database = {
         Args: Record<PropertyKey, never>
         Returns: Json
       }
+      create_game_from_matchmaking: {
+        Args: { matchmaking_id: number }
+        Returns: undefined
+      }
       create_game_from_queue: {
         Args: Record<PropertyKey, never>
         Returns: string
@@ -329,7 +333,10 @@ export type Database = {
         Returns: boolean
       }
       finish_game: {
-        Args: { p_game_id: string } | { p_game_id: string; p_winner_id: string }
+        Args:
+          | Record<PropertyKey, never>
+          | { p_game_id: string }
+          | { p_game_id: string; p_winner_id: string }
         Returns: undefined
       }
       get_users_by_ids: {
