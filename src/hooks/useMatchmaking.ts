@@ -10,6 +10,14 @@ export interface MatchmakingState {
   gameId: string | null;
 }
 
+interface MatchmakingResponse {
+  success: boolean;
+  error?: string;
+  message?: string;
+  queue_count?: number;
+  game_id?: string;
+}
+
 export const useMatchmaking = () => {
   const [state, setState] = useState<MatchmakingState>({
     isInQueue: false,
@@ -100,18 +108,20 @@ export const useMatchmaking = () => {
       
       if (error) throw error;
       
-      if (data.success) {
+      const response = data as MatchmakingResponse;
+      
+      if (response.success) {
         setState(prev => ({ 
           ...prev, 
           isInQueue: true, 
-          queueCount: data.queue_count 
+          queueCount: response.queue_count || 0
         }));
-        toast.success(data.message);
+        toast.success(response.message || 'Adicionado à fila');
         
         // Tentar criar jogo a cada nova entrada na fila
         await tryCreateGame();
       } else {
-        toast.error(data.error);
+        toast.error(response.error || 'Erro ao entrar na fila');
       }
     } catch (error: any) {
       toast.error(error.message || 'Erro ao entrar na fila');
@@ -128,15 +138,17 @@ export const useMatchmaking = () => {
       
       if (error) throw error;
       
-      if (data.success) {
+      const response = data as MatchmakingResponse;
+      
+      if (response.success) {
         setState(prev => ({ 
           ...prev, 
           isInQueue: false, 
           queueCount: 0 
         }));
-        toast.success(data.message);
+        toast.success(response.message || 'Removido da fila');
       } else {
-        toast.error(data.error);
+        toast.error(response.error || 'Erro ao sair da fila');
       }
     } catch (error: any) {
       toast.error(error.message || 'Erro ao sair da fila');
@@ -151,8 +163,10 @@ export const useMatchmaking = () => {
       
       if (error) throw error;
       
-      if (data.success) {
-        console.log('Jogo criado:', data.game_id);
+      const response = data as MatchmakingResponse;
+      
+      if (response.success) {
+        console.log('Jogo criado:', response.game_id);
         // O realtime vai detectar a criação e redirecionar o usuário
       }
     } catch (error) {
