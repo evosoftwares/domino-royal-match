@@ -332,6 +332,15 @@ export type Database = {
         Args: { p_game_id: string } | { p_game_id: string; p_winner_id: string }
         Returns: undefined
       }
+      get_users_by_ids: {
+        Args: { user_ids: string[] }
+        Returns: {
+          id: string
+          email: string
+          user_metadata: Json
+          created_at: string
+        }[]
+      }
       join_game_queue: {
         Args: Record<PropertyKey, never>
         Returns: string
