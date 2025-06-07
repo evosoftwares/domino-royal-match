@@ -29,14 +29,15 @@ const Dashboard = () => {
             </div>
           </div>
           <Button
-            onClick={logout}
-            variant="outline"
-            size="sm"
-            className="text-white border-white hover:bg-white hover:text-purple-900"
-          >
-            <LogOut className="h-4 w-4 mr-2" />
-            Sair
-          </Button>
+                onClick={logout}
+                variant="outline"
+                size="sm"
+                className="text-white border-white hover:bg-white hover:text-purple-900"
+                >
+                <LogOut className="h-4 w-4 mr-2 text-white" />
+                <span className="text-white">Sair</span>
+                </Button>
+        </div>
         </div>
 
         {/* Balance Card */}
