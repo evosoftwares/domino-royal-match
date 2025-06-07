@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -18,7 +17,7 @@ import {
   UserMinus 
 } from 'lucide-react';
 
-// Interfaces TypeScript
+// Interfaces TypeScript específicas
 interface QueuePlayer {
   id: string;
   displayName: string;
@@ -42,22 +41,36 @@ const MatchmakingQueue: React.FC = () => {
     isPolling: false,
     error: null
   });
+
   const [isUserInQueue, setIsUserInQueue] = useState(false);
   const [actionLoading, setActionLoading] = useState(false);
 
-  // Subscrição em tempo real
+  // Subscrição em tempo real para mudanças na fila e criação de jogos
   useEffect(() => {
     const queueChannel = supabase
       .channel('matchmaking-updates')
       .on(
         'postgres_changes',
-        { event: '*', schema: 'public', table: 'matchmaking_queue' },
-        () => fetchQueuePlayers()
+        {
+          event: '*',
+          schema: 'public',
+          table: 'matchmaking_queue'
+        },
+        async () => {
+          await fetchQueuePlayers();
+        }
       )
       .on(
         'postgres_changes',
-        { event: 'INSERT', schema: 'public', table: 'games' },
-        (payload) => checkIfUserInGame(payload.new.id)
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'games'
+        },
+        async (payload) => {
+          console.log('Novo jogo criado:', payload);
+          await checkIfUserInGame(payload.new.id);
+        }
       )
       .subscribe();
 
@@ -66,128 +79,280 @@ const MatchmakingQueue: React.FC = () => {
     };
   }, [user]);
 
-  // Verifica se o usuário foi incluído em um jogo e o redireciona
+  // Verificar se o usuário está em um jogo específico
   const checkIfUserInGame = async (gameId: string) => {
     if (!user) return;
+
     try {
       const { data } = await supabase
         .from('game_players')
-        .select('user_id')
+        .select('*')
         .eq('game_id', gameId)
         .eq('user_id', user.id)
-        .maybeSingle();
+        .single();
 
       if (data) {
+        console.log('Usuário encontrado no jogo:', gameId);
         toast.success('Partida encontrada! Redirecionando...');
-        setTimeout(() => navigate(`/game/${gameId}`), 1500);
+        
+        setTimeout(() => {
+          navigate(`/game/${gameId}`);
+        }, 1500);
       }
-    } catch (error: any) {
-      console.error('Erro ao verificar se o usuário está no jogo:', error.message);
+    } catch (error) {
+      console.error('Erro ao verificar se usuário está no jogo:', error);
     }
   };
 
-  // Busca e mostra os dados da fila
-  const fetchQueuePlayers = async (isInitialLoad = false) => {
-    if (isInitialLoad) {
-      setQueueState(prev => ({ ...prev, isLoading: true, error: null }));
-    } else {
-      setQueueState(prev => ({ ...prev, isPolling: true, error: null }));
-    }
+  // Tentar criar jogo quando a fila estiver com 4 jogadores
+  const tryCreateGame = async () => {
     try {
+      console.log('Tentando criar jogo...');
+      const { data, error } = await supabase.rpc('create_game_when_ready');
+      
+      if (error) {
+        console.error('Erro ao tentar criar jogo:', error);
+        return;
+      }
+      
+      const response = data as any;
+      
+      if (response?.success) {
+        console.log('Jogo criado com sucesso:', response.game_id);
+        toast.success('Partida criada! Verificando participantes...');
+        
+        if (response.game_id) {
+          await checkIfUserInGame(response.game_id);
+        }
+      } else {
+        console.log('Não foi possível criar jogo:', response?.message);
+      }
+    } catch (error) {
+      console.error('Erro ao tentar criar jogo:', error);
+    }
+  };
+
+  // Função para buscar jogadores da fila com dados reais
+  const fetchQueuePlayers = async (isInitialLoad = false) => {
+    try {
+      if (isInitialLoad) {
+        setQueueState(prev => ({ ...prev, isLoading: true, error: null }));
+      } else {
+        setQueueState(prev => ({ ...prev, isPolling: true, error: null }));
+      }
+
       const { data: queueData, error: queueError } = await supabase
         .from('matchmaking_queue')
         .select('user_id, created_at')
         .eq('status', 'searching')
         .order('created_at', { ascending: true })
         .limit(4);
+
       if (queueError) throw queueError;
+
       if (!queueData || queueData.length === 0) {
-        setQueueState({ players: [], isLoading: false, isPolling: false, error: null });
+        setQueueState(prev => ({
+          ...prev,
+          players: [],
+          isLoading: false,
+          isPolling: false,
+          error: null
+        }));
         setIsUserInQueue(false);
         return;
       }
+      
       const userIds = queueData.map(item => item.user_id);
+      
       const { data: profilesData, error: profilesError } = await supabase
         .from('profiles')
         .select('id, full_name, avatar_url')
         .in('id', userIds);
+        
       if (profilesError) throw profilesError;
+
       const profilesMap = new Map(profilesData.map(p => [p.id, p]));
-      const players = queueData.map((item) => {
-        const profile = profilesMap.get(item.user_id);
+
+      const players = queueData.map((queueItem) => {
+        const profile = profilesMap.get(queueItem.user_id);
+        const displayName = profile?.full_name || 'Usuário Anônimo';
+        const avatarUrl = profile?.avatar_url || '/placeholder.svg';
+        
         return {
-          id: item.user_id,
-          displayName: profile?.full_name || 'Usuário Anônimo',
-          avatarUrl: profile?.avatar_url || '/placeholder.svg',
-          joinedAt: item.created_at,
+          id: queueItem.user_id,
+          displayName,
+          avatarUrl,
+          joinedAt: queueItem.created_at,
         };
       });
-      setIsUserInQueue(user ? players.some(p => p.id === user.id) : false);
-      setQueueState({ players, isLoading: false, isPolling: false, error: null });
+
+      const userInQueue = user ? players.some(player => player.id === user.id) : false;
+      setIsUserInQueue(userInQueue);
+
+      setQueueState(prev => ({
+        ...prev,
+        players,
+        isLoading: false,
+        isPolling: false,
+        error: null
+      }));
+
+      if (players.length >= 4 && userInQueue) {
+        console.log('Fila cheia com usuário atual. Tentando criar o jogo.');
+        tryCreateGame();
+      }
+
     } catch (error: any) {
       console.error('Erro ao buscar fila:', error);
-      setQueueState(prev => ({ ...prev, isLoading: false, isPolling: false, error: error.message }));
+      setQueueState(prev => ({
+        ...prev,
+        isLoading: false,
+        isPolling: false,
+        error: error.message || 'Falha ao conectar. Verifique sua rede.'
+      }));
     }
   };
-  
-  // Entra na fila usando função RPC que criará o jogo automaticamente se 4 jogadores
+
+  // FUNÇÃO CORRIGIDA - Entrar na fila com melhor tratamento de duplicatas
   const joinQueue = async () => {
     if (!user) {
-      toast.error('Usuário não autenticado.');
+      setQueueState(prev => ({
+        ...prev,
+        error: 'Usuário não autenticado'
+      }));
       return;
     }
+
+    // Previne múltiplos cliques
+    if (actionLoading) return;
+
     setActionLoading(true);
+    setQueueState(prev => ({ ...prev, error: null }));
+
     try {
-      // Primeiro, vamos apenas entrar na fila normalmente
-      const { error } = await supabase
+      // Usar upsert em vez de insert para evitar duplicatas
+      const { data, error } = await supabase
         .from('matchmaking_queue')
-        .insert([{ user_id: user.id, status: 'searching' }]);
+        .upsert(
+          {
+            user_id: user.id,
+            status: 'searching',
+            created_at: new Date().toISOString()
+          },
+          {
+            onConflict: 'user_id',
+            ignoreDuplicates: false
+          }
+        )
+        .select();
+
+      if (error) {
+        // Se ainda assim der erro de duplicata, tratar especificamente
+        if (error.code === '23505') {
+          console.log('Usuário já está na fila, atualizando estado local...');
+          setIsUserInQueue(true);
+          await fetchQueuePlayers();
+          toast.info('Você já está na fila!');
+          return;
+        }
+        throw error;
+      }
+
+      console.log('Usuário adicionado à fila:', data);
+      setIsUserInQueue(true);
+      await fetchQueuePlayers();
       
-      if (error) throw error;
-      toast.success('Você entrou na fila!');
+      toast.success('Entrou na fila com sucesso!');
+
+      // Tentar criar jogo após entrar na fila
+      setTimeout(() => {
+        tryCreateGame();
+      }, 1000);
+
     } catch (error: any) {
       console.error('Erro ao entrar na fila:', error);
-      toast.error(error.message || 'Erro ao entrar na fila');
+      
+      // Tratamento específico para diferentes tipos de erro
+      let errorMessage = 'Erro ao entrar na fila';
+      
+      if (error.code === '23505') {
+        errorMessage = 'Você já está na fila';
+        setIsUserInQueue(true);
+        // Força atualização do estado
+        setTimeout(() => fetchQueuePlayers(), 500);
+      } else if (error.message?.includes('duplicate')) {
+        errorMessage = 'Você já está na fila';
+        setIsUserInQueue(true);
+      } else {
+        errorMessage = error.message || 'Erro desconhecido';
+      }
+
+      setQueueState(prev => ({
+        ...prev,
+        error: errorMessage
+      }));
     } finally {
       setActionLoading(false);
     }
   };
 
-  // Sai da fila
+  // Função para sair da fila
   const leaveQueue = async () => {
     if (!user) return;
+
+    // Previne múltiplos cliques
+    if (actionLoading) return;
+
     setActionLoading(true);
+    setQueueState(prev => ({ ...prev, error: null }));
+
     try {
       const { error } = await supabase
         .from('matchmaking_queue')
         .delete()
         .eq('user_id', user.id);
+
       if (error) throw error;
-      toast.success('Você saiu da fila.');
+
+      setIsUserInQueue(false);
+      await fetchQueuePlayers();
+      toast.success('Saiu da fila com sucesso!');
+
     } catch (error: any) {
       console.error('Erro ao sair da fila:', error);
-      toast.error(error.message || 'Erro ao sair da fila');
+      setQueueState(prev => ({
+        ...prev,
+        error: error.message || 'Erro ao sair da fila'
+      }));
     } finally {
       setActionLoading(false);
     }
   };
 
-  // Efeitos de carregamento e polling
+  // Polling automático a cada 3 segundos
   useEffect(() => {
     fetchQueuePlayers(true);
-    const interval = setInterval(() => fetchQueuePlayers(), 5000);
+
+    const interval = setInterval(() => {
+      if (!actionLoading) { // Não fazer polling durante ações
+        fetchQueuePlayers();
+      }
+    }, 3000);
+
     return () => clearInterval(interval);
-  }, []);
-  
+  }, [actionLoading]);
+
+  // Limpar erros após 5 segundos
   useEffect(() => {
     if (queueState.error && !queueState.isLoading) {
-      const timer = setTimeout(() => setQueueState(prev => ({ ...prev, error: null })), 5000);
+      const timer = setTimeout(() => {
+        setQueueState(prev => ({ ...prev, error: null }));
+      }, 5000);
       return () => clearTimeout(timer);
     }
   }, [queueState.error, queueState.isLoading]);
 
-  // --- COMPONENTES VISUAIS (JSX) ---
-
+  // Componente para slot de jogador ocupado
   const PlayerSlot: React.FC<{ player: QueuePlayer; position: number }> = ({ player, position }) => (
     <div 
       className="animate-fade-in flex flex-col items-center p-4 bg-slate-800/90 rounded-xl border border-slate-700/50 transition-all duration-300 hover:border-blue-500/50 hover:bg-slate-700/90"
@@ -210,6 +375,7 @@ const MatchmakingQueue: React.FC = () => {
     </div>
   );
 
+  // Componente para slot vazio
   const EmptySlot: React.FC<{ position: number }> = ({ position }) => (
     <div 
       className="flex flex-col items-center p-4 bg-slate-900/50 rounded-xl border border-slate-800/50 transition-all duration-300"
@@ -219,13 +385,17 @@ const MatchmakingQueue: React.FC = () => {
       <div className="w-16 h-16 mb-3 rounded-full border-2 border-dashed border-slate-600 flex items-center justify-center">
         <UserPlus className="w-8 h-8 text-slate-500" />
       </div>
-      <span className="text-slate-400 text-sm text-center">Aguardando...</span>
+      <span className="text-slate-400 text-sm text-center">
+        Aguardando...
+      </span>
       <div className="flex items-center mt-2 text-slate-500 text-xs">
-        <Clock className="w-3 h-3 mr-1" /> Vazio
+        <Clock className="w-3 h-3 mr-1" />
+        Vazio
       </div>
     </div>
   );
 
+  // Componente para skeleton de loading
   const LoadingSkeleton: React.FC = () => (
     <div className="flex flex-col items-center p-4 bg-slate-800/50 rounded-xl border border-slate-700/30">
       <Skeleton className="w-16 h-16 rounded-full mb-3 bg-slate-700" />
@@ -234,6 +404,7 @@ const MatchmakingQueue: React.FC = () => {
     </div>
   );
 
+  // Render do estado de erro crítico
   if (queueState.error && queueState.isLoading) {
     return (
       <Card className="max-w-2xl mx-auto bg-slate-900/95 border-red-500/20 shadow-xl">
@@ -241,8 +412,14 @@ const MatchmakingQueue: React.FC = () => {
           <AlertCircle className="w-16 h-16 text-red-400 mx-auto mb-4" />
           <h3 className="text-xl font-semibold text-slate-100 mb-2">Erro de Conexão</h3>
           <p className="text-red-300 mb-6">{queueState.error}</p>
-          <Button onClick={() => fetchQueuePlayers(true)} variant="destructive" className="bg-red-600 hover:bg-red-700 text-white font-medium">
-            <RefreshCw className="w-4 h-4 mr-2" /> Tentar Novamente
+          <Button 
+            onClick={() => fetchQueuePlayers(true)}
+            variant="destructive"
+            className="bg-red-600 hover:bg-red-700 text-white font-medium"
+            aria-label="Tentar conectar novamente"
+          >
+            <RefreshCw className="w-4 h-4 mr-2" />
+            Tentar Novamente
           </Button>
         </CardContent>
       </Card>
@@ -255,7 +432,9 @@ const MatchmakingQueue: React.FC = () => {
         <CardTitle className="text-slate-100 flex items-center justify-center gap-2 text-xl font-bold">
           <Users className="w-6 h-6 text-blue-400" />
           Procurando Partida...
-          {queueState.isPolling && <Loader2 className="w-4 h-4 animate-spin text-blue-400 ml-2" />}
+          {queueState.isPolling && (
+            <Loader2 className="w-4 h-4 animate-spin text-blue-400 ml-2" />
+          )}
         </CardTitle>
         <p className="text-slate-300 text-sm font-medium">
           {queueState.players.length}/4 jogadores na fila
@@ -263,14 +442,27 @@ const MatchmakingQueue: React.FC = () => {
       </CardHeader>
 
       <CardContent className="space-y-6 p-6">
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4" role="list" aria-label="Lista de jogadores na fila">
+        {/* Grid de slots de jogadores */}
+        <div 
+          className="grid grid-cols-2 md:grid-cols-4 gap-4"
+          role="list"
+          aria-label="Lista de jogadores na fila"
+        >
           {Array.from({ length: 4 }, (_, index) => {
-            if (queueState.isLoading) return <LoadingSkeleton key={index} />;
+            if (queueState.isLoading) {
+              return <LoadingSkeleton key={index} />;
+            }
+            
             const player = queueState.players[index];
-            return player ? <PlayerSlot key={player.id} player={player} position={index} /> : <EmptySlot key={index} position={index} />;
+            return player ? (
+              <PlayerSlot key={player.id} player={player} position={index} />
+            ) : (
+              <EmptySlot key={index} position={index} />
+            );
           })}
         </div>
 
+        {/* Informações da partida */}
         <div className="bg-slate-800/70 rounded-lg p-4 border border-slate-700/30">
           <div className="grid grid-cols-2 gap-4 text-sm">
             <div className="text-center">
@@ -284,12 +476,14 @@ const MatchmakingQueue: React.FC = () => {
           </div>
         </div>
 
+        {/* Exibir erro não-crítico */}
         {queueState.error && !queueState.isLoading && (
           <div className="bg-red-900/20 border border-red-500/30 rounded-lg p-3 text-center">
             <p className="text-red-300 text-sm font-medium">{queueState.error}</p>
           </div>
         )}
 
+        {/* Botão de ação */}
         <Button
           onClick={isUserInQueue ? leaveQueue : joinQueue}
           disabled={!user || actionLoading || (queueState.players.length >= 4 && !isUserInQueue)}
@@ -313,9 +507,10 @@ const MatchmakingQueue: React.FC = () => {
           }
         </Button>
 
+        {/* Status da conexão */}
         <div className="flex items-center justify-center text-xs text-slate-400 font-medium">
           <div className="w-2 h-2 bg-emerald-400 rounded-full mr-2 animate-pulse" />
-          Conectado
+          Conectado • Atualizando a cada 3s
         </div>
       </CardContent>
     </Card>
