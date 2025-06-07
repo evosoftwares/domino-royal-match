@@ -113,16 +113,7 @@ const Dashboard = () => {
               <p className="text-sm text-purple-300">Pronto para a próxima partida?</p>
             </div>
           </div>
-          <div className="flex items-center gap-2">
-            <Button onClick={() => setIsRulesModalOpen(true)} variant="outline" className="border-white/20 hover:bg-white/10">
-              <BookOpen size={16} className="mr-2" />
-              <span className="hidden sm:inline">Regras</span>
-            </Button>
-            <Button onClick={logout} variant="destructive" className="bg-red-500/20 hover:bg-red-500/40 border border-red-500/30">
-              <LogOut size={16} className="mr-2" />
-              <span className="hidden sm:inline">Sair</span>
-            </Button>
-          </div>
+         
         </header>
 
         <main className="space-y-8">
