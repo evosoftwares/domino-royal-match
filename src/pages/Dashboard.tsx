@@ -1,70 +1,50 @@
-
-import React, { useState } from 'react';
+import React from 'react';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/hooks/useAuth';
 import { useWallet } from '@/hooks/useWallet';
 import WalletBalance from '@/components/wallet/WalletBalance';
 import TransactionForm from '@/components/wallet/TransactionForm';
 import TransactionHistory from '@/components/wallet/TransactionHistory';
-import DominoRules from '@/components/DominoRules';
-import { LogOut, User, BookOpen, ChevronDown, ChevronUp } from 'lucide-react';
+import { LogOut, User } from 'lucide-react';
 
 const Dashboard = () => {
   const { user, logout } = useAuth();
   const { wallet, transactions, loading } = useWallet();
-  const [showRules, setShowRules] = useState(false);
 
   return (
+    // O fundo gradiente ocupa toda a altura da tela
     <div className="min-h-screen bg-gradient-to-br from-purple-900 via-purple-800 to-black">
-      <div className="container mx-auto px-4 py-8">
-        {/* Header */}
-        <div className="flex justify-between items-center mb-8">
+      {/* Container principal com espaçamento responsivo */}
+      <div className="container mx-auto px-4 py-6 sm:py-8">
+        
+        {/* Cabeçalho: ajusta para coluna em telas pequenas e linha em telas médias */}
+        <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center mb-8 gap-4 sm:gap-0">
           <div className="flex items-center space-x-3">
             <User className="h-8 w-8 text-white" />
             <div>
-              <h1 className="text-2xl font-bold text-white">
+              {/* Título com tamanho de fonte responsivo */}
+              <h1 className="text-xl sm:text-2xl font-bold text-white">
                 Olá, {user?.name}!
               </h1>
-              <p className="text-purple-200">
+              <p className="text-purple-200 text-sm sm:text-base">
                 Bem-vindo à sua carteira digital
               </p>
             </div>
           </div>
-          <div className="flex items-center space-x-3">
-            <Button
-              onClick={() => setShowRules(!showRules)}
-              variant="outline"
-              size="sm"
-              className="text-white border-white hover:bg-white hover:text-purple-900"
-            >
-              <BookOpen className="h-4 w-4 mr-2" />
-              <span>Regras</span>
-              {showRules ? (
-                <ChevronUp className="h-4 w-4 ml-2" />
-              ) : (
-                <ChevronDown className="h-4 w-4 ml-2" />
-              )}
-            </Button>
-            <Button
-              onClick={logout}
-              variant="outline"
-              size="sm"
-              className="text-white border-white hover:bg-white hover:text-purple-900"
-            >
-              <LogOut className="h-4 w-4 mr-2 text-white" />
-              <span className="text-white">Sair</span>
-            </Button>
-          </div>
+          <Button
+            onClick={logout}
+            variant="outline"
+            size="sm"
+            className="text-white border-white hover:bg-white hover:text-purple-900 group" // Adicionado 'group' para o hover do ícone
+          >
+            {/* O ícone herda a cor do botão e muda no hover */}
+            <LogOut className="h-4 w-4 mr-2" /> 
+            {/* O texto 'Sair' fica oculto em telas muito pequenas (<640px) */}
+            <span className="hidden sm:inline">Sair</span>
+          </Button>
         </div>
 
-        {/* Rules Section */}
-        {showRules && (
-          <div className="mb-8">
-            <DominoRules />
-          </div>
-        )}
-
-        {/* Balance Card */}
+        {/* Card de Saldo */}
         <div className="mb-8">
           <WalletBalance 
             balance={wallet?.balance || 0} 
@@ -72,14 +52,14 @@ const Dashboard = () => {
           />
         </div>
 
-        {/* Main Content */}
-        <div className="grid lg:grid-cols-2 gap-8">
-          {/* Transaction Form */}
+        {/* Conteúdo Principal: grid de 1 coluna em mobile, 2 em desktop */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+          {/* Formulário de Transação */}
           <div>
             <TransactionForm />
           </div>
 
-          {/* Transaction History */}
+          {/* Histórico de Transações */}
           <div>
             <TransactionHistory 
               transactions={transactions}
