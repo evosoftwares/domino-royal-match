@@ -154,37 +154,7 @@ const Game: React.FC = () => {
   return <div className="min-h-screen bg-gradient-to-br from-purple-900 via-purple-800 to-black">
       <div className="container mx-auto px-4 py-8">
         {/* Header com informações do jogo */}
-        <div className="mb-6">
-          <div className="flex items-center justify-between mb-4">
-            <h1 className="text-3xl font-bold text-white">
-              Dominó Multiplayer
-            </h1>
-            <Button onClick={handleBackToLobby} variant="outline" className="border-purple-400/30 bg-purple-950 hover:bg-purple-800 text-rose-500">
-              Voltar ao Lobby
-            </Button>
-          </div>
-          
-          <div className="bg-gradient-to-r from-purple-900/50 to-black/50 rounded-xl p-4 border border-purple-600/30">
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
-              <div>
-                <div className="text-purple-200 text-sm">Status</div>
-                <div className="text-white font-semibold capitalize">{gameData.status}</div>
-              </div>
-              <div>
-                <div className="text-purple-200 text-sm">Prêmio</div>
-                <div className="text-emerald-400 font-semibold">R$ {gameData.prize_amount.toFixed(2)}</div>
-              </div>
-              <div>
-                <div className="text-purple-200 text-sm">Jogadores</div>
-                <div className="text-blue-400 font-semibold">{players.length}/4</div>
-              </div>
-              <div>
-                <div className="text-purple-200 text-sm">ID do Jogo</div>
-                <div className="text-slate-300 font-mono text-xs">{gameId?.slice(0, 8)}...</div>
-              </div>
-            </div>
-          </div>
-        </div>
+        
 
         {/* Componente do jogo */}
         <GameRoom />
