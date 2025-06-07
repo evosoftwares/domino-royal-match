@@ -1,9 +1,11 @@
+
 import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Skeleton } from '@/components/ui/skeleton';
 import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/hooks/useAuth';
 import { 
   Loader2, 
   Users, 
@@ -29,15 +31,8 @@ interface QueueState {
   error: string | null;
 }
 
-// Mock do usuário atual
-const CURRENT_USER: Player = {
-  id: 'user-123',
-  username: 'João Silva',
-  avatar_url: '/placeholder.svg',
-  joined_at: new Date().toISOString()
-};
-
 const MatchmakingQueue: React.FC = () => {
+  const { user } = useAuth();
   const [queueState, setQueueState] = useState<QueueState>({
     players: [],
     isLoading: true,
@@ -57,29 +52,26 @@ const MatchmakingQueue: React.FC = () => {
         setQueueState(prev => ({ ...prev, isPolling: true, error: null }));
       }
 
+      // Buscar apenas da tabela matchmaking_queue sem JOIN
       const { data, error } = await supabase
         .from('matchmaking_queue')
-        .select(`
-          user_id,
-          created_at,
-          users!inner(username)
-        `)
+        .select('user_id, created_at')
         .eq('status', 'searching')
         .order('created_at', { ascending: true })
         .limit(4);
 
       if (error) throw error;
 
-      // Transformar dados para o formato esperado
-      const players: Player[] = (data || []).map((item: any) => ({
+      // Transformar dados para o formato esperado (sem depender da tabela users)
+      const players: Player[] = (data || []).map((item: any, index: number) => ({
         id: item.user_id,
-        username: item.users?.username || `Jogador ${item.user_id.slice(0, 8)}`,
+        username: `Jogador ${index + 1}`,
         avatar_url: '/placeholder.svg',
         joined_at: item.created_at
       }));
 
       // Verificar se o usuário atual está na fila
-      const userInQueue = players.some(player => player.id === CURRENT_USER.id);
+      const userInQueue = user ? players.some(player => player.id === user.id) : false;
       setIsUserInQueue(userInQueue);
 
       setQueueState(prev => ({
@@ -103,12 +95,20 @@ const MatchmakingQueue: React.FC = () => {
 
   // Função para entrar na fila
   const joinQueue = async () => {
+    if (!user) {
+      setQueueState(prev => ({
+        ...prev,
+        error: 'Usuário não autenticado'
+      }));
+      return;
+    }
+
     setActionLoading(true);
     try {
       const { error } = await supabase
         .from('matchmaking_queue')
         .insert({
-          user_id: CURRENT_USER.id,
+          user_id: user.id,
           status: 'searching'
         });
 
@@ -131,12 +131,14 @@ const MatchmakingQueue: React.FC = () => {
 
   // Função para sair da fila
   const leaveQueue = async () => {
+    if (!user) return;
+
     setActionLoading(true);
     try {
       const { error } = await supabase
         .from('matchmaking_queue')
         .delete()
-        .eq('user_id', CURRENT_USER.id);
+        .eq('user_id', user.id);
 
       if (error) throw error;
 
@@ -300,7 +302,7 @@ const MatchmakingQueue: React.FC = () => {
         {/* Botão de ação */}
         <Button
           onClick={isUserInQueue ? leaveQueue : joinQueue}
-          disabled={actionLoading || queueState.players.length >= 4 && !isUserInQueue}
+          disabled={!user || actionLoading || (queueState.players.length >= 4 && !isUserInQueue)}
           className={`w-full transition-all duration-300 font-semibold text-base py-3 ${
             isUserInQueue 
               ? 'bg-red-600 hover:bg-red-700 text-white shadow-lg hover:shadow-red-500/25' 
