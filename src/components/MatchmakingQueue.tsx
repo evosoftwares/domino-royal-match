@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -19,9 +18,13 @@ import {
 // Interfaces TypeScript
 interface Player {
   id: string;
-  username: string;
-  avatar_url: string;
-  joined_at: string;
+  email: string;
+  created_at: string;
+  user_metadata?: {
+    full_name?: string;
+    avatar_url?: string;
+    name?: string;
+  };
 }
 
 interface QueueState {
@@ -43,7 +46,7 @@ const MatchmakingQueue: React.FC = () => {
   const [isUserInQueue, setIsUserInQueue] = useState(false);
   const [actionLoading, setActionLoading] = useState(false);
 
-  // Função para buscar jogadores da fila
+  // Função para buscar jogadores da fila com dados reais do auth.users
   const fetchQueuePlayers = async (isInitialLoad = false) => {
     try {
       if (isInitialLoad) {
@@ -52,23 +55,72 @@ const MatchmakingQueue: React.FC = () => {
         setQueueState(prev => ({ ...prev, isPolling: true, error: null }));
       }
 
-      // Buscar apenas da tabela matchmaking_queue sem JOIN
-      const { data, error } = await supabase
+      // Buscar IDs dos usuários na fila
+      const { data: queueData, error: queueError } = await supabase
         .from('matchmaking_queue')
         .select('user_id, created_at')
         .eq('status', 'searching')
         .order('created_at', { ascending: true })
         .limit(4);
 
-      if (error) throw error;
+      if (queueError) throw queueError;
 
-      // Transformar dados para o formato esperado (sem depender da tabela users)
-      const players: Player[] = (data || []).map((item: any, index: number) => ({
-        id: item.user_id,
-        username: `Jogador ${index + 1}`,
-        avatar_url: '/placeholder.svg',
-        joined_at: item.created_at
-      }));
+      // Se não há usuários na fila, limpar estado
+      if (!queueData || queueData.length === 0) {
+        setQueueState(prev => ({
+          ...prev,
+          players: [],
+          isLoading: false,
+          isPolling: false,
+          error: null
+        }));
+        setIsUserInQueue(false);
+        return;
+      }
+
+      // Buscar dados dos usuários do auth.users usando RPC ou consulta direta
+      const userIds = queueData.map(item => item.user_id);
+      
+      // Usando RPC para acessar auth.users (método mais seguro)
+      const { data: userData, error: userError } = await supabase
+        .rpc('get_users_by_ids', { user_ids: userIds });
+
+      if (userError) {
+        console.warn('Erro ao buscar dados dos usuários via RPC:', userError);
+        
+        // Fallback: criar players básicos apenas com IDs
+        const players: Player[] = queueData.map((item, index) => ({
+          id: item.user_id,
+          email: `user${index + 1}@example.com`,
+          created_at: item.created_at,
+          user_metadata: {
+            full_name: `Usuário ${index + 1}`
+          }
+        }));
+
+        const userInQueue = user ? players.some(player => player.id === user.id) : false;
+        setIsUserInQueue(userInQueue);
+
+        setQueueState(prev => ({
+          ...prev,
+          players,
+          isLoading: false,
+          isPolling: false,
+          error: null
+        }));
+        return;
+      }
+
+      // Combinar dados da fila com dados dos usuários
+      const players: Player[] = queueData.map(queueItem => {
+        const userInfo = userData?.find((u: any) => u.id === queueItem.user_id);
+        return {
+          id: queueItem.user_id,
+          email: userInfo?.email || 'email@exemplo.com',
+          created_at: queueItem.created_at,
+          user_metadata: userInfo?.user_metadata || {}
+        };
+      });
 
       // Verificar se o usuário atual está na fila
       const userInQueue = user ? players.some(player => player.id === user.id) : false;
@@ -105,6 +157,22 @@ const MatchmakingQueue: React.FC = () => {
 
     setActionLoading(true);
     try {
+      // Verificar se já está na fila
+      const { data: existingEntry } = await supabase
+        .from('matchmaking_queue')
+        .select('user_id')
+        .eq('user_id', user.id)
+        .single();
+
+      if (existingEntry) {
+        setQueueState(prev => ({
+          ...prev,
+          error: 'Você já está na fila'
+        }));
+        setActionLoading(false);
+        return;
+      }
+
       const { error } = await supabase
         .from('matchmaking_queue')
         .insert({
@@ -169,27 +237,36 @@ const MatchmakingQueue: React.FC = () => {
   }, []);
 
   // Componente para slot de jogador ocupado
-  const PlayerSlot: React.FC<{ player: Player; position: number }> = ({ player, position }) => (
-    <div 
-      className="animate-fade-in flex flex-col items-center p-4 bg-slate-800/90 rounded-xl border border-slate-700/50 transition-all duration-300 hover:border-blue-500/50 hover:bg-slate-700/90"
-      role="listitem"
-      aria-label={`Jogador ${position + 1}: ${player.username}`}
-    >
-      <Avatar className="w-16 h-16 mb-3 border-2 border-blue-400">
-        <AvatarImage src={player.avatar_url} alt={`Avatar de ${player.username}`} />
-        <AvatarFallback className="bg-blue-600 text-white font-semibold">
-          {player.username.charAt(0).toUpperCase()}
-        </AvatarFallback>
-      </Avatar>
-      <span className="text-slate-100 font-medium text-sm text-center truncate w-full">
-        {player.username}
-      </span>
-      <div className="flex items-center mt-2 text-emerald-400 text-xs font-medium">
-        <div className="w-2 h-2 bg-emerald-400 rounded-full mr-2 animate-pulse" />
-        Online
+  const PlayerSlot: React.FC<{ player: Player; position: number }> = ({ player, position }) => {
+    const displayName = player.user_metadata?.full_name || 
+                       player.user_metadata?.name || 
+                       player.email.split('@')[0] || 
+                       `Usuário ${position + 1}`;
+
+    const avatarUrl = player.user_metadata?.avatar_url || '/placeholder.svg';
+
+    return (
+      <div 
+        className="animate-fade-in flex flex-col items-center p-4 bg-slate-800/90 rounded-xl border border-slate-700/50 transition-all duration-300 hover:border-blue-500/50 hover:bg-slate-700/90"
+        role="listitem"
+        aria-label={`Jogador ${position + 1}: ${displayName}`}
+      >
+        <Avatar className="w-16 h-16 mb-3 border-2 border-blue-400">
+          <AvatarImage src={avatarUrl} alt={`Avatar de ${displayName}`} />
+          <AvatarFallback className="bg-blue-600 text-white font-semibold">
+            {displayName.charAt(0).toUpperCase()}
+          </AvatarFallback>
+        </Avatar>
+        <span className="text-slate-100 font-medium text-sm text-center truncate w-full">
+          {displayName}
+        </span>
+        <div className="flex items-center mt-2 text-emerald-400 text-xs font-medium">
+          <div className="w-2 h-2 bg-emerald-400 rounded-full mr-2 animate-pulse" />
+          Online
+        </div>
       </div>
-    </div>
-  );
+    );
+  };
 
   // Componente para slot vazio
   const EmptySlot: React.FC<{ position: number }> = ({ position }) => (
