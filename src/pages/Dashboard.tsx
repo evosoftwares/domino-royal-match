@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/hooks/useAuth';
@@ -34,8 +33,8 @@ const Dashboard = () => {
             size="sm"
             className="text-white border-white hover:bg-white hover:text-purple-900"
           >
-            <LogOut className="h-4 w-4 mr-2 text-white" />
-            <span className="text-white">Sair</span>
+            <LogOut className="h-4 w-4 mr-2 text-purple-300" />
+            <span className="text-purple-300">Sair</span>
           </Button>
         </div>
 
