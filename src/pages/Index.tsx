@@ -4,7 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import MatchmakingQueue from "@/components/MatchmakingQueue";
 import UserBalance from "@/components/UserBalance";
-import { Wallet, User, LogOut, Menu } from 'lucide-react';
+import { User, LogOut } from 'lucide-react';
 
 const Index = () => {
   const navigate = useNavigate();
@@ -15,53 +15,30 @@ const Index = () => {
       <div className="container mx-auto px-3 py-4 sm:px-4 sm:py-8">
         {/* Header Mobile Optimized */}
         <div className="flex flex-col space-y-4 mb-6 sm:flex-row sm:justify-between sm:items-center sm:space-y-0 sm:mb-8">
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-center sm:justify-start">
             <h1 className="text-2xl sm:text-3xl font-bold text-white">
               Dominó Multiplayer
             </h1>
-            
-            {/* Mobile menu button - visible only on small screens */}
-            <div className="sm:hidden">
-              <Button
-                variant="ghost"
-                size="sm"
-                className="text-white hover:bg-white/20"
-              >
-                <Menu className="h-5 w-5" />
-              </Button>
-            </div>
           </div>
           
-          {/* Navigation - Stack on mobile, inline on desktop */}
-          <div className="flex flex-col space-y-2 sm:flex-row sm:items-center sm:space-y-0 sm:space-x-4">
-            <Button
-              onClick={() => navigate('/dashboard')}
-              variant="outline"
-              size="sm"
-              className="w-full sm:w-auto text-white border-white hover:bg-white hover:text-purple-900 justify-center sm:justify-start"
-            >
-              <Wallet className="h-4 w-4 mr-2" />
-              Carteira
-            </Button>
-            
-            <div className="flex items-center justify-between sm:justify-center space-x-2 text-white p-2 sm:p-0">
-              <div className="flex items-center space-x-2">
-                <User className="h-4 w-4" />
-                <span className="text-sm truncate max-w-[120px] sm:max-w-none">
-                  {user?.name}
-                </span>
-              </div>
-              
-              <Button
-                onClick={logout}
-                variant="ghost"
-                size="sm"
-                className="text-white hover:bg-white/20 ml-2"
-              >
-                <LogOut className="h-4 w-4" />
-                <span className="ml-1 sm:hidden">Sair</span>
-              </Button>
+          {/* User info and logout */}
+          <div className="flex items-center justify-between sm:justify-center space-x-2 text-white p-2 sm:p-0">
+            <div className="flex items-center space-x-2">
+              <User className="h-4 w-4" />
+              <span className="text-sm truncate max-w-[120px] sm:max-w-none">
+                {user?.name}
+              </span>
             </div>
+            
+            <Button
+              onClick={logout}
+              variant="ghost"
+              size="sm"
+              className="text-white hover:bg-white/20 ml-2"
+            >
+              <LogOut className="h-4 w-4" />
+              <span className="ml-1 sm:hidden">Sair</span>
+            </Button>
           </div>
         </div>
 
@@ -73,9 +50,12 @@ const Index = () => {
               Jogue dominó em tempo real com amigos
             </p>
             
-            {/* User Balance - Mobile optimized */}
+            {/* User Balance - Mobile optimized with click to dashboard */}
             <div className="flex justify-center mb-4 sm:mb-8">
-              <div className="w-full max-w-sm sm:max-w-none">
+              <div 
+                className="w-full max-w-sm sm:max-w-none cursor-pointer"
+                onClick={() => navigate('/dashboard')}
+              >
                 <UserBalance />
               </div>
             </div>
