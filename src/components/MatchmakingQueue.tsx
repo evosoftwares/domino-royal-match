@@ -203,6 +203,16 @@ const MatchmakingQueue: React.FC = () => {
         error: null
       }));
 
+      // --- MODIFICATION START ---
+      // Se a fila estiver cheia e o usuário atual fizer parte dela,
+      // aciona proativamente a criação do jogo. A função RPC no backend
+      // deve ser idempotente para lidar com múltiplas chamadas.
+      if (players.length >= 4 && userInQueue) {
+        console.log('Fila cheia com usuário atual. Tentando criar o jogo.');
+        tryCreateGame();
+      }
+      // --- MODIFICATION END ---
+
     } catch (error: any) {
       console.error('Erro ao buscar fila:', error);
       setQueueState(prev => ({
