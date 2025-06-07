@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -95,12 +94,11 @@ const MatchmakingQueue: React.FC = () => {
 
         // Se for o usuário atual, usar seus dados reais
         if (user && queueItem.user_id === user.id) {
-          displayName = user.user_metadata?.full_name || 
-                       user.user_metadata?.name ||
+          displayName = user.name || 
                        user.email?.split('@')[0] ||
                        'Você';
           email = user.email || 'seu@email.com';
-          avatarUrl = user.user_metadata?.avatar_url || '/placeholder.svg';
+          avatarUrl = '/placeholder.svg'; // Usando placeholder já que não temos avatar_url no tipo User
         }
 
         return {
