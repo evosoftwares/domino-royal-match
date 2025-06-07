@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -170,21 +169,21 @@ const MatchmakingQueue: React.FC = () => {
   // Componente para slot de jogador ocupado
   const PlayerSlot: React.FC<{ player: Player; position: number }> = ({ player, position }) => (
     <div 
-      className="animate-fade-in flex flex-col items-center p-4 bg-gradient-to-br from-purple-900/30 to-purple-800/20 rounded-xl border border-purple-600/30 transition-all duration-300 hover:border-purple-500/50"
+      className="animate-fade-in flex flex-col items-center p-4 bg-slate-800/90 rounded-xl border border-slate-700/50 transition-all duration-300 hover:border-blue-500/50 hover:bg-slate-700/90"
       role="listitem"
       aria-label={`Jogador ${position + 1}: ${player.username}`}
     >
-      <Avatar className="w-16 h-16 mb-3 border-2 border-purple-400">
+      <Avatar className="w-16 h-16 mb-3 border-2 border-blue-400">
         <AvatarImage src={player.avatar_url} alt={`Avatar de ${player.username}`} />
-        <AvatarFallback className="bg-purple-600 text-white font-semibold">
+        <AvatarFallback className="bg-blue-600 text-white font-semibold">
           {player.username.charAt(0).toUpperCase()}
         </AvatarFallback>
       </Avatar>
-      <span className="text-white font-medium text-sm text-center truncate w-full">
+      <span className="text-slate-100 font-medium text-sm text-center truncate w-full">
         {player.username}
       </span>
-      <div className="flex items-center mt-2 text-green-400 text-xs">
-        <div className="w-2 h-2 bg-green-400 rounded-full mr-2 animate-pulse" />
+      <div className="flex items-center mt-2 text-emerald-400 text-xs font-medium">
+        <div className="w-2 h-2 bg-emerald-400 rounded-full mr-2 animate-pulse" />
         Online
       </div>
     </div>
@@ -193,17 +192,17 @@ const MatchmakingQueue: React.FC = () => {
   // Componente para slot vazio
   const EmptySlot: React.FC<{ position: number }> = ({ position }) => (
     <div 
-      className="flex flex-col items-center p-4 bg-gradient-to-br from-gray-800/50 to-gray-700/30 rounded-xl border border-gray-600/30 transition-all duration-300"
+      className="flex flex-col items-center p-4 bg-slate-900/50 rounded-xl border border-slate-800/50 transition-all duration-300"
       role="listitem"
       aria-label={`Slot ${position + 1}: Aguardando jogador`}
     >
-      <div className="w-16 h-16 mb-3 rounded-full border-2 border-dashed border-gray-500 flex items-center justify-center">
-        <UserPlus className="w-8 h-8 text-gray-500" />
+      <div className="w-16 h-16 mb-3 rounded-full border-2 border-dashed border-slate-600 flex items-center justify-center">
+        <UserPlus className="w-8 h-8 text-slate-500" />
       </div>
-      <span className="text-gray-400 text-sm text-center">
+      <span className="text-slate-400 text-sm text-center">
         Aguardando jogador...
       </span>
-      <div className="flex items-center mt-2 text-gray-500 text-xs">
+      <div className="flex items-center mt-2 text-slate-500 text-xs">
         <Clock className="w-3 h-3 mr-1" />
         Vazio
       </div>
@@ -212,25 +211,25 @@ const MatchmakingQueue: React.FC = () => {
 
   // Componente para skeleton de loading
   const LoadingSkeleton: React.FC = () => (
-    <div className="flex flex-col items-center p-4 bg-gradient-to-br from-gray-800/50 to-gray-700/30 rounded-xl border border-gray-600/30">
-      <Skeleton className="w-16 h-16 rounded-full mb-3" />
-      <Skeleton className="h-4 w-20 mb-2" />
-      <Skeleton className="h-3 w-16" />
+    <div className="flex flex-col items-center p-4 bg-slate-800/50 rounded-xl border border-slate-700/30">
+      <Skeleton className="w-16 h-16 rounded-full mb-3 bg-slate-700" />
+      <Skeleton className="h-4 w-20 mb-2 bg-slate-700" />
+      <Skeleton className="h-3 w-16 bg-slate-700" />
     </div>
   );
 
   // Render do estado de erro
   if (queueState.error && queueState.isLoading) {
     return (
-      <Card className="max-w-2xl mx-auto bg-gradient-to-br from-red-900/50 to-black/50 border-red-600/30">
+      <Card className="max-w-2xl mx-auto bg-slate-900/95 border-red-500/20 shadow-xl">
         <CardContent className="p-8 text-center">
           <AlertCircle className="w-16 h-16 text-red-400 mx-auto mb-4" />
-          <h3 className="text-xl font-semibold text-white mb-2">Erro de Conexão</h3>
-          <p className="text-red-200 mb-6">{queueState.error}</p>
+          <h3 className="text-xl font-semibold text-slate-100 mb-2">Erro de Conexão</h3>
+          <p className="text-red-300 mb-6">{queueState.error}</p>
           <Button 
             onClick={() => fetchQueuePlayers(true)}
             variant="destructive"
-            className="bg-red-600 hover:bg-red-700"
+            className="bg-red-600 hover:bg-red-700 text-white font-medium"
             aria-label="Tentar conectar novamente"
           >
             <RefreshCw className="w-4 h-4 mr-2" />
@@ -242,21 +241,21 @@ const MatchmakingQueue: React.FC = () => {
   }
 
   return (
-    <Card className="max-w-2xl mx-auto bg-gradient-to-br from-purple-900/50 to-black/50 border-purple-600/30">
-      <CardHeader className="text-center relative">
-        <CardTitle className="text-white flex items-center justify-center gap-2">
-          <Users className="w-6 h-6 text-purple-400" />
+    <Card className="max-w-2xl mx-auto bg-slate-900/95 border-slate-700/50 shadow-2xl">
+      <CardHeader className="text-center relative bg-gradient-to-r from-blue-600/10 to-indigo-600/10 border-b border-slate-700/50">
+        <CardTitle className="text-slate-100 flex items-center justify-center gap-2 text-xl font-bold">
+          <Users className="w-6 h-6 text-blue-400" />
           Procurando Partida...
           {queueState.isPolling && (
-            <Loader2 className="w-4 h-4 animate-spin text-purple-400 ml-2" />
+            <Loader2 className="w-4 h-4 animate-spin text-blue-400 ml-2" />
           )}
         </CardTitle>
-        <p className="text-purple-200 text-sm">
+        <p className="text-slate-300 text-sm font-medium">
           {queueState.players.length}/4 jogadores na fila
         </p>
       </CardHeader>
 
-      <CardContent className="space-y-6">
+      <CardContent className="space-y-6 p-6">
         {/* Grid de slots de jogadores */}
         <div 
           className="grid grid-cols-2 md:grid-cols-4 gap-4"
@@ -278,23 +277,23 @@ const MatchmakingQueue: React.FC = () => {
         </div>
 
         {/* Informações da partida */}
-        <div className="bg-purple-800/20 rounded-lg p-4 border border-purple-600/20">
+        <div className="bg-slate-800/70 rounded-lg p-4 border border-slate-700/30">
           <div className="grid grid-cols-2 gap-4 text-sm">
             <div className="text-center">
-              <span className="text-purple-300">Taxa de entrada:</span>
-              <div className="text-white font-semibold">R$ 1,10</div>
+              <span className="text-slate-400 font-medium">Taxa de entrada:</span>
+              <div className="text-slate-100 font-bold text-lg">R$ 1,10</div>
             </div>
             <div className="text-center">
-              <span className="text-purple-300">Prêmio total:</span>
-              <div className="text-green-400 font-semibold">R$ 4,00</div>
+              <span className="text-slate-400 font-medium">Prêmio total:</span>
+              <div className="text-emerald-400 font-bold text-lg">R$ 4,00</div>
             </div>
           </div>
         </div>
 
         {/* Exibir erro não-crítico */}
         {queueState.error && !queueState.isLoading && (
-          <div className="bg-red-900/20 border border-red-600/30 rounded-lg p-3 text-center">
-            <p className="text-red-200 text-sm">{queueState.error}</p>
+          <div className="bg-red-900/20 border border-red-500/30 rounded-lg p-3 text-center">
+            <p className="text-red-300 text-sm font-medium">{queueState.error}</p>
           </div>
         )}
 
@@ -302,10 +301,10 @@ const MatchmakingQueue: React.FC = () => {
         <Button
           onClick={isUserInQueue ? leaveQueue : joinQueue}
           disabled={actionLoading || queueState.players.length >= 4 && !isUserInQueue}
-          className={`w-full transition-all duration-300 ${
+          className={`w-full transition-all duration-300 font-semibold text-base py-3 ${
             isUserInQueue 
-              ? 'bg-red-600 hover:bg-red-700 text-white' 
-              : 'bg-gradient-to-r from-purple-600 to-purple-700 hover:from-purple-700 hover:to-purple-800 text-white'
+              ? 'bg-red-600 hover:bg-red-700 text-white shadow-lg hover:shadow-red-500/25' 
+              : 'bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white shadow-lg hover:shadow-blue-500/25'
           }`}
           aria-label={isUserInQueue ? 'Sair da fila de matchmaking' : 'Entrar na fila de matchmaking'}
         >
@@ -323,8 +322,8 @@ const MatchmakingQueue: React.FC = () => {
         </Button>
 
         {/* Status da conexão */}
-        <div className="flex items-center justify-center text-xs text-purple-300">
-          <div className="w-2 h-2 bg-green-400 rounded-full mr-2 animate-pulse" />
+        <div className="flex items-center justify-center text-xs text-slate-400 font-medium">
+          <div className="w-2 h-2 bg-emerald-400 rounded-full mr-2 animate-pulse" />
           Conectado ao servidor
         </div>
       </CardContent>
