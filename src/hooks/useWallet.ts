@@ -23,7 +23,7 @@ export const useWallet = () => {
 
     try {
       const { data, error } = await supabase
-        .from('users')
+        .from('profiles')
         .select('*')
         .eq('id', user.id)
         .single();
@@ -33,7 +33,7 @@ export const useWallet = () => {
       }
 
       if (data) {
-        // Convert user data to wallet format
+        // Convert profile data to wallet format
         const walletData: Wallet = {
           id: data.id,
           user_id: data.id,
@@ -100,17 +100,17 @@ export const useWallet = () => {
 
       if (transactionError) throw transactionError;
 
-      // Update user balance
+      // Update profile balance
       const newBalance = wallet.balance + amount;
-      const { error: userError } = await supabase
-        .from('users')
+      const { error: profileError } = await supabase
+        .from('profiles')
         .update({ 
           balance: newBalance, 
           updated_at: new Date().toISOString() 
         })
         .eq('id', user!.id);
 
-      if (userError) throw userError;
+      if (profileError) throw profileError;
 
       // Update local state
       setWallet({ ...wallet, balance: newBalance });
@@ -161,17 +161,17 @@ export const useWallet = () => {
 
       if (transactionError) throw transactionError;
 
-      // Update user balance
+      // Update profile balance
       const newBalance = wallet.balance - amount;
-      const { error: userError } = await supabase
-        .from('users')
+      const { error: profileError } = await supabase
+        .from('profiles')
         .update({ 
           balance: newBalance, 
           updated_at: new Date().toISOString() 
         })
         .eq('id', user!.id);
 
-      if (userError) throw userError;
+      if (profileError) throw profileError;
 
       // Update local state
       setWallet({ ...wallet, balance: newBalance });
@@ -222,17 +222,17 @@ export const useWallet = () => {
 
       if (transactionError) throw transactionError;
 
-      // Update user balance
+      // Update profile balance
       const newBalance = wallet.balance - amount;
-      const { error: userError } = await supabase
-        .from('users')
+      const { error: profileError } = await supabase
+        .from('profiles')
         .update({ 
           balance: newBalance, 
           updated_at: new Date().toISOString() 
         })
         .eq('id', user!.id);
 
-      if (userError) throw userError;
+      if (profileError) throw profileError;
 
       // Update local state
       setWallet({ ...wallet, balance: newBalance });

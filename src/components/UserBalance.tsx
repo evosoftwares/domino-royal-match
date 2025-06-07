@@ -14,7 +14,7 @@ const UserBalance: React.FC = () => {
       if (!user.user) return;
 
       const { data, error } = await supabase
-        .from('users')
+        .from('profiles')
         .select('balance')
         .eq('id', user.user.id)
         .single();
@@ -41,7 +41,7 @@ const UserBalance: React.FC = () => {
         {
           event: 'UPDATE',
           schema: 'public',
-          table: 'users'
+          table: 'profiles'
         },
         () => {
           fetchBalance();
