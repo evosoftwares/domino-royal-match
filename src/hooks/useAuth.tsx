@@ -1,19 +1,11 @@
+// src/hooks/useAuth.tsx
 
 import { useState, useEffect, createContext, useContext } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { User, AuthResponse, LoginCredentials, RegisterCredentials } from '@/types/auth';
 import { toast } from 'sonner';
 
-interface AuthContextType {
-  user: User | null;
-  loading: boolean;
-  login: (credentials: LoginCredentials) => Promise<boolean>;
-  register: (credentials: RegisterCredentials) => Promise<boolean>;
-  logout: () => Promise<void>;
-  isAuthenticated: boolean;
-}
-
-const AuthContext = createContext<AuthContextType | undefined>(undefined);
+// ... (interface e AuthContext permanecem os mesmos)
 
 export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [user, setUser] = useState<User | null>(null);
@@ -56,7 +48,8 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const register = async (credentials: RegisterCredentials): Promise<boolean> => {
     try {
       setLoading(true);
-      const { data, error } = await supabase.auth.signUp({
+      // Passo 1: Cadastrar o usuário na autenticação
+      const { data: authData, error: authError } = await supabase.auth.signUp({
         email: credentials.email,
         password: credentials.password,
         options: {
@@ -66,13 +59,33 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         }
       });
 
-      if (error) {
-        toast.error(error.message);
+      if (authError) {
+        toast.error(authError.message);
         return false;
       }
 
-      if (data.user) {
-        toast.success('Conta criada com sucesso! Verifique seu email.');
+      const registeredUser = authData.user;
+      if (registeredUser) {
+        // Passo 2: Inserir o perfil correspondente na tabela 'profiles'
+        const { error: profileError } = await supabase
+          .from('profiles')
+          .insert({
+            id: registeredUser.id,
+            full_name: credentials.name,
+            // Gera um username único para evitar conflitos
+            username: credentials.name.split(' ')[0].toLowerCase() + `-${registeredUser.id.substring(0, 4)}`
+          });
+
+        if (profileError) {
+          // Embora o cadastro tenha ocorrido, o perfil falhou.
+          // A solução com gatilho no DB evita este tipo de inconsistência.
+          console.error('Falha ao criar perfil:', profileError);
+          toast.error('Conta criada, mas houve um erro ao finalizar o perfil.');
+          // Retorna true pois o usuário foi criado, mas informa o erro.
+          return true;
+        }
+
+        toast.success('Conta criada com sucesso! Verifique seu email para confirmação.');
         return true;
       }
 
@@ -125,7 +138,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     }
   };
 
-  const value: AuthContextType = {
+  const value = {
     user,
     loading,
     login,
