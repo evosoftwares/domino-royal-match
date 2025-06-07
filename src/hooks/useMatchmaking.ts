@@ -108,7 +108,7 @@ export const useMatchmaking = () => {
       
       if (error) throw error;
       
-      const response = data as MatchmakingResponse;
+      const response = data as unknown as MatchmakingResponse;
       
       if (response.success) {
         setState(prev => ({ 
@@ -138,7 +138,7 @@ export const useMatchmaking = () => {
       
       if (error) throw error;
       
-      const response = data as MatchmakingResponse;
+      const response = data as unknown as MatchmakingResponse;
       
       if (response.success) {
         setState(prev => ({ 
@@ -163,7 +163,7 @@ export const useMatchmaking = () => {
       
       if (error) throw error;
       
-      const response = data as MatchmakingResponse;
+      const response = data as unknown as MatchmakingResponse;
       
       if (response.success) {
         console.log('Jogo criado:', response.game_id);
