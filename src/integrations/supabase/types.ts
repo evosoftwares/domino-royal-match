@@ -55,7 +55,7 @@ export type Database = {
             foreignKeyName: "game_players_user_id_fkey"
             columns: ["user_id"]
             isOneToOne: false
-            referencedRelation: "users"
+            referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
         ]
@@ -132,14 +132,14 @@ export type Database = {
             foreignKeyName: "games_current_player_turn_fkey"
             columns: ["current_player_turn"]
             isOneToOne: false
-            referencedRelation: "users"
+            referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
           {
             foreignKeyName: "games_winner_id_fkey"
             columns: ["winner_id"]
             isOneToOne: false
-            referencedRelation: "users"
+            referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
         ]
@@ -192,33 +192,30 @@ export type Database = {
       profiles: {
         Row: {
           avatar_url: string | null
-          bio: string | null
+          balance: number
           created_at: string | null
           full_name: string | null
           id: string
-          phone: string | null
           updated_at: string | null
-          username: string | null
+          username: string
         }
         Insert: {
           avatar_url?: string | null
-          bio?: string | null
+          balance?: number
           created_at?: string | null
           full_name?: string | null
           id: string
-          phone?: string | null
           updated_at?: string | null
-          username?: string | null
+          username: string
         }
         Update: {
           avatar_url?: string | null
-          bio?: string | null
+          balance?: number
           created_at?: string | null
           full_name?: string | null
           id?: string
-          phone?: string | null
           updated_at?: string | null
-          username?: string | null
+          username?: string
         }
         Relationships: []
       }
@@ -262,34 +259,10 @@ export type Database = {
             foreignKeyName: "transactions_user_id_fkey"
             columns: ["user_id"]
             isOneToOne: false
-            referencedRelation: "users"
+            referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
         ]
-      }
-      users: {
-        Row: {
-          balance: number
-          created_at: string | null
-          id: string
-          updated_at: string | null
-          username: string
-        }
-        Insert: {
-          balance?: number
-          created_at?: string | null
-          id: string
-          updated_at?: string | null
-          username: string
-        }
-        Update: {
-          balance?: number
-          created_at?: string | null
-          id?: string
-          updated_at?: string | null
-          username?: string
-        }
-        Relationships: []
       }
     }
     Views: {
