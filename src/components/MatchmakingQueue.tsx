@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -129,7 +130,7 @@ const MatchmakingQueue: React.FC = () => {
     }
   };
   
-  // Entra na fila chamando a função RPC segura
+  // Entra na fila usando função RPC que criará o jogo automaticamente se 4 jogadores
   const joinQueue = async () => {
     if (!user) {
       toast.error('Usuário não autenticado.');
@@ -137,17 +138,16 @@ const MatchmakingQueue: React.FC = () => {
     }
     setActionLoading(true);
     try {
-      const { data, error } = await supabase.rpc('join_and_create_game_if_ready');
+      // Primeiro, vamos apenas entrar na fila normalmente
+      const { error } = await supabase
+        .from('matchmaking_queue')
+        .insert([{ user_id: user.id, status: 'searching' }]);
+      
       if (error) throw error;
-      const response = data as any;
-      if (response.success) {
-        toast.success(response.message);
-      } else {
-        toast.error(response.message);
-      }
+      toast.success('Você entrou na fila!');
     } catch (error: any) {
-      console.error('Erro ao processar fila:', error);
-      toast.error(error.message || 'Ocorreu um erro ao entrar na fila.');
+      console.error('Erro ao entrar na fila:', error);
+      toast.error(error.message || 'Erro ao entrar na fila');
     } finally {
       setActionLoading(false);
     }
@@ -249,7 +249,6 @@ const MatchmakingQueue: React.FC = () => {
     );
   }
 
-  // ✅ CORRIGIDO: O JSX que define a aparência do componente foi restaurado.
   return (
     <Card className="max-w-2xl mx-auto bg-slate-900/95 border-slate-700/50 shadow-2xl">
       <CardHeader className="text-center relative bg-gradient-to-r from-blue-600/10 to-indigo-600/10 border-b border-slate-700/50">

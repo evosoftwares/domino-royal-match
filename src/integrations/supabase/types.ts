@@ -14,6 +14,7 @@ export type Database = {
           game_id: string
           hand: Json | null
           id: string
+          player_order: number | null
           points_in_hand: number | null
           position: number
           status: string
@@ -24,6 +25,7 @@ export type Database = {
           game_id: string
           hand?: Json | null
           id?: string
+          player_order?: number | null
           points_in_hand?: number | null
           position: number
           status?: string
@@ -34,6 +36,7 @@ export type Database = {
           game_id?: string
           hand?: Json | null
           id?: string
+          player_order?: number | null
           points_in_hand?: number | null
           position?: number
           status?: string
