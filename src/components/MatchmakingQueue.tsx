@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -16,15 +15,28 @@ import {
   UserMinus 
 } from 'lucide-react';
 
-// Interfaces TypeScript
-interface Player {
+// Interfaces TypeScript específicas
+interface AuthUser {
   id: string;
+  email: string;
+  user_metadata: {
+    full_name?: string;
+    avatar_url?: string;
+    name?: string;
+  };
   created_at: string;
-  display_name: string;
+}
+
+interface QueuePlayer {
+  id: string;
+  displayName: string;
+  email: string;
+  avatarUrl: string;
+  joinedAt: string;
 }
 
 interface QueueState {
-  players: Player[];
+  players: QueuePlayer[];
   isLoading: boolean;
   isPolling: boolean;
   error: string | null;
@@ -42,7 +54,7 @@ const MatchmakingQueue: React.FC = () => {
   const [isUserInQueue, setIsUserInQueue] = useState(false);
   const [actionLoading, setActionLoading] = useState(false);
 
-  // Função para buscar jogadores da fila
+  // Função para buscar jogadores da fila com método alternativo
   const fetchQueuePlayers = async (isInitialLoad = false) => {
     try {
       if (isInitialLoad) {
@@ -51,7 +63,7 @@ const MatchmakingQueue: React.FC = () => {
         setQueueState(prev => ({ ...prev, isPolling: true, error: null }));
       }
 
-      // Buscar usuários na fila
+      // Buscar IDs dos usuários na fila
       const { data: queueData, error: queueError } = await supabase
         .from('matchmaking_queue')
         .select('user_id, created_at')
@@ -74,12 +86,67 @@ const MatchmakingQueue: React.FC = () => {
         return;
       }
 
-      // Criar players básicos apenas com IDs e nomes genéricos
-      const players: Player[] = queueData.map((item, index) => ({
-        id: item.user_id,
-        created_at: item.created_at,
-        display_name: `Jogador ${index + 1}`
-      }));
+      // Método 1: Tentar usar RPC primeiro
+      let players: QueuePlayer[] = [];
+      
+      try {
+        const userIds = queueData.map(item => item.user_id);
+        
+        // Tentar RPC com tipagem correta
+        const { data: rpcData, error: rpcError } = await supabase
+          .rpc('get_users_by_ids', { 
+            user_ids: userIds 
+          }) as { data: AuthUser[] | null, error: any };
+
+        if (!rpcError && rpcData) {
+          // Combinar dados da fila com dados dos usuários via RPC
+          players = queueData.map((queueItem, index) => {
+            const userInfo = rpcData.find((u: AuthUser) => u.id === queueItem.user_id);
+            
+            const displayName = userInfo?.user_metadata?.full_name || 
+                              userInfo?.user_metadata?.name ||
+                              userInfo?.email?.split('@')[0] ||
+                              `Usuário ${index + 1}`;
+
+            return {
+              id: queueItem.user_id,
+              displayName,
+              email: userInfo?.email || 'email@exemplo.com',
+              avatarUrl: userInfo?.user_metadata?.avatar_url || '/placeholder.svg',
+              joinedAt: queueItem.created_at
+            };
+          });
+        } else {
+          throw new Error('RPC falhou');
+        }
+      } catch (rpcError) {
+        console.warn('RPC get_users_by_ids falhou, usando método alternativo:', rpcError);
+        
+        // Método 2: Buscar dados do usuário atual se ele estiver na fila
+        players = queueData.map((queueItem, index) => {
+          let displayName = `Usuário ${index + 1}`;
+          let email = 'usuario@exemplo.com';
+          let avatarUrl = '/placeholder.svg';
+
+          // Se for o usuário atual, usar seus dados reais
+          if (user && queueItem.user_id === user.id) {
+            displayName = user.user_metadata?.full_name || 
+                         user.user_metadata?.name ||
+                         user.email?.split('@')[0] ||
+                         'Você';
+            email = user.email || 'seu@email.com';
+            avatarUrl = user.user_metadata?.avatar_url || '/placeholder.svg';
+          }
+
+          return {
+            id: queueItem.user_id,
+            displayName,
+            email,
+            avatarUrl,
+            joinedAt: queueItem.created_at
+          };
+        });
+      }
 
       // Verificar se o usuário atual está na fila
       const userInQueue = user ? players.some(player => player.id === user.id) : false;
@@ -104,7 +171,7 @@ const MatchmakingQueue: React.FC = () => {
     }
   };
 
-  // Função para entrar na fila
+  // Função para entrar na fila com verificação melhorada
   const joinQueue = async () => {
     if (!user) {
       setQueueState(prev => ({
@@ -117,29 +184,53 @@ const MatchmakingQueue: React.FC = () => {
     setActionLoading(true);
     try {
       // Verificar se já está na fila
-      const { data: existingEntry } = await supabase
+      const { data: existingEntry, error: checkError } = await supabase
         .from('matchmaking_queue')
         .select('user_id')
         .eq('user_id', user.id)
-        .single();
+        .eq('status', 'searching')
+        .maybeSingle();
+
+      if (checkError && checkError.code !== 'PGRST116') {
+        throw checkError;
+      }
 
       if (existingEntry) {
         setQueueState(prev => ({
           ...prev,
           error: 'Você já está na fila'
         }));
+        setIsUserInQueue(true);
         setActionLoading(false);
         return;
       }
 
-      const { error } = await supabase
+      // Verificar se a fila não está cheia
+      const { data: queueCount, error: countError } = await supabase
+        .from('matchmaking_queue')
+        .select('user_id', { count: 'exact' })
+        .eq('status', 'searching');
+
+      if (countError) throw countError;
+
+      if (queueCount && queueCount.length >= 4) {
+        setQueueState(prev => ({
+          ...prev,
+          error: 'Fila está cheia. Tente novamente em alguns segundos.'
+        }));
+        setActionLoading(false);
+        return;
+      }
+
+      // Inserir na fila
+      const { error: insertError } = await supabase
         .from('matchmaking_queue')
         .insert({
           user_id: user.id,
           status: 'searching'
         });
 
-      if (error) throw error;
+      if (insertError) throw insertError;
 
       // Atualizar estado local imediatamente
       setIsUserInQueue(true);
@@ -184,185 +275,44 @@ const MatchmakingQueue: React.FC = () => {
     }
   };
 
-  // Polling automático a cada 5 segundos
+  // Polling automático a cada 3 segundos (reduzido para melhor UX)
   useEffect(() => {
     fetchQueuePlayers(true);
 
     const interval = setInterval(() => {
       fetchQueuePlayers();
-    }, 5000);
+    }, 3000);
 
     return () => clearInterval(interval);
   }, []);
 
+  // Limpar erros após 5 segundos
+  useEffect(() => {
+    if (queueState.error && !queueState.isLoading) {
+      const timer = setTimeout(() => {
+        setQueueState(prev => ({ ...prev, error: null }));
+      }, 5000);
+      return () => clearTimeout(timer);
+    }
+  }, [queueState.error, queueState.isLoading]);
+
   // Componente para slot de jogador ocupado
-  const PlayerSlot: React.FC<{ player: Player; position: number }> = ({ player, position }) => {
-    const displayName = player.display_name;
-    const isCurrentUser = user && player.id === user.id;
-
-    return (
-      <div 
-        className="animate-fade-in flex flex-col items-center p-4 bg-slate-800/90 rounded-xl border border-slate-700/50 transition-all duration-300 hover:border-blue-500/50 hover:bg-slate-700/90"
-        role="listitem"
-        aria-label={`Jogador ${position + 1}: ${displayName}`}
-      >
-        <Avatar className="w-16 h-16 mb-3 border-2 border-blue-400">
-          <AvatarImage src="/placeholder.svg" alt={`Avatar de ${displayName}`} />
-          <AvatarFallback className="bg-blue-600 text-white font-semibold">
-            {displayName.charAt(0).toUpperCase()}
-          </AvatarFallback>
-        </Avatar>
-        <span className="text-slate-100 font-medium text-sm text-center truncate w-full">
-          {isCurrentUser ? 'Você' : displayName}
-        </span>
-        <div className="flex items-center mt-2 text-emerald-400 text-xs font-medium">
-          <div className="w-2 h-2 bg-emerald-400 rounded-full mr-2 animate-pulse" />
-          Online
-        </div>
-      </div>
-    );
-  };
-
-  // Componente para slot vazio
-  const EmptySlot: React.FC<{ position: number }> = ({ position }) => (
+  const PlayerSlot: React.FC<{ player: QueuePlayer; position: number }> = ({ player, position }) => (
     <div 
-      className="flex flex-col items-center p-4 bg-slate-900/50 rounded-xl border border-slate-800/50 transition-all duration-300"
+      className="animate-fade-in flex flex-col items-center p-4 bg-slate-800/90 rounded-xl border border-slate-700/50 transition-all duration-300 hover:border-blue-500/50 hover:bg-slate-700/90"
       role="listitem"
-      aria-label={`Slot ${position + 1}: Aguardando jogador`}
+      aria-label={`Jogador ${position + 1}: ${player.displayName}`}
     >
-      <div className="w-16 h-16 mb-3 rounded-full border-2 border-dashed border-slate-600 flex items-center justify-center">
-        <UserPlus className="w-8 h-8 text-slate-500" />
-      </div>
-      <span className="text-slate-400 text-sm text-center">
-        Aguardando jogador...
+      <Avatar className="w-16 h-16 mb-3 border-2 border-blue-400">
+        <AvatarImage src={player.avatarUrl} alt={`Avatar de ${player.displayName}`} />
+        <AvatarFallback className="bg-blue-600 text-white font-semibold">
+          {player.displayName.charAt(0).toUpperCase()}
+        </AvatarFallback>
+      </Avatar>
+      <span className="text-slate-100 font-medium text-sm text-center truncate w-full">
+        {player.displayName}
       </span>
-      <div className="flex items-center mt-2 text-slate-500 text-xs">
-        <Clock className="w-3 h-3 mr-1" />
-        Vazio
-      </div>
-    </div>
-  );
-
-  // Componente para skeleton de loading
-  const LoadingSkeleton: React.FC = () => (
-    <div className="flex flex-col items-center p-4 bg-slate-800/50 rounded-xl border border-slate-700/30">
-      <Skeleton className="w-16 h-16 rounded-full mb-3 bg-slate-700" />
-      <Skeleton className="h-4 w-20 mb-2 bg-slate-700" />
-      <Skeleton className="h-3 w-16 bg-slate-700" />
-    </div>
-  );
-
-  // Render do estado de erro
-  if (queueState.error && queueState.isLoading) {
-    return (
-      <Card className="max-w-2xl mx-auto bg-slate-900/95 border-red-500/20 shadow-xl">
-        <CardContent className="p-8 text-center">
-          <AlertCircle className="w-16 h-16 text-red-400 mx-auto mb-4" />
-          <h3 className="text-xl font-semibold text-slate-100 mb-2">Erro de Conexão</h3>
-          <p className="text-red-300 mb-6">{queueState.error}</p>
-          <Button 
-            onClick={() => fetchQueuePlayers(true)}
-            variant="destructive"
-            className="bg-red-600 hover:bg-red-700 text-white font-medium"
-            aria-label="Tentar conectar novamente"
-          >
-            <RefreshCw className="w-4 h-4 mr-2" />
-            Tentar Novamente
-          </Button>
-        </CardContent>
-      </Card>
-    );
-  }
-
-  return (
-    <Card className="max-w-2xl mx-auto bg-slate-900/95 border-slate-700/50 shadow-2xl">
-      <CardHeader className="text-center relative bg-gradient-to-r from-blue-600/10 to-indigo-600/10 border-b border-slate-700/50">
-        <CardTitle className="text-slate-100 flex items-center justify-center gap-2 text-xl font-bold">
-          <Users className="w-6 h-6 text-blue-400" />
-          Procurando Partida...
-          {queueState.isPolling && (
-            <Loader2 className="w-4 h-4 animate-spin text-blue-400 ml-2" />
-          )}
-        </CardTitle>
-        <p className="text-slate-300 text-sm font-medium">
-          {queueState.players.length}/4 jogadores na fila
-        </p>
-      </CardHeader>
-
-      <CardContent className="space-y-6 p-6">
-        {/* Grid de slots de jogadores */}
-        <div 
-          className="grid grid-cols-2 md:grid-cols-4 gap-4"
-          role="list"
-          aria-label="Lista de jogadores na fila"
-        >
-          {Array.from({ length: 4 }, (_, index) => {
-            if (queueState.isLoading) {
-              return <LoadingSkeleton key={index} />;
-            }
-            
-            const player = queueState.players[index];
-            return player ? (
-              <PlayerSlot key={player.id} player={player} position={index} />
-            ) : (
-              <EmptySlot key={index} position={index} />
-            );
-          })}
-        </div>
-
-        {/* Informações da partida */}
-        <div className="bg-slate-800/70 rounded-lg p-4 border border-slate-700/30">
-          <div className="grid grid-cols-2 gap-4 text-sm">
-            <div className="text-center">
-              <span className="text-slate-400 font-medium">Taxa de entrada:</span>
-              <div className="text-slate-100 font-bold text-lg">R$ 1,10</div>
-            </div>
-            <div className="text-center">
-              <span className="text-slate-400 font-medium">Prêmio total:</span>
-              <div className="text-emerald-400 font-bold text-lg">R$ 4,00</div>
-            </div>
-          </div>
-        </div>
-
-        {/* Exibir erro não-crítico */}
-        {queueState.error && !queueState.isLoading && (
-          <div className="bg-red-900/20 border border-red-500/30 rounded-lg p-3 text-center">
-            <p className="text-red-300 text-sm font-medium">{queueState.error}</p>
-          </div>
-        )}
-
-        {/* Botão de ação */}
-        <Button
-          onClick={isUserInQueue ? leaveQueue : joinQueue}
-          disabled={!user || actionLoading || (queueState.players.length >= 4 && !isUserInQueue)}
-          className={`w-full transition-all duration-300 font-semibold text-base py-3 ${
-            isUserInQueue 
-              ? 'bg-red-600 hover:bg-red-700 text-white shadow-lg hover:shadow-red-500/25' 
-              : 'bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white shadow-lg hover:shadow-blue-500/25'
-          }`}
-          aria-label={isUserInQueue ? 'Sair da fila de matchmaking' : 'Entrar na fila de matchmaking'}
-        >
-          {actionLoading ? (
-            <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-          ) : isUserInQueue ? (
-            <UserMinus className="w-4 h-4 mr-2" />
-          ) : (
-            <UserPlus className="w-4 h-4 mr-2" />
-          )}
-          {actionLoading 
-            ? (isUserInQueue ? 'Saindo...' : 'Entrando...') 
-            : (isUserInQueue ? 'Sair da Fila' : 'Entrar na Fila')
-          }
-        </Button>
-
-        {/* Status da conexão */}
-        <div className="flex items-center justify-center text-xs text-slate-400 font-medium">
-          <div className="w-2 h-2 bg-emerald-400 rounded-full mr-2 animate-pulse" />
-          Conectado ao servidor
-        </div>
-      </CardContent>
-    </Card>
-  );
-};
-
-export default MatchmakingQueue;
+      <div className="flex items-center mt-2 text-emerald-400 text-xs font-medium">
+        <div className="w-2 h-2 bg-emerald-400 rounded-full mr-2 animate-pulse" />
+        {player.id === user?.id ? 'Você' : 'Online'}
+      </div
