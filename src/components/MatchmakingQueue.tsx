@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -54,7 +55,7 @@ const MatchmakingQueue: React.FC = () => {
   const [isUserInQueue, setIsUserInQueue] = useState(false);
   const [actionLoading, setActionLoading] = useState(false);
 
-  // Função para buscar jogadores da fila com método alternativo
+  // Função para buscar jogadores da fila
   const fetchQueuePlayers = async (isInitialLoad = false) => {
     try {
       if (isInitialLoad) {
@@ -86,67 +87,30 @@ const MatchmakingQueue: React.FC = () => {
         return;
       }
 
-      // Método 1: Tentar usar RPC primeiro
-      let players: QueuePlayer[] = [];
-      
-      try {
-        const userIds = queueData.map(item => item.user_id);
-        
-        // Tentar RPC com tipagem correta
-        const { data: rpcData, error: rpcError } = await supabase
-          .rpc('get_users_by_ids', { 
-            user_ids: userIds 
-          }) as { data: AuthUser[] | null, error: any };
+      // Criar jogadores com dados básicos
+      const players: QueuePlayer[] = queueData.map((queueItem, index) => {
+        let displayName = `Jogador ${index + 1}`;
+        let email = 'usuario@exemplo.com';
+        let avatarUrl = '/placeholder.svg';
 
-        if (!rpcError && rpcData) {
-          // Combinar dados da fila com dados dos usuários via RPC
-          players = queueData.map((queueItem, index) => {
-            const userInfo = rpcData.find((u: AuthUser) => u.id === queueItem.user_id);
-            
-            const displayName = userInfo?.user_metadata?.full_name || 
-                              userInfo?.user_metadata?.name ||
-                              userInfo?.email?.split('@')[0] ||
-                              `Usuário ${index + 1}`;
-
-            return {
-              id: queueItem.user_id,
-              displayName,
-              email: userInfo?.email || 'email@exemplo.com',
-              avatarUrl: userInfo?.user_metadata?.avatar_url || '/placeholder.svg',
-              joinedAt: queueItem.created_at
-            };
-          });
-        } else {
-          throw new Error('RPC falhou');
+        // Se for o usuário atual, usar seus dados reais
+        if (user && queueItem.user_id === user.id) {
+          displayName = user.user_metadata?.full_name || 
+                       user.user_metadata?.name ||
+                       user.email?.split('@')[0] ||
+                       'Você';
+          email = user.email || 'seu@email.com';
+          avatarUrl = user.user_metadata?.avatar_url || '/placeholder.svg';
         }
-      } catch (rpcError) {
-        console.warn('RPC get_users_by_ids falhou, usando método alternativo:', rpcError);
-        
-        // Método 2: Buscar dados do usuário atual se ele estiver na fila
-        players = queueData.map((queueItem, index) => {
-          let displayName = `Usuário ${index + 1}`;
-          let email = 'usuario@exemplo.com';
-          let avatarUrl = '/placeholder.svg';
 
-          // Se for o usuário atual, usar seus dados reais
-          if (user && queueItem.user_id === user.id) {
-            displayName = user.user_metadata?.full_name || 
-                         user.user_metadata?.name ||
-                         user.email?.split('@')[0] ||
-                         'Você';
-            email = user.email || 'seu@email.com';
-            avatarUrl = user.user_metadata?.avatar_url || '/placeholder.svg';
-          }
-
-          return {
-            id: queueItem.user_id,
-            displayName,
-            email,
-            avatarUrl,
-            joinedAt: queueItem.created_at
-          };
-        });
-      }
+        return {
+          id: queueItem.user_id,
+          displayName,
+          email,
+          avatarUrl,
+          joinedAt: queueItem.created_at
+        };
+      });
 
       // Verificar se o usuário atual está na fila
       const userInQueue = user ? players.some(player => player.id === user.id) : false;
@@ -171,7 +135,7 @@ const MatchmakingQueue: React.FC = () => {
     }
   };
 
-  // Função para entrar na fila com verificação melhorada
+  // Função para entrar na fila
   const joinQueue = async () => {
     if (!user) {
       setQueueState(prev => ({
@@ -275,7 +239,7 @@ const MatchmakingQueue: React.FC = () => {
     }
   };
 
-  // Polling automático a cada 3 segundos (reduzido para melhor UX)
+  // Polling automático a cada 3 segundos
   useEffect(() => {
     fetchQueuePlayers(true);
 
@@ -315,4 +279,139 @@ const MatchmakingQueue: React.FC = () => {
       <div className="flex items-center mt-2 text-emerald-400 text-xs font-medium">
         <div className="w-2 h-2 bg-emerald-400 rounded-full mr-2 animate-pulse" />
         {player.id === user?.id ? 'Você' : 'Online'}
-      </div
+      </div>
+    </div>
+  );
+
+  // Componente para slot vazio
+  const EmptySlot: React.FC<{ position: number }> = ({ position }) => (
+    <div 
+      className="flex flex-col items-center p-4 bg-slate-900/50 rounded-xl border border-slate-600/30 transition-all duration-300"
+      role="listitem"
+      aria-label={`Slot ${position + 1} aguardando jogador`}
+    >
+      <div className="w-16 h-16 mb-3 rounded-full bg-slate-700/50 border-2 border-dashed border-slate-500/50 flex items-center justify-center">
+        <UserPlus className="w-6 h-6 text-slate-400" />
+      </div>
+      <span className="text-slate-400 font-medium text-sm text-center">
+        Aguardando jogador
+      </span>
+      <div className="flex items-center mt-2 text-slate-500 text-xs">
+        <Clock className="w-3 h-3 mr-1" />
+        Disponível
+      </div>
+    </div>
+  );
+
+  return (
+    <Card className="w-full max-w-2xl mx-auto bg-gradient-to-br from-slate-900/95 to-slate-800/95 border-slate-700/50 shadow-2xl">
+      <CardHeader className="text-center pb-4">
+        <CardTitle className="flex items-center justify-center gap-3 text-slate-100 text-xl font-bold">
+          <Users className="w-6 h-6 text-blue-400" />
+          Fila de Matchmaking
+          {queueState.isPolling && (
+            <RefreshCw className="w-4 h-4 text-blue-400 animate-spin" />
+          )}
+        </CardTitle>
+        <div className="flex items-center justify-center gap-2 text-slate-300 text-sm mt-2">
+          <span className="bg-slate-800/80 px-3 py-1 rounded-full border border-slate-600/50">
+            {queueState.players.length}/4 jogadores
+          </span>
+        </div>
+      </CardHeader>
+      
+      <CardContent className="space-y-6">
+        {/* Estado de carregamento */}
+        {queueState.isLoading && (
+          <div className="flex items-center justify-center py-8">
+            <div className="flex items-center gap-3 text-slate-300">
+              <Loader2 className="w-5 h-5 animate-spin text-blue-400" />
+              <span>Carregando fila...</span>
+            </div>
+          </div>
+        )}
+
+        {/* Exibição de erro */}
+        {queueState.error && (
+          <div className="flex items-center gap-3 p-4 bg-red-900/20 border border-red-500/50 rounded-lg text-red-300">
+            <AlertCircle className="w-5 h-5 flex-shrink-0" />
+            <span className="text-sm">{queueState.error}</span>
+          </div>
+        )}
+
+        {/* Grid de jogadores */}
+        {!queueState.isLoading && (
+          <div className="grid grid-cols-2 gap-4" role="list" aria-label="Lista de jogadores na fila">
+            {Array.from({ length: 4 }).map((_, index) => {
+              const player = queueState.players[index];
+              return player ? (
+                <PlayerSlot key={player.id} player={player} position={index} />
+              ) : (
+                <EmptySlot key={`empty-${index}`} position={index} />
+              );
+            })}
+          </div>
+        )}
+
+        {/* Controles de ação */}
+        <div className="flex flex-col gap-3 pt-4">
+          {!isUserInQueue ? (
+            <Button
+              onClick={joinQueue}
+              disabled={actionLoading || queueState.isLoading}
+              className="w-full bg-gradient-to-r from-blue-600 to-blue-500 hover:from-blue-700 hover:to-blue-600 text-white font-semibold py-3 rounded-xl transition-all duration-300 transform hover:scale-[1.02] disabled:opacity-50 disabled:scale-100"
+            >
+              {actionLoading ? (
+                <div className="flex items-center gap-2">
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  Entrando na fila...
+                </div>
+              ) : (
+                <div className="flex items-center gap-2">
+                  <UserPlus className="w-4 h-4" />
+                  Entrar em Partida
+                </div>
+              )}
+            </Button>
+          ) : (
+            <Button
+              onClick={leaveQueue}
+              disabled={actionLoading}
+              variant="destructive"
+              className="w-full bg-gradient-to-r from-red-600 to-red-500 hover:from-red-700 hover:to-red-600 font-semibold py-3 rounded-xl transition-all duration-300 transform hover:scale-[1.02] disabled:opacity-50 disabled:scale-100"
+            >
+              {actionLoading ? (
+                <div className="flex items-center gap-2">
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  Saindo da fila...
+                </div>
+              ) : (
+                <div className="flex items-center gap-2">
+                  <UserMinus className="w-4 h-4" />
+                  Sair da Fila
+                </div>
+              )}
+            </Button>
+          )}
+        </div>
+
+        {/* Informações adicionais */}
+        <div className="bg-slate-800/50 rounded-lg p-4 border border-slate-600/30">
+          <div className="text-center text-slate-300 text-sm space-y-1">
+            <p className="font-medium">
+              {queueState.players.length < 4 
+                ? `Aguardando ${4 - queueState.players.length} jogador(es)`
+                : 'Fila completa! Iniciando partida...'
+              }
+            </p>
+            <p className="text-xs text-slate-400">
+              A partida inicia automaticamente quando 4 jogadores estiverem prontos
+            </p>
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  );
+};
+
+export default MatchmakingQueue;
