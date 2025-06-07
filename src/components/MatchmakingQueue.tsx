@@ -176,7 +176,7 @@ const MatchmakingQueue: React.FC = () => {
       const players = queueData.map((queueItem) => {
         const profile = profilesMap.get(queueItem.user_id);
         const displayName = profile?.full_name || 'Usuário Anônimo';
-        const avatarUrl = profile?.avatar_url || '/placeholder.svg';
+        const avatarUrl = profile?.avatar_url || 'https://img.freepik.com/free-psd/contact-icon-illustration-isolated_23-2151903337.jpg?semt=ais_hybrid&w=740';
         
         return {
           id: queueItem.user_id,
