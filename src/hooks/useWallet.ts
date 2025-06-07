@@ -23,20 +23,25 @@ export const useWallet = () => {
 
     try {
       const { data, error } = await supabase
-        .from('wallets')
+        .from('users')
         .select('*')
-        .eq('user_id', user.id)
+        .eq('id', user.id)
         .single();
 
-      if (error && error.code !== 'PGRST116') {
+      if (error) {
         throw error;
       }
 
-      if (!data) {
-        // Criar carteira se não existir
-        await createWallet();
-      } else {
-        setWallet(data);
+      if (data) {
+        // Convert user data to wallet format
+        const walletData: Wallet = {
+          id: data.id,
+          user_id: data.id,
+          balance: data.balance,
+          created_at: data.created_at,
+          updated_at: data.updated_at || data.created_at
+        };
+        setWallet(walletData);
       }
     } catch (error: any) {
       toast.error('Erro ao carregar carteira: ' + error.message);
@@ -45,39 +50,31 @@ export const useWallet = () => {
     }
   };
 
-  const createWallet = async () => {
-    if (!user) return;
-
-    try {
-      const { data, error } = await supabase
-        .from('wallets')
-        .insert({
-          user_id: user.id,
-          balance: 0
-        })
-        .select()
-        .single();
-
-      if (error) throw error;
-      setWallet(data);
-    } catch (error: any) {
-      toast.error('Erro ao criar carteira: ' + error.message);
-    }
-  };
-
   const loadTransactions = async () => {
-    if (!user || !wallet) return;
+    if (!user) return;
 
     try {
       const { data, error } = await supabase
         .from('transactions')
         .select('*')
-        .eq('wallet_id', wallet.id)
+        .eq('user_id', user.id)
         .order('created_at', { ascending: false })
         .limit(50);
 
       if (error) throw error;
-      setTransactions(data || []);
+      
+      // Convert database transactions to wallet transaction format
+      const walletTransactions: Transaction[] = (data || []).map(tx => ({
+        id: tx.id.toString(),
+        wallet_id: user.id, // Use user_id as wallet_id
+        type: tx.type as 'deposit' | 'withdrawal' | 'transfer' | 'payment',
+        amount: tx.amount,
+        description: tx.description || '',
+        status: 'completed' as const, // All transactions in DB are completed
+        created_at: tx.created_at || new Date().toISOString()
+      }));
+      
+      setTransactions(walletTransactions);
     } catch (error: any) {
       toast.error('Erro ao carregar transações: ' + error.message);
     }
@@ -89,32 +86,47 @@ export const useWallet = () => {
     try {
       setLoading(true);
       
-      // Criar transação
+      // Create transaction first
       const { data: transaction, error: transactionError } = await supabase
         .from('transactions')
         .insert({
-          wallet_id: wallet.id,
+          user_id: user!.id,
           type: 'deposit',
           amount: amount,
-          description: description,
-          status: 'completed'
+          description: description
         })
         .select()
         .single();
 
       if (transactionError) throw transactionError;
 
-      // Atualizar saldo da carteira
+      // Update user balance
       const newBalance = wallet.balance + amount;
-      const { error: walletError } = await supabase
-        .from('wallets')
-        .update({ balance: newBalance, updated_at: new Date().toISOString() })
-        .eq('id', wallet.id);
+      const { error: userError } = await supabase
+        .from('users')
+        .update({ 
+          balance: newBalance, 
+          updated_at: new Date().toISOString() 
+        })
+        .eq('id', user!.id);
 
-      if (walletError) throw walletError;
+      if (userError) throw userError;
 
+      // Update local state
       setWallet({ ...wallet, balance: newBalance });
-      setTransactions(prev => [transaction, ...prev]);
+      
+      // Add transaction to local state
+      const newTransaction: Transaction = {
+        id: transaction.id.toString(),
+        wallet_id: user!.id,
+        type: 'deposit',
+        amount: amount,
+        description: description,
+        status: 'completed',
+        created_at: transaction.created_at || new Date().toISOString()
+      };
+      
+      setTransactions(prev => [newTransaction, ...prev]);
       
       toast.success(`R$ ${amount.toFixed(2)} adicionados à carteira!`);
       return true;
@@ -135,32 +147,47 @@ export const useWallet = () => {
     try {
       setLoading(true);
       
-      // Criar transação
+      // Create transaction first
       const { data: transaction, error: transactionError } = await supabase
         .from('transactions')
         .insert({
-          wallet_id: wallet.id,
+          user_id: user!.id,
           type: 'withdrawal',
           amount: amount,
-          description: description,
-          status: 'completed'
+          description: description
         })
         .select()
         .single();
 
       if (transactionError) throw transactionError;
 
-      // Atualizar saldo da carteira
+      // Update user balance
       const newBalance = wallet.balance - amount;
-      const { error: walletError } = await supabase
-        .from('wallets')
-        .update({ balance: newBalance, updated_at: new Date().toISOString() })
-        .eq('id', wallet.id);
+      const { error: userError } = await supabase
+        .from('users')
+        .update({ 
+          balance: newBalance, 
+          updated_at: new Date().toISOString() 
+        })
+        .eq('id', user!.id);
 
-      if (walletError) throw walletError;
+      if (userError) throw userError;
 
+      // Update local state
       setWallet({ ...wallet, balance: newBalance });
-      setTransactions(prev => [transaction, ...prev]);
+      
+      // Add transaction to local state
+      const newTransaction: Transaction = {
+        id: transaction.id.toString(),
+        wallet_id: user!.id,
+        type: 'withdrawal',
+        amount: amount,
+        description: description,
+        status: 'completed',
+        created_at: transaction.created_at || new Date().toISOString()
+      };
+      
+      setTransactions(prev => [newTransaction, ...prev]);
       
       toast.success(`R$ ${amount.toFixed(2)} sacados da carteira!`);
       return true;
@@ -181,32 +208,47 @@ export const useWallet = () => {
     try {
       setLoading(true);
       
-      // Criar transação
+      // Create transaction first
       const { data: transaction, error: transactionError } = await supabase
         .from('transactions')
         .insert({
-          wallet_id: wallet.id,
+          user_id: user!.id,
           type: 'payment',
           amount: amount,
-          description: description,
-          status: 'completed'
+          description: description
         })
         .select()
         .single();
 
       if (transactionError) throw transactionError;
 
-      // Atualizar saldo da carteira
+      // Update user balance
       const newBalance = wallet.balance - amount;
-      const { error: walletError } = await supabase
-        .from('wallets')
-        .update({ balance: newBalance, updated_at: new Date().toISOString() })
-        .eq('id', wallet.id);
+      const { error: userError } = await supabase
+        .from('users')
+        .update({ 
+          balance: newBalance, 
+          updated_at: new Date().toISOString() 
+        })
+        .eq('id', user!.id);
 
-      if (walletError) throw walletError;
+      if (userError) throw userError;
 
+      // Update local state
       setWallet({ ...wallet, balance: newBalance });
-      setTransactions(prev => [transaction, ...prev]);
+      
+      // Add transaction to local state
+      const newTransaction: Transaction = {
+        id: transaction.id.toString(),
+        wallet_id: user!.id,
+        type: 'payment',
+        amount: amount,
+        description: description,
+        status: 'completed',
+        created_at: transaction.created_at || new Date().toISOString()
+      };
+      
+      setTransactions(prev => [newTransaction, ...prev]);
       
       toast.success(`Pagamento de R$ ${amount.toFixed(2)} realizado!`);
       return true;
