@@ -287,6 +287,10 @@ export type Database = {
           message: string
         }[]
       }
+      create_game_when_ready: {
+        Args: Record<PropertyKey, never>
+        Returns: Json
+      }
       distribute_pieces_to_room: {
         Args: { room_uuid: string }
         Returns: boolean
@@ -298,6 +302,14 @@ export type Database = {
       join_game_queue: {
         Args: Record<PropertyKey, never>
         Returns: string
+      }
+      join_matchmaking_queue: {
+        Args: Record<PropertyKey, never>
+        Returns: Json
+      }
+      leave_matchmaking_queue: {
+        Args: Record<PropertyKey, never>
+        Returns: Json
       }
       play_move: {
         Args:
