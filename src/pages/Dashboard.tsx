@@ -1,6 +1,4 @@
 
-// src/components/Dashboard.jsx
-
 import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/hooks/useAuth';
@@ -18,9 +16,6 @@ import {
   ChevronDown,
   ChevronUp,
 } from 'lucide-react';
-
-// --- Sub-componentes estilizados para este Dashboard ---
-// (Normalmente ficariam em arquivos separados, mas aqui estão juntos para clareza)
 
 // Card de Saldo com funcionalidade de visibilidade
 const ElegantWalletBalance = ({ balance }) => {
@@ -89,12 +84,9 @@ const ElegantTransactionHistory = ({ transactions, loading }) => {
       </section>
     );
   };
-  
 
-// --- O Componente Dashboard Principal ---
 const Dashboard = () => {
   const { user, logout } = useAuth();
-  // Simulação de dados para visualização
   const { wallet, transactions: realTransactions, loading } = useWallet();
   const sampleTransactions = [
       { id: 1, amount: 250.0, description: 'Depósito via PIX', created_at: '2025-06-07T12:30:00Z', type: 'deposit'},
@@ -168,8 +160,6 @@ const Dashboard = () => {
             {/* Coluna Esquerda: Ações Principais */}
             <div className="lg:col-span-2 space-y-8">
               <ElegantWalletBalance balance={wallet?.balance || 249.90} />
-              {/* O TransactionForm pode ser inserido aqui no mesmo estilo glass-card */}
-              {/* <TransactionForm /> */}
             </div>
 
             {/* Coluna Direita: Histórico */}
@@ -188,7 +178,7 @@ const Dashboard = () => {
         >
           <div 
             className="relative w-full max-w-4xl max-h-[90vh] overflow-y-auto p-2 transition-all duration-300 ease-in-out"
-            onClick={(e) => e.stopPropagation()} // Impede que o clique dentro do modal o feche
+            onClick={(e) => e.stopPropagation()}
           >
             <DominoRules />
 
