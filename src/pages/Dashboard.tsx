@@ -18,7 +18,7 @@ const Dashboard = () => {
         {/* Header */}
         <div className="flex justify-between items-center mb-8">
           <div className="flex items-center space-x-3">
-            <User className="h-8 w-8 text-white" />
+            <User className="h-8 w-8 text-black" />
             <div>
               <h1 className="text-2xl font-bold text-white">
                 Olá, {user?.name}!
