@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -86,67 +87,29 @@ const MatchmakingQueue: React.FC = () => {
         return;
       }
 
-      // Método 1: Tentar usar RPC primeiro
-      let players: QueuePlayer[] = [];
-      
-      try {
-        const userIds = queueData.map(item => item.user_id);
-        
-        // Tentar RPC com tipagem correta
-        const { data: rpcData, error: rpcError } = await supabase
-          .rpc('get_users_by_ids', { 
-            user_ids: userIds 
-          }) as { data: AuthUser[] | null, error: any };
+      // Método simplificado: Buscar dados do usuário atual se ele estiver na fila
+      const players = queueData.map((queueItem, index) => {
+        let displayName = `Usuário ${index + 1}`;
+        let email = 'usuario@exemplo.com';
+        let avatarUrl = '/placeholder.svg';
 
-        if (!rpcError && rpcData) {
-          // Combinar dados da fila com dados dos usuários via RPC
-          players = queueData.map((queueItem, index) => {
-            const userInfo = rpcData.find((u: AuthUser) => u.id === queueItem.user_id);
-            
-            const displayName = userInfo?.user_metadata?.full_name || 
-                              userInfo?.user_metadata?.name ||
-                              userInfo?.email?.split('@')[0] ||
-                              `Usuário ${index + 1}`;
-
-            return {
-              id: queueItem.user_id,
-              displayName,
-              email: userInfo?.email || 'email@exemplo.com',
-              avatarUrl: userInfo?.user_metadata?.avatar_url || '/placeholder.svg',
-              joinedAt: queueItem.created_at
-            };
-          });
-        } else {
-          throw new Error('RPC falhou');
+        // Se for o usuário atual, usar seus dados reais
+        if (user && queueItem.user_id === user.id) {
+          displayName = user.name || 
+                       user.email?.split('@')[0] ||
+                       'Você';
+          email = user.email || 'seu@email.com';
+          avatarUrl = '/placeholder.svg'; // Usar placeholder já que não temos avatar_url
         }
-      } catch (rpcError) {
-        console.warn('RPC get_users_by_ids falhou, usando método alternativo:', rpcError);
-        
-        // Método 2: Buscar dados do usuário atual se ele estiver na fila
-        players = queueData.map((queueItem, index) => {
-          let displayName = `Usuário ${index + 1}`;
-          let email = 'usuario@exemplo.com';
-          let avatarUrl = '/placeholder.svg';
 
-          // Se for o usuário atual, usar seus dados reais
-          if (user && queueItem.user_id === user.id) {
-            displayName = user.user_metadata?.full_name || 
-                         user.user_metadata?.name ||
-                         user.email?.split('@')[0] ||
-                         'Você';
-            email = user.email || 'seu@email.com';
-            avatarUrl = user.user_metadata?.avatar_url || '/placeholder.svg';
-          }
-
-          return {
-            id: queueItem.user_id,
-            displayName,
-            email,
-            avatarUrl,
-            joinedAt: queueItem.created_at
-          };
-        });
-      }
+        return {
+          id: queueItem.user_id,
+          displayName,
+          email,
+          avatarUrl,
+          joinedAt: queueItem.created_at
+        };
+      });
 
       // Verificar se o usuário atual está na fila
       const userInQueue = user ? players.some(player => player.id === user.id) : false;
