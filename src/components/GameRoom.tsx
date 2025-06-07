@@ -40,12 +40,12 @@ const GameRoom: React.FC = () => {
 
       if (gameError) throw gameError;
 
-      // Buscar jogadores do jogo
+      // Buscar jogadores do jogo com dados do perfil
       const { data: gamePlayers, error: playersError } = await supabase
         .from('game_players')
         .select(`
           *,
-          profiles!game_players_user_id_fkey (
+          profiles (
             full_name,
             avatar_url
           )
@@ -60,8 +60,8 @@ const GameRoom: React.FC = () => {
       // Converter dados dos jogadores para formato interno
       const formattedPlayers: Player[] = gamePlayers.map(player => ({
         id: player.user_id,
-        name: player.profiles?.full_name || 'Jogador',
-        pieces: player.hand ? convertHandToPieces(player.hand) : [],
+        name: (player.profiles as any)?.full_name || 'Jogador',
+        pieces: player.hand ? convertHandToPieces(player.hand as any[]) : [],
         isCurrentPlayer: game.current_player_turn === player.user_id,
         position: player.position
       }));
@@ -69,8 +69,9 @@ const GameRoom: React.FC = () => {
       setPlayers(formattedPlayers);
 
       // Converter board_state para placedPieces se existir
-      if (game.board_state?.pieces) {
-        const boardPieces = game.board_state.pieces.map((piece: any, index: number) => ({
+      if (game.board_state && typeof game.board_state === 'object' && (game.board_state as any).pieces) {
+        const boardState = game.board_state as { pieces: any[] };
+        const boardPieces = boardState.pieces.map((piece: any, index: number) => ({
           id: `board-${index}`,
           top: piece.piece[0],
           bottom: piece.piece[1]
@@ -94,6 +95,8 @@ const GameRoom: React.FC = () => {
 
   // Converter dados da mão do Supabase para DominoPieceType
   const convertHandToPieces = (hand: any[]): DominoPieceType[] => {
+    if (!Array.isArray(hand)) return [];
+    
     return hand.map((piece, index) => ({
       id: `piece-${index}`,
       top: piece[0] || piece.left || 0,
