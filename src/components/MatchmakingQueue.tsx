@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -17,21 +16,9 @@ import {
 } from 'lucide-react';
 
 // Interfaces TypeScript específicas
-interface AuthUser {
-  id: string;
-  email: string;
-  user_metadata: {
-    full_name?: string;
-    avatar_url?: string;
-    name?: string;
-  };
-  created_at: string;
-}
-
 interface QueuePlayer {
   id: string;
   displayName: string;
-  email: string;
   avatarUrl: string;
   joinedAt: string;
 }
@@ -55,7 +42,7 @@ const MatchmakingQueue: React.FC = () => {
   const [isUserInQueue, setIsUserInQueue] = useState(false);
   const [actionLoading, setActionLoading] = useState(false);
 
-  // Função para buscar jogadores da fila com método alternativo
+  // Função para buscar jogadores da fila com dados reais
   const fetchQueuePlayers = async (isInitialLoad = false) => {
     try {
       if (isInitialLoad) {
@@ -74,7 +61,6 @@ const MatchmakingQueue: React.FC = () => {
 
       if (queueError) throw queueError;
 
-      // Se não há usuários na fila, limpar estado
       if (!queueData || queueData.length === 0) {
         setQueueState(prev => ({
           ...prev,
@@ -86,28 +72,29 @@ const MatchmakingQueue: React.FC = () => {
         setIsUserInQueue(false);
         return;
       }
+      
+      const userIds = queueData.map(item => item.user_id);
+      
+      // Buscar os perfis de todos os usuários na fila
+      const { data: profilesData, error: profilesError } = await supabase
+        .from('profiles')
+        .select('id, full_name, avatar_url')
+        .in('id', userIds);
+        
+      if (profilesError) throw profilesError;
 
-      // Método simplificado: Buscar dados do usuário atual se ele estiver na fila
-      const players = queueData.map((queueItem, index) => {
-        let displayName = `Usuário ${index + 1}`;
-        let email = 'usuario@exemplo.com';
-        let avatarUrl = '/placeholder.svg';
+      const profilesMap = new Map(profilesData.map(p => [p.id, p]));
 
-        // Se for o usuário atual, usar seus dados reais
-        if (user && queueItem.user_id === user.id) {
-          displayName = user.name || 
-                       user.email?.split('@')[0] ||
-                       'Você';
-          email = user.email || 'seu@email.com';
-          avatarUrl = '/placeholder.svg'; // Usar placeholder já que não temos avatar_url
-        }
-
+      const players = queueData.map((queueItem) => {
+        const profile = profilesMap.get(queueItem.user_id);
+        const displayName = profile?.full_name || 'Usuário Anônimo';
+        const avatarUrl = profile?.avatar_url || '/placeholder.svg';
+        
         return {
           id: queueItem.user_id,
           displayName,
-          email,
           avatarUrl,
-          joinedAt: queueItem.created_at
+          joinedAt: queueItem.created_at,
         };
       });
 
@@ -238,7 +225,7 @@ const MatchmakingQueue: React.FC = () => {
     }
   };
 
-  // Polling automático a cada 3 segundos (reduzido para melhor UX)
+  // Polling automático a cada 3 segundos
   useEffect(() => {
     fetchQueuePlayers(true);
 
