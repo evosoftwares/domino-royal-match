@@ -24,6 +24,9 @@ const DominoPiece: React.FC<DominoPieceProps> = ({
   className
 }) => {
   const renderDots = (value: number, position: 'top' | 'bottom') => {
+    // Safety check: ensure value is within valid range (0-6)
+    const safeValue = Math.max(0, Math.min(6, Math.floor(value || 0)));
+    
     const dotPositions = {
       0: [],
       1: ['center'],
@@ -34,13 +37,15 @@ const DominoPiece: React.FC<DominoPieceProps> = ({
       6: ['top-left', 'top-right', 'middle-left', 'middle-right', 'bottom-left', 'bottom-right']
     };
 
+    const positions = dotPositions[safeValue as keyof typeof dotPositions] || [];
+
     return (
       <div className={cn(
         "relative w-full h-12 bg-white rounded-lg border border-gray-300",
         position === 'bottom' && "border-t-2 border-t-gray-400"
       )}>
         <div className="absolute inset-1 grid grid-cols-3 grid-rows-3 gap-1">
-          {dotPositions[value as keyof typeof dotPositions].map((dotPosition, index) => (
+          {positions.map((dotPosition, index) => (
             <div
               key={index}
               className={cn(
