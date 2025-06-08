@@ -44,6 +44,35 @@ const MatchmakingQueue: React.FC = () => {
 
   const [isUserInQueue, setIsUserInQueue] = useState(false);
   const [actionLoading, setActionLoading] = useState(false);
+  const [gameCreationInProgress, setGameCreationInProgress] = useState(false);
+
+  // Verificar se o usuário já está em um jogo ativo
+  const checkUserInActiveGame = async () => {
+    if (!user) return false;
+
+    try {
+      const { data: activeGame } = await supabase
+        .from('game_players')
+        .select(`
+          game_id,
+          games!inner(status)
+        `)
+        .eq('user_id', user.id)
+        .eq('games.status', 'active')
+        .maybeSingle();
+
+      if (activeGame) {
+        console.log('Usuário já está em jogo ativo:', activeGame.game_id);
+        toast.info('Você já está em um jogo ativo!');
+        navigate(`/game/${activeGame.game_id}`);
+        return true;
+      }
+      return false;
+    } catch (error) {
+      console.error('Erro ao verificar jogo ativo:', error);
+      return false;
+    }
+  };
 
   // Subscrição em tempo real para mudanças na fila e criação de jogos
   useEffect(() => {
@@ -104,10 +133,46 @@ const MatchmakingQueue: React.FC = () => {
     }
   };
 
-  // Tentar criar jogo quando a fila estiver com 4 jogadores
+  // Tentar criar jogo quando a fila estiver com 4 jogadores - COM DEBOUNCE
   const tryCreateGame = async () => {
+    // Prevenir múltiplas chamadas simultâneas
+    if (gameCreationInProgress) {
+      console.log('Criação de jogo já em progresso, ignorando...');
+      return;
+    }
+
     try {
+      setGameCreationInProgress(true);
       console.log('Tentando criar jogo...');
+
+      // Verificar novamente se há 4 jogadores antes de criar
+      const { data: currentQueue } = await supabase
+        .from('matchmaking_queue')
+        .select('user_id')
+        .eq('status', 'searching');
+
+      if (!currentQueue || currentQueue.length < 4) {
+        console.log('Não há jogadores suficientes para criar jogo');
+        return;
+      }
+
+      // Verificar se já existe um jogo sendo criado para estes jogadores
+      const userIds = currentQueue.map(q => q.user_id);
+      const { data: existingGames } = await supabase
+        .from('game_players')
+        .select(`
+          game_id,
+          games!inner(status, created_at)
+        `)
+        .in('user_id', userIds)
+        .eq('games.status', 'active')
+        .gte('games.created_at', new Date(Date.now() - 60000).toISOString()); // Últimos 60 segundos
+
+      if (existingGames && existingGames.length > 0) {
+        console.log('Já existe jogo recente para estes jogadores');
+        return;
+      }
+
       const { data, error } = await supabase.rpc('create_game_when_ready');
       
       if (error) {
@@ -129,6 +194,11 @@ const MatchmakingQueue: React.FC = () => {
       }
     } catch (error) {
       console.error('Erro ao tentar criar jogo:', error);
+    } finally {
+      // Liberar o lock após um delay para evitar spam
+      setTimeout(() => {
+        setGameCreationInProgress(false);
+      }, 3000);
     }
   };
 
@@ -197,9 +267,13 @@ const MatchmakingQueue: React.FC = () => {
         error: null
       }));
 
-      if (players.length >= 4 && userInQueue) {
+      // LÓGICA MELHORADA: Só tenta criar jogo se há exatamente 4 jogadores e usuário está na fila
+      if (players.length === 4 && userInQueue && !gameCreationInProgress) {
         console.log('Fila cheia com usuário atual. Tentando criar o jogo.');
-        tryCreateGame();
+        // Pequeno delay para evitar race conditions
+        setTimeout(() => {
+          tryCreateGame();
+        }, 1000);
       }
 
     } catch (error: any) {
@@ -222,6 +296,10 @@ const MatchmakingQueue: React.FC = () => {
       }));
       return;
     }
+
+    // Verificar se usuário já está em jogo ativo
+    const inActiveGame = await checkUserInActiveGame();
+    if (inActiveGame) return;
 
     // Previne múltiplos cliques
     if (actionLoading) return;
@@ -263,11 +341,6 @@ const MatchmakingQueue: React.FC = () => {
       await fetchQueuePlayers();
       
       toast.success('Entrou na fila com sucesso!');
-
-      // Tentar criar jogo após entrar na fila
-      setTimeout(() => {
-        tryCreateGame();
-      }, 1000);
 
     } catch (error: any) {
       console.error('Erro ao entrar na fila:', error);
@@ -329,18 +402,18 @@ const MatchmakingQueue: React.FC = () => {
     }
   };
 
-  // Polling automático a cada 3 segundos
+  // Polling automático a cada 5 segundos (aumentado para reduzir carga)
   useEffect(() => {
     fetchQueuePlayers(true);
 
     const interval = setInterval(() => {
-      if (!actionLoading) { // Não fazer polling durante ações
+      if (!actionLoading && !gameCreationInProgress) { // Não fazer polling durante ações
         fetchQueuePlayers();
       }
-    }, 3000);
+    }, 5000); // Aumentado de 3s para 5s
 
     return () => clearInterval(interval);
-  }, [actionLoading]);
+  }, [actionLoading, gameCreationInProgress]);
 
   // Limpar erros após 5 segundos
   useEffect(() => {
@@ -432,12 +505,17 @@ const MatchmakingQueue: React.FC = () => {
         <CardTitle className="text-slate-100 flex items-center justify-center gap-2 text-xl font-bold">
           <Users className="w-6 h-6 text-blue-400" />
           Procurando Partida...
-          {queueState.isPolling && (
+          {(queueState.isPolling || gameCreationInProgress) && (
             <Loader2 className="w-4 h-4 animate-spin text-blue-400 ml-2" />
           )}
         </CardTitle>
         <p className="text-slate-300 text-sm font-medium">
           {queueState.players.length}/4 jogadores na fila
+          {gameCreationInProgress && (
+            <span className="block text-yellow-400 text-xs mt-1">
+              Criando partida...
+            </span>
+          )}
         </p>
       </CardHeader>
 
@@ -486,7 +564,7 @@ const MatchmakingQueue: React.FC = () => {
         {/* Botão de ação */}
         <Button
           onClick={isUserInQueue ? leaveQueue : joinQueue}
-          disabled={!user || actionLoading || (queueState.players.length >= 4 && !isUserInQueue)}
+          disabled={!user || actionLoading || gameCreationInProgress || (queueState.players.length >= 4 && !isUserInQueue)}
           className={`w-full transition-all duration-300 font-semibold text-base py-3 ${
             isUserInQueue 
               ? 'bg-red-600 hover:bg-red-700 text-white shadow-lg hover:shadow-red-500/25' 
@@ -494,7 +572,7 @@ const MatchmakingQueue: React.FC = () => {
           }`}
           aria-label={isUserInQueue ? 'Sair da fila de matchmaking' : 'Entrar na fila de matchmaking'}
         >
-          {actionLoading ? (
+          {(actionLoading || gameCreationInProgress) ? (
             <Loader2 className="w-4 h-4 mr-2 animate-spin" />
           ) : isUserInQueue ? (
             <UserMinus className="w-4 h-4 mr-2" />
@@ -503,6 +581,8 @@ const MatchmakingQueue: React.FC = () => {
           )}
           {actionLoading 
             ? (isUserInQueue ? 'Saindo...' : 'Entrando...') 
+            : gameCreationInProgress
+            ? 'Criando Partida...'
             : (isUserInQueue ? 'Sair da Fila' : 'Entrar na Fila')
           }
         </Button>
@@ -510,7 +590,7 @@ const MatchmakingQueue: React.FC = () => {
         {/* Status da conexão */}
         <div className="flex items-center justify-center text-xs text-slate-400 font-medium">
           <div className="w-2 h-2 bg-emerald-400 rounded-full mr-2 animate-pulse" />
-          Conectado • Atualizando a cada 3s
+          Conectado • Atualizando a cada 5s
         </div>
       </CardContent>
     </Card>
