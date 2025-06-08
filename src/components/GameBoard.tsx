@@ -1,4 +1,3 @@
-
 import React from 'react';
 import DominoPiece from './DominoPiece';
 import { DominoPieceType } from '@/utils/dominoUtils';
@@ -55,7 +54,7 @@ const GameBoard: React.FC<GameBoardProps> = ({
                 <p className="text-sm opacity-75 mt-2">O jogo começará com sua jogada</p>
               </div>
             ) : (
-              <div className="flex flex-col items-center gap-1 max-w-full">
+              <div className="flex items-center gap-1 max-w-full">
                 {placedPieces.map((piece, index) => (
                   <div
                     key={`${piece.id}-${index}`}
@@ -65,7 +64,8 @@ const GameBoard: React.FC<GameBoardProps> = ({
                       topValue={piece.top}
                       bottomValue={piece.bottom}
                       isPlayable={false}
-                      className="shadow-xl transform rotate-90"
+                      className="shadow-xl"
+                      orientation="horizontal"
                     />
                     {index === 0 && (
                       <div className="absolute -top-1 left-1/2 transform -translate-x-1/2 w-1.5 h-1.5 bg-green-400 rounded-full animate-pulse" 

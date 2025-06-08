@@ -1,6 +1,6 @@
-
 import React from 'react';
 import { cn } from '@/lib/utils';
+import DominoPiece from './DominoPiece';
 
 interface PlayerData {
   id: string;
@@ -46,17 +46,23 @@ const OpponentArea: React.FC<OpponentAreaProps> = ({
           </div>
         </div>
         
-        <div className="flex items-center gap-1">
+        <div className="flex items-center gap-1.5">
           {Array.from({ length: Math.min(pieceCount, 7) }).map((_, index) => (
-            <div
+            <DominoPiece
               key={index}
-              className="w-2 h-4 bg-white/70 rounded-sm border border-black/20 shadow-sm"
-              title={`Peça ${index + 1}`}
+              topValue={0}
+              bottomValue={0}
+              orientation="horizontal"
+              isPlayable={false}
+              className="w-8 h-4 opacity-50"
             />
           ))}
-          <span className="ml-2 text-xs text-purple-300">{pieceCount}</span>
+          {pieceCount > 7 && (
+            <span className="text-xs text-purple-300">+{pieceCount - 7}</span>
+          )}
         </div>
       </div>
+      <div className="mt-2 text-xs text-purple-300 text-right">{pieceCount} peças restantes</div>
     </div>
   );
 };

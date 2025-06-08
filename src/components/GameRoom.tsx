@@ -28,7 +28,7 @@ interface PlayerData {
   position: number;
   hand: any;
   status: string;
-  profiles: PlayerProfile;
+  profiles?: PlayerProfile;
 }
 
 interface GameRoomProps {
@@ -42,7 +42,7 @@ const GameRoom: React.FC<GameRoomProps> = ({ gameData: initialGameData, players:
   const [playersState, setPlayersState] = useState(initialPlayers);
   const [currentDraggedPiece, setCurrentDraggedPiece] = useState<DominoPieceType | null>(null);
   const [isProcessingMove, setIsProcessingMove] = useState(false);
-  const [timeLeft, setTimeLeft] = useState(10);
+  const [timeLeft, setTimeLeft] = useState(15);
   const [lastTurnChange, setLastTurnChange] = useState<number>(Date.now());
 
   // Debug - Log de dados iniciais
@@ -71,12 +71,10 @@ const GameRoom: React.FC<GameRoomProps> = ({ gameData: initialGameData, players:
     const timer = setInterval(() => {
       setTimeLeft(prev => {
         if (prev <= 1) {
-          // Se o tempo acabou e é a vez do jogador atual
           if (gameState.current_player_turn === user?.id && !isProcessingMove) {
-            console.log('Tempo esgotado! Executando auto-play...');
             handleForceAutoPlay();
           }
-          return 10; // Reset para 10 segundos
+          return 15;
         }
         return prev - 1;
       });
@@ -87,9 +85,8 @@ const GameRoom: React.FC<GameRoomProps> = ({ gameData: initialGameData, players:
 
   // Reset timer quando muda o turno
   useEffect(() => {
-    setTimeLeft(10);
+    setTimeLeft(15);
     setLastTurnChange(Date.now());
-    console.log('Turno mudou, timer resetado para 10 segundos');
   }, [gameState.current_player_turn]);
 
   // Processar dados dos jogadores com formato correto
@@ -106,13 +103,12 @@ const GameRoom: React.FC<GameRoomProps> = ({ gameData: initialGameData, players:
         console.log(`Piece ${index}:`, piece, 'Type:', typeof piece);
         
         // Formato esperado: {"l": 3, "r": 4}
-        if (piece && typeof piece === 'object' && 
-            typeof piece.l === 'number' && typeof piece.r === 'number') {
+        if (piece && typeof piece === 'object' && 'l' in piece && 'r' in piece) {
           return {
             id: `${player.user_id}-piece-${index}`,
             top: piece.l,
             bottom: piece.r,
-            originalFormat: piece // Manter formato original para o RPC
+            originalFormat: piece
           };
         }
         
@@ -250,141 +246,81 @@ const GameRoom: React.FC<GameRoomProps> = ({ gameData: initialGameData, players:
   };
 
   // Jogar peça (atualizado para resetar timer)
-  const playPiece = async (piece: DominoPieceType) => {
-    console.log('Attempting to play piece:', piece);
-    
+  const playPiece = useCallback(async (piece: DominoPieceType) => {
     if (isProcessingMove) {
-      toast.error('Aguarde a jogada anterior ser processada');
+      toast.error('Aguarde, processando jogada anterior.');
       return;
     }
-
     if (!user || gameState.current_player_turn !== user.id) {
-      toast.error('Não é sua vez de jogar');
+      toast.error('Não é a sua vez de jogar.');
       return;
     }
-
     if (!canPiecePlay(piece)) {
-      toast.error('Esta peça não pode ser jogada nas extremidades disponíveis');
+      toast.error('Essa peça não pode ser jogada.');
       return;
     }
-
     const side = determineSide(piece);
     if (!side) {
-      toast.error('Não foi possível determinar onde jogar esta peça');
+      toast.error('Não foi possível determinar o lado da jogada.');
       return;
     }
 
     setIsProcessingMove(true);
-
     try {
-      // Usar o formato original da peça para o RPC
       const pieceForRPC = (piece as any).originalFormat || { l: piece.top, r: piece.bottom };
-      console.log('Calling play_move with:', { 
-        game_id: gameState.id, 
-        piece: pieceForRPC, 
-        side 
-      });
-
-      const { data, error } = await supabase.rpc('play_move', {
+      const { error } = await supabase.rpc('play_move', {
         p_game_id: gameState.id,
         p_piece: pieceForRPC,
         p_side: side
       });
 
       if (error) {
-        console.error('Erro na RPC play_move:', error);
-        toast.error(`Erro ao jogar peça: ${error.message}`);
-        return;
-      }
-
-      console.log('RPC response:', data);
-
-      if (data && typeof data === 'string') {
-        if (data.includes('ERRO:')) {
-          toast.error(data);
-          return;
-        }
-        
-        if (data.includes('venceu') || data.includes('Vitória')) {
-          toast.success('🎉 Você venceu o jogo!');
-        } else {
-          toast.success('Jogada realizada com sucesso!');
-        }
+        toast.error(`Erro ao jogar: ${error.message}`);
       } else {
-        toast.success('Jogada realizada com sucesso!');
+        toast.success('Jogada realizada!');
       }
-
-      // Reset do timer após jogada bem-sucedida
-      setTimeLeft(10);
-      setLastTurnChange(Date.now());
-
-    } catch (error) {
-      console.error('Erro inesperado ao jogar peça:', error);
-      toast.error('Erro inesperado ao jogar peça');
+    } catch (e: any) {
+      toast.error('Ocorreu um erro inesperado ao jogar.');
     } finally {
       setIsProcessingMove(false);
     }
-  };
+  }, [isProcessingMove, user, gameState, canPiecePlay, determineSide, supabase]);
 
-  // Auto play forçado (quando o tempo acaba)
-  const handleForceAutoPlay = async () => {
-    if (!userPlayer?.isCurrentPlayer || isProcessingMove) {
-      console.log('Não é possível fazer auto-play:', { 
-        isCurrentPlayer: userPlayer?.isCurrentPlayer, 
-        isProcessingMove 
-      });
-      return;
-    }
-
-    console.log('Executando auto-play forçado...');
-    
-    const playablePieces = userPlayer.pieces.filter(piece => canPiecePlay(piece));
-    
-    if (playablePieces.length === 0) {
-      console.log('Nenhuma peça pode ser jogada, passando a vez...');
-      toast.error('Tempo esgotado! Nenhuma peça pode ser jogada.');
-      
-      // Chamar função para passar a vez
-      try {
-        const { error } = await supabase.rpc('pass_turn', {
-          p_game_id: gameState.id
-        });
-        
-        if (error) {
-          console.error('Erro ao passar a vez:', error);
-          toast.error('Erro ao passar a vez');
-        } else {
-          toast.info('Vez passada automaticamente');
-        }
-      } catch (error) {
-        console.error('Erro inesperado ao passar a vez:', error);
+  const handlePassTurn = useCallback(async () => {
+    if (isProcessingMove) return;
+    setIsProcessingMove(true);
+    try {
+      const { error } = await supabase.rpc('pass_turn', { p_game_id: gameState.id });
+      if (error) {
+        toast.error(`Erro ao passar a vez: ${error.message}`);
+      } else {
+        toast.info('Você passou a vez.');
       }
-      return;
+    } catch (e: any) {
+      toast.error('Erro inesperado ao passar a vez.');
+    } finally {
+      setIsProcessingMove(false);
     }
+  }, [gameState.id, isProcessingMove, supabase]);
 
-    // Jogar a primeira peça possível
-    const pieceToPlay = playablePieces[0];
-    console.log('Auto-play: jogando peça', pieceToPlay);
-    toast.warning(`Tempo esgotado! Jogando automaticamente: ${pieceToPlay.top}-${pieceToPlay.bottom}`);
-    
-    await playPiece(pieceToPlay);
-  };
+  const handleForceAutoPlay = useCallback(() => {
+    const playablePieces = userPlayer?.pieces.filter(canPiecePlay) || [];
+    if (playablePieces.length > 0) {
+      playPiece(playablePieces[0]);
+    } else {
+      handlePassTurn();
+    }
+  }, [userPlayer, canPiecePlay, playPiece, handlePassTurn]);
 
   // Auto play manual (botão)
-  const handleManualAutoPlay = async () => {
-    if (!userPlayer?.isCurrentPlayer || isProcessingMove) return;
-
-    const playablePieces = userPlayer.pieces.filter(piece => canPiecePlay(piece));
-    if (playablePieces.length === 0) {
-      toast.error('Nenhuma peça pode ser jogada');
+  const handleManualAutoPlay = () => {
+    const playablePieces = userPlayer?.pieces.filter(canPiecePlay);
+    if (!playablePieces || playablePieces.length === 0) {
+      toast.info('Nenhuma peça jogável, passando a vez.');
+      handlePassTurn();
       return;
     }
-
-    const pieceToPlay = playablePieces[0];
-    console.log('Auto-play manual: jogando peça', pieceToPlay);
-    toast.info(`Jogando automaticamente: ${pieceToPlay.top}-${pieceToPlay.bottom}`);
-    
-    await playPiece(pieceToPlay);
+    playPiece(playablePieces[0]);
   };
 
   // Verificar se o jogo está ativo

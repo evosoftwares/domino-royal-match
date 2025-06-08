@@ -10,6 +10,7 @@ interface DominoPieceProps {
   onDragStart?: (e: React.DragEvent) => void;
   onDragEnd?: (e: React.DragEvent) => void;
   className?: string;
+  orientation?: 'vertical' | 'horizontal';
 }
 
 const DominoPiece: React.FC<DominoPieceProps> = ({
@@ -20,9 +21,10 @@ const DominoPiece: React.FC<DominoPieceProps> = ({
   onClick,
   onDragStart,
   onDragEnd,
-  className
+  className,
+  orientation = 'vertical'
 }) => {
-  const renderDots = (value: number, isBottom: boolean = false) => {
+  const renderDots = (value: number) => {
     const safeValue = Math.max(0, Math.min(6, Math.floor(value || 0)));
     
     // Posições dos pontos em um grid 3x3 mais intuitivo
@@ -41,8 +43,7 @@ const DominoPiece: React.FC<DominoPieceProps> = ({
     return (
       <div className={cn(
         "relative flex-1 bg-gradient-to-br from-white to-gray-50 rounded-md",
-        "border border-gray-200 shadow-inner",
-        isBottom && "border-t-2 border-t-gray-400"
+        "border border-gray-200 shadow-inner"
       )}>
         <div className="absolute inset-2 grid grid-cols-3 grid-rows-3 gap-0">
           {Array.from({ length: 9 }, (_, index) => {
@@ -67,11 +68,14 @@ const DominoPiece: React.FC<DominoPieceProps> = ({
     );
   };
 
+  const isVertical = orientation === 'vertical';
+
   return (
     <div
       className={cn(
         // Base styling - proporções mais realistas de dominó
-        "w-14 h-28 bg-gradient-to-br from-gray-50 via-white to-gray-100",
+        isVertical ? "w-14 h-28" : "w-28 h-14",
+        "bg-gradient-to-br from-gray-50 via-white to-gray-100",
         "rounded-xl shadow-lg border-2 border-gray-200",
         "transition-all duration-300 ease-out",
         
@@ -103,13 +107,19 @@ const DominoPiece: React.FC<DominoPieceProps> = ({
       onDragEnd={isPlayable ? onDragEnd : undefined}
     >
       {/* Conteúdo interno com padding adequado */}
-      <div className="p-2 h-full flex flex-col gap-1">
-        {renderDots(topValue, false)}
+      <div className={cn(
+        "p-2 h-full flex gap-1",
+        isVertical ? "flex-col" : "flex-row"
+      )}>
+        {renderDots(topValue)}
         
         {/* Linha divisória central */}
-        <div className="h-0.5 bg-gradient-to-r from-transparent via-gray-300 to-transparent rounded-full" />
+        <div className={cn(
+          "bg-gradient-to-r from-transparent via-gray-300 to-transparent rounded-full",
+          isVertical ? "h-0.5 w-full" : "w-0.5 h-full"
+        )} />
         
-        {renderDots(bottomValue, true)}
+        {renderDots(bottomValue)}
       </div>
       
       {/* Efeito de brilho sutil */}

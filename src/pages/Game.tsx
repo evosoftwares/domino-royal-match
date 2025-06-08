@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
@@ -7,6 +7,7 @@ import { toast } from 'sonner';
 import { Loader2, AlertCircle } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { RealtimeChannel } from '@supabase/supabase-js';
 
 interface GameData {
   id: string;
@@ -28,7 +29,7 @@ interface PlayerData {
   position: number;
   hand: any;
   status: string;
-  profiles: PlayerProfile;
+  profiles?: PlayerProfile;
 }
 
 const Game: React.FC = () => {
@@ -40,147 +41,119 @@ const Game: React.FC = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Buscar dados do jogo e jogadores
-  const fetchGameData = async () => {
+  const handleBackToLobby = () => {
+    navigate('/');
+  };
+
+  const fetchInitialData = useCallback(async () => {
     if (!gameId || !user) {
-      setError('ID do jogo ou usuário não encontrado');
+      setError('ID do jogo ou usuário inválido.');
       setIsLoading(false);
       return;
     }
 
+    setIsLoading(true);
+    setError(null);
+
     try {
-      console.log('=== FETCHING GAME DATA ===');
-      console.log('Game ID:', gameId);
-      console.log('User ID:', user.id);
-
-      // Primeiro, verificar se o usuário está no jogo
-      const { data: userPlayerCheck, error: userCheckError } = await supabase
-        .from('game_players')
-        .select('*')
-        .eq('game_id', gameId)
-        .eq('user_id', user.id)
-        .single();
-
-      if (userCheckError || !userPlayerCheck) {
-        console.error('Usuário não está no jogo:', userCheckError);
-        setError('Você não tem acesso a este jogo');
-        setIsLoading(false);
-        return;
-      }
-
-      console.log('User player check passed:', userPlayerCheck);
-
-      // Buscar dados do jogo
       const { data: game, error: gameError } = await supabase
         .from('games')
         .select('*')
         .eq('id', gameId)
         .single();
 
-      if (gameError) {
-        console.error('Erro ao buscar jogo:', gameError);
-        setError('Jogo não encontrado');
-        setIsLoading(false);
+      if (gameError || !game) {
+        toast.error('Jogo não encontrado ou acesso negado.');
+        setError('Jogo não encontrado.');
         return;
       }
-
-      console.log('Game data fetched:', game);
-
-      // Buscar todos os jogadores com profiles
+      
       const { data: gamePlayers, error: playersError } = await supabase
         .from('game_players')
-        .select(`
-          id,
-          user_id,
-          position,
-          hand,
-          status,
-          profiles (
-            full_name,
-            avatar_url
-          )
-        `)
+        .select(`*, profiles(full_name, avatar_url)`)
         .eq('game_id', gameId)
         .order('position');
 
       if (playersError) {
-        console.error('Erro ao buscar jogadores:', playersError);
-        setError('Erro ao carregar jogadores');
-        setIsLoading(false);
+        toast.error('Erro ao carregar os jogadores.');
+        setError('Não foi possível carregar os jogadores.');
         return;
       }
-
-      console.log('=== PLAYERS DATA FETCHED ===');
-      console.log('Raw players data:', gamePlayers);
       
-      // Log detalhado de cada jogador
-      gamePlayers?.forEach((player, index) => {
-        console.log(`Player ${index + 1}:`, {
-          id: player.id,
-          user_id: player.user_id,
-          position: player.position,
-          hand: player.hand,
-          hand_type: typeof player.hand,
-          hand_length: Array.isArray(player.hand) ? player.hand.length : 'Not array',
-          status: player.status,
-          profile: player.profiles
-        });
-      });
-
-      setGameData(game);
-      setPlayers(gamePlayers || []);
-      setIsLoading(false);
-      
-      if (gamePlayers && gamePlayers.length > 0) {
-        toast.success(`Jogo carregado! ${gamePlayers.length} jogadores encontrados`);
+      if (!gamePlayers.some(p => p.user_id === user.id)) {
+        toast.error("Você não faz parte deste jogo.");
+        setError("Acesso negado.");
+        navigate('/');
+        return;
       }
-    } catch (error: any) {
-      console.error('Erro inesperado ao carregar jogo:', error);
-      setError('Erro ao carregar o jogo: ' + error.message);
+      
+      setGameData(game);
+      setPlayers(gamePlayers);
+      toast.success(`Bem-vindo ao jogo!`);
+
+    } catch (e: any) {
+      console.error("Erro ao carregar o jogo:", e);
+      setError('Ocorreu um erro inesperado.');
+      toast.error('Falha ao carregar o jogo.');
+    } finally {
       setIsLoading(false);
     }
-  };
+  }, [gameId, user, navigate]);
 
-  // Subscrição em tempo real
+
   useEffect(() => {
-    fetchGameData();
+    fetchInitialData();
+  }, [fetchInitialData]);
 
+  useEffect(() => {
     if (!gameId) return;
 
-    console.log('Setting up realtime subscriptions for game:', gameId);
+    const gameChannel: RealtimeChannel = supabase.channel(`game:${gameId}`);
 
-    const gameChannel = supabase.channel(`game-${gameId}`)
-      .on('postgres_changes', {
-        event: '*',
-        schema: 'public',
-        table: 'games',
-        filter: `id=eq.${gameId}`
-      }, payload => {
-        console.log('Game updated via realtime:', payload);
-        if (payload.new) {
-          setGameData(payload.new as GameData);
+    const gameSubscription = gameChannel.on<GameData>(
+      'postgres_changes',
+      { event: 'UPDATE', schema: 'public', table: 'games', filter: `id=eq.${gameId}` },
+      (payload) => {
+        setGameData(payload.new as GameData);
+        toast.info("O estado do jogo foi atualizado.");
+      }
+    );
+
+    const playersSubscription = gameChannel.on<PlayerData>(
+      'postgres_changes',
+      { event: '*', schema: 'public', table: 'game_players', filter: `game_id=eq.${gameId}` },
+      async (payload) => {
+        if (payload.eventType === 'INSERT') {
+          const newPlayer = payload.new as PlayerData;
+          if (!newPlayer.profiles) {
+            const { data: profileData } = await supabase
+              .from('profiles')
+              .select('full_name, avatar_url')
+              .eq('id', newPlayer.user_id)
+              .single();
+            newPlayer.profiles = profileData as PlayerProfile;
+          }
+          setPlayers(currentPlayers => [...currentPlayers, newPlayer]);
+          toast.info(`${newPlayer.profiles?.full_name || 'Novo jogador'} entrou no jogo.`);
+        } else if (payload.eventType === 'UPDATE') {
+          setPlayers(currentPlayers => currentPlayers.map(p => p.id === payload.new.id ? payload.new as PlayerData : p));
+        } else if (payload.eventType === 'DELETE') {
+           setPlayers(currentPlayers => currentPlayers.filter(p => p.id !== (payload.old as PlayerData).id));
         }
-      })
-      .on('postgres_changes', {
-        event: '*',
-        schema: 'public',
-        table: 'game_players',
-        filter: `game_id=eq.${gameId}`
-      }, payload => {
-        console.log('Game players updated via realtime:', payload);
-        fetchGameData(); // Re-fetch para garantir dados atualizados
-      })
-      .subscribe();
+      }
+    );
+
+    gameChannel.subscribe((status) => {
+      if (status === 'SUBSCRIBED') {
+        console.log('Conectado ao canal do jogo.');
+      }
+    });
 
     return () => {
-      console.log('Cleaning up realtime subscription for game:', gameId);
       supabase.removeChannel(gameChannel);
     };
-  }, [gameId, user]);
+  }, [gameId]);
 
-  const handleBackToLobby = () => {
-    navigate('/');
-  };
 
   if (isLoading) {
     return (
