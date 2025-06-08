@@ -1,6 +1,5 @@
-
 import React from 'react';
-import { ProcessedPlayer } from './OpponentsDisplay';
+import { ProcessedPlayer } from '@/types/game';
 import { cn } from '@/lib/utils';
 import DominoPiece from './DominoPiece';
 

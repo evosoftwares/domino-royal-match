@@ -19,4 +19,21 @@ export interface PlayerData {
   hand: any;
   status: string;
   profiles?: PlayerProfile;
+}
+
+export interface DominoPieceType {
+  id: string;
+  top: number;
+  bottom: number;
+  orientation?: 'vertical' | 'horizontal';
+  originalFormat?: any;
+}
+
+export interface ProcessedPlayer {
+  id: string;
+  name: string;
+  pieces: DominoPieceType[];
+  isCurrentPlayer: boolean;
+  position: number;
+  originalData: PlayerData;
 } 

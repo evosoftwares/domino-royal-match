@@ -62,9 +62,11 @@ const DominoPiece: React.FC<DominoPieceProps> = ({
   return (
     <div
       className={cn(
-        "flex rounded-lg shadow-lg border-gray-700 border",
+        "flex rounded-md md:rounded-lg shadow-lg border-gray-700 border",
         "bg-gradient-to-br from-gray-900 to-black",
-        isVertical ? "w-16 h-32 flex-col" : "w-32 h-16 flex-row",
+        isVertical 
+          ? "w-12 h-24 md:w-16 md:h-32 flex-col" 
+          : "w-24 h-12 md:w-32 md:h-16 flex-row",
         "transition-all duration-200",
 
         isPlayable && "cursor-pointer hover:shadow-cyan-400/30 hover:border-cyan-400",
@@ -78,12 +80,12 @@ const DominoPiece: React.FC<DominoPieceProps> = ({
       onDragStart={isPlayable ? onDragStart : undefined}
       onDragEnd={isPlayable ? onDragEnd : undefined}
     >
-      <div className="flex-1 p-2">{renderDots(topValue)}</div>
+      <div className="flex-1 p-1 md:p-2">{renderDots(topValue)}</div>
       <div className={cn(
         "bg-gray-600",
-        isVertical ? "h-0.5 w-11/12 self-center" : "w-0.5 h-11/12 self-center"
+        isVertical ? "h-px w-10/12 self-center" : "w-px h-10/12 self-center"
       )} />
-      <div className="flex-1 p-2">{renderDots(bottomValue)}</div>
+      <div className="flex-1 p-1 md:p-2">{renderDots(bottomValue)}</div>
     </div>
   );
 };

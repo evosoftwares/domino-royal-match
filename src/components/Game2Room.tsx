@@ -1,14 +1,11 @@
-
 import React, { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { toast } from 'sonner';
-import { DominoPieceType } from '@/utils/dominoUtils';
+import { GameData, PlayerData, ProcessedPlayer, DominoPieceType } from '@/types/game';
 import GameBoard from './GameBoard';
 import OpponentsList from './OpponentsList';
 import PlayerHand from './PlayerHand';
-import { GameData, PlayerData } from '@/types/game';
-import { ProcessedPlayer } from './OpponentsDisplay';
 
 interface Game2RoomProps {
   gameData: GameData;
@@ -78,8 +75,8 @@ const Game2Room: React.FC<Game2RoomProps> = ({ gameData: initialGameData, player
     };
   });
 
-  const userPlayer = processedPlayers.find(p => p.id === user?.id);
-  const otherPlayers = processedPlayers.filter(p => p.id !== user?.id);
+  const currentUserPlayer = processedPlayers.find(p => p.id === user?.id);
+  const opponents = processedPlayers.filter(p => p.id !== user?.id);
 
   let placedPieces: DominoPieceType[] = [];
   if (gameState.board_state?.pieces && Array.isArray(gameState.board_state.pieces)) {
@@ -140,7 +137,7 @@ const Game2Room: React.FC<Game2RoomProps> = ({ gameData: initialGameData, player
 
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault();
-    if (currentDraggedPiece && userPlayer?.isCurrentPlayer && !isProcessingMove) {
+    if (currentDraggedPiece && currentUserPlayer?.isCurrentPlayer && !isProcessingMove) {
       playPiece(currentDraggedPiece);
     }
     setCurrentDraggedPiece(null);
@@ -204,16 +201,16 @@ const Game2Room: React.FC<Game2RoomProps> = ({ gameData: initialGameData, player
   }, [gameState.id, isProcessingMove]);
 
   const handleForceAutoPlay = useCallback(() => {
-    const playablePieces = userPlayer?.pieces.filter(canPiecePlay) || [];
+    const playablePieces = currentUserPlayer?.pieces.filter(canPiecePlay) || [];
     if (playablePieces.length > 0) {
       playPiece(playablePieces[0]);
     } else {
       handlePassTurn();
     }
-  }, [userPlayer, canPiecePlay, playPiece, handlePassTurn]);
+  }, [currentUserPlayer, canPiecePlay, playPiece, handlePassTurn]);
 
   const handleManualAutoPlay = () => {
-    const playablePieces = userPlayer?.pieces.filter(canPiecePlay);
+    const playablePieces = currentUserPlayer?.pieces.filter(canPiecePlay);
     if (!playablePieces || playablePieces.length === 0) {
       toast.info('Nenhuma peça jogável, passando a vez.');
       handlePassTurn();
@@ -238,7 +235,7 @@ const Game2Room: React.FC<Game2RoomProps> = ({ gameData: initialGameData, player
     <div className="min-h-screen bg-gradient-to-br from-purple-900 via-purple-800 to-black flex flex-col">
       {/* Lista de adversários no topo */}
       <div className="flex-shrink-0 p-4">
-        <OpponentsList opponents={otherPlayers} />
+        <OpponentsList opponents={opponents} />
       </div>
 
       {/* Mesa no meio */}
@@ -253,13 +250,13 @@ const Game2Room: React.FC<Game2RoomProps> = ({ gameData: initialGameData, player
 
       {/* Mão do jogador fixada no bottom */}
       <div className="flex-shrink-0 p-4">
-        {userPlayer && (
+        {currentUserPlayer && (
           <PlayerHand
-            playerPieces={userPlayer.pieces}
+            playerPieces={currentUserPlayer.pieces}
             onPieceDrag={handlePieceDrag}
             onPiecePlay={playPiece}
-            isCurrentPlayer={userPlayer.isCurrentPlayer}
-            playerName={userPlayer.name}
+            isCurrentPlayer={currentUserPlayer.isCurrentPlayer}
+            playerName={currentUserPlayer.name}
             timeLeft={timeLeft}
             onAutoPlay={handleManualAutoPlay}
             isProcessingMove={isProcessingMove}
