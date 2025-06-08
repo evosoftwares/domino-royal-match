@@ -3,6 +3,7 @@ export interface DominoPieceType {
   id: string;
   top: number;
   bottom: number;
+  originalFormat?: { l: number; r: number };
 }
 
 export const generateDominoPieces = (): DominoPieceType[] => {
@@ -13,7 +14,8 @@ export const generateDominoPieces = (): DominoPieceType[] => {
       pieces.push({
         id: `${top}-${bottom}`,
         top,
-        bottom
+        bottom,
+        originalFormat: { l: top, r: bottom }
       });
     }
   }

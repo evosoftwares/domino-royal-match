@@ -42,7 +42,7 @@ const DominoPiece: React.FC<DominoPieceProps> = ({
 
     return (
       <div className={cn(
-        "relative w-full h-12 bg-white rounded-lg border border-gray-300",
+        "relative w-full h-8 bg-white rounded-md border border-gray-300",
         position === 'bottom' && "border-t-2 border-t-gray-400"
       )}>
         <div className="absolute inset-1 grid grid-cols-3 grid-rows-3 gap-0">
@@ -57,7 +57,7 @@ const DominoPiece: React.FC<DominoPieceProps> = ({
                 className="flex items-center justify-center"
               >
                 {shouldShowDot && (
-                  <div className="w-2 h-2 bg-black rounded-full" />
+                  <div className="w-1.5 h-1.5 bg-black rounded-full" />
                 )}
               </div>
             );
@@ -70,8 +70,8 @@ const DominoPiece: React.FC<DominoPieceProps> = ({
   return (
     <div
       className={cn(
-        "w-16 h-32 bg-gradient-to-b from-gray-100 to-gray-200 rounded-xl shadow-lg cursor-pointer transition-all duration-200 border-2 border-gray-300",
-        isPlayable && "hover:shadow-xl hover:scale-105 hover:border-yellow-400",
+        "w-12 h-24 bg-gradient-to-b from-gray-100 to-gray-200 rounded-lg shadow-md cursor-pointer transition-all duration-200 border-2 border-gray-300",
+        isPlayable && "hover:shadow-lg hover:scale-105 hover:border-yellow-400",
         isDragging && "opacity-50 rotate-12 scale-110",
         !isPlayable && "opacity-50 cursor-not-allowed",
         className

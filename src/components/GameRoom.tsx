@@ -47,12 +47,13 @@ const GameRoom: React.FC<GameRoomProps> = ({ gameData: initialGameData, players:
 
   // Debug - Log de dados iniciais
   useEffect(() => {
-    console.log('=== GAME ROOM DEBUG ===');
-    console.log('Game Data:', initialGameData);
-    console.log('Initial Players:', initialPlayers);
-    console.log('Current User ID:', user?.id);
-    console.log('======================');
-  }, [initialGameData, initialPlayers, user]);
+    console.log('=== GAME ROOM INITIALIZATION ===');
+    console.log('Game State:', gameState);
+    console.log('Players State:', playersState);
+    console.log('Current User:', user?.id);
+    console.log('Current Player Turn:', gameState.current_player_turn);
+    console.log('=================================');
+  }, [gameState, playersState, user]);
 
   // Atualizar estados quando props mudam
   useEffect(() => {
@@ -91,7 +92,7 @@ const GameRoom: React.FC<GameRoomProps> = ({ gameData: initialGameData, players:
   const processedPlayers = playersState.map(player => {
     let pieces: DominoPieceType[] = [];
     
-    console.log(`=== PROCESSANDO JOGADOR ${player.profiles?.full_name || 'Unknown'} ===`);
+    console.log(`=== PROCESSANDO JOGADOR ${player.profiles?.full_name || player.user_id} ===`);
     console.log('Player hand raw:', player.hand);
     console.log('Player hand type:', typeof player.hand);
     
@@ -106,7 +107,8 @@ const GameRoom: React.FC<GameRoomProps> = ({ gameData: initialGameData, players:
           return {
             id: `${player.user_id}-piece-${index}`,
             top: piece.l,
-            bottom: piece.r
+            bottom: piece.r,
+            originalFormat: piece // Manter formato original para o RPC
           };
         }
         
@@ -116,7 +118,8 @@ const GameRoom: React.FC<GameRoomProps> = ({ gameData: initialGameData, players:
           return {
             id: `${player.user_id}-piece-${index}`,
             top: piece.left,
-            bottom: piece.right
+            bottom: piece.right,
+            originalFormat: { l: piece.left, r: piece.right }
           };
         }
         
@@ -126,7 +129,8 @@ const GameRoom: React.FC<GameRoomProps> = ({ gameData: initialGameData, players:
           return {
             id: `${player.user_id}-piece-${index}`,
             top: piece[0],
-            bottom: piece[1]
+            bottom: piece[1],
+            originalFormat: { l: piece[0], r: piece[1] }
           };
         }
         
@@ -135,7 +139,7 @@ const GameRoom: React.FC<GameRoomProps> = ({ gameData: initialGameData, players:
       }).filter(Boolean);
     }
     
-    console.log(`Jogador ${player.profiles?.full_name} processado com ${pieces.length} peças:`, pieces);
+    console.log(`Jogador ${player.profiles?.full_name || player.user_id} processado com ${pieces.length} peças:`, pieces);
     
     return {
       id: player.user_id,
@@ -148,7 +152,7 @@ const GameRoom: React.FC<GameRoomProps> = ({ gameData: initialGameData, players:
   });
 
   console.log('=== PROCESSED PLAYERS ===');
-  console.log('All processed players:', processedPlayers);
+  processedPlayers.forEach(p => console.log(`${p.name}: ${p.pieces.length} peças, current: ${p.isCurrentPlayer}`));
 
   const userPlayer = processedPlayers.find(p => p.id === user?.id);
   const otherPlayers = processedPlayers.filter(p => p.id !== user?.id);
@@ -269,17 +273,17 @@ const GameRoom: React.FC<GameRoomProps> = ({ gameData: initialGameData, players:
     setIsProcessingMove(true);
 
     try {
-      // Converter para formato esperado pela função play_move
-      const pieceArray = [piece.top, piece.bottom];
+      // Usar o formato original da peça para o RPC
+      const pieceForRPC = (piece as any).originalFormat || { l: piece.top, r: piece.bottom };
       console.log('Calling play_move with:', { 
         game_id: gameState.id, 
-        piece: pieceArray, 
+        piece: pieceForRPC, 
         side 
       });
 
       const { data, error } = await supabase.rpc('play_move', {
         p_game_id: gameState.id,
-        p_piece: pieceArray,
+        p_piece: pieceForRPC,
         p_side: side
       });
 
