@@ -11,6 +11,7 @@ export interface GameData {
   current_player_turn: string | null;
   board_state: any;
   created_at: string;
+  updated_at?: string;
 }
 
 export interface PlayerData {
