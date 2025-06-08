@@ -1,7 +1,7 @@
 import React from 'react';
 import { cn } from '@/lib/utils';
 import DominoPiece from './DominoPiece';
-import { ProcessedPlayer } from './OpponentsDisplay';
+import { ProcessedPlayer } from '@/types/game';
 
 interface OpponentAreaProps {
   player: ProcessedPlayer;

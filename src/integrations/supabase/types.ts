@@ -352,6 +352,14 @@ export type Database = {
           message: string
         }[]
       }
+      select_first_player: {
+        Args: Record<PropertyKey, never>
+        Returns: {
+          player_id: number
+          piece_id: number
+          piece_value: number
+        }[]
+      }
       shuffle_json_array: {
         Args: { arr: Json }
         Returns: Json
