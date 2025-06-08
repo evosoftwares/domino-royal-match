@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
@@ -96,7 +95,7 @@ const Game: React.FC = () => {
           position,
           hand,
           status,
-          profiles!game_players_user_id_fkey (
+          profiles (
             full_name,
             avatar_url
           )
