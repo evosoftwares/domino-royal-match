@@ -1,10 +1,9 @@
+
 import React, { useState, useEffect } from 'react';
 import GameBoard from './GameBoard';
 import PlayerArea from './PlayerArea';
 import { DominoPieceType } from '@/utils/dominoUtils';
-// A importação do supabase e useParams não é mais necessária para busca de dados aqui
 import { useAuth } from '@/hooks/useAuth';
-// A importação de toast pode ser mantida para outras interações
 import { toast } from 'sonner';
 
 // Interfaces importadas ou definidas no mesmo arquivo que Game.tsx
@@ -26,9 +25,9 @@ interface PlayerData {
   id: string;
   user_id: string;
   position: number;
-  hand: any;
+  hand: any; // JSON array no formato [[valor1, valor2], [valor1, valor2], ...]
   status: string;
-  profiles: PlayerProfile; // A query em Game.tsx já aninha os perfis
+  profiles: PlayerProfile;
 }
 
 // Interface para o formato de jogador usado internamente pelo GameRoom
@@ -93,21 +92,36 @@ const GameRoom: React.FC<GameRoomProps> = ({ gameData, players }) => {
   // --- Os dados agora são derivados diretamente das props, não mais do estado interno ---
   const gameStarted = gameData.status === 'active' || gameData.status === 'starting';
 
-  const formattedPlayers: Player[] = players.map(player => ({
-    id: player.user_id,
-    name: player.profiles?.full_name || 'Jogador',
-    pieces: player.hand ? (player.hand as any[]).map((p, i) => ({ id: `${player.user_id}-p${i}`, top: p[0], bottom: p[1] })) : [],
-    isCurrentPlayer: gameData.current_player_turn === player.user_id,
-    position: player.position
-  }));
+  // Converter os dados dos jogadores do Supabase para o formato interno
+  const formattedPlayers: Player[] = players.map(player => {
+    let pieces: DominoPieceType[] = [];
+    
+    // Converter o campo hand do Supabase (array JSON) para DominoPieceType
+    if (player.hand && Array.isArray(player.hand)) {
+      pieces = player.hand.map((piece: [number, number], index: number) => ({
+        id: `${player.user_id}-piece-${index}`,
+        top: piece[0],
+        bottom: piece[1]
+      }));
+    }
+    
+    return {
+      id: player.user_id,
+      name: player.profiles?.full_name || 'Jogador',
+      pieces,
+      isCurrentPlayer: gameData.current_player_turn === player.user_id,
+      position: player.position
+    };
+  });
 
+  // Converter board_state do Supabase para peças colocadas
   let placedPieces: DominoPieceType[] = [];
   if (gameData.board_state && typeof gameData.board_state === 'object' && (gameData.board_state as any).pieces) {
     const boardState = gameData.board_state as { pieces: any[]; };
-    placedPieces = boardState.pieces.map((piece: any, index: number) => ({
-      id: `board-${index}`,
-      top: piece.piece[0],
-      bottom: piece.piece[1]
+    placedPieces = boardState.pieces.map((boardPiece: any, index: number) => ({
+      id: `board-piece-${index}`,
+      top: boardPiece.piece[0],
+      bottom: boardPiece.piece[1]
     }));
   }
   
@@ -120,7 +134,6 @@ const GameRoom: React.FC<GameRoomProps> = ({ gameData, players }) => {
     return () => clearInterval(timer);
   }, [gameStarted, gameData.current_player_turn]);
 
-
   const handlePieceDrag = (piece: DominoPieceType) => setCurrentDraggedPiece(piece);
   const handleDragOver = (e: React.DragEvent) => e.preventDefault();
   const handleDrop = (e: React.DragEvent) => {
@@ -130,8 +143,15 @@ const GameRoom: React.FC<GameRoomProps> = ({ gameData, players }) => {
   
   // Funções de handle (handlePiecePlayed, handleAutoPlay) (sem alterações)
   // NOTA: Estas funções agora chamarão supabase RPCs para atualizar o estado no backend.
-  const handlePiecePlayed = async (piece: DominoPieceType) => { /* ... */ };
-  const handleAutoPlay = async () => { /* ... */ };
+  const handlePiecePlayed = async (piece: DominoPieceType) => { 
+    console.log('Peça jogada:', piece);
+    // TODO: Implementar chamada para RPC do Supabase
+  };
+  
+  const handleAutoPlay = async () => { 
+    console.log('Auto play solicitado');
+    // TODO: Implementar auto play
+  };
 
   // Filtra os jogadores para separar o usuário atual dos oponentes
   const otherPlayers = formattedPlayers.filter(p => p.id !== user?.id);
