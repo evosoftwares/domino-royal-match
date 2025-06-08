@@ -4,6 +4,7 @@ import GameBoard from './GameBoard';
 import PlayerArea from './PlayerArea';
 import { DominoPieceType } from '@/utils/dominoUtils';
 import { useAuth } from '@/hooks/useAuth';
+import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 
 // Interfaces importadas ou definidas no mesmo arquivo que Game.tsx
@@ -88,6 +89,7 @@ const GameRoom: React.FC<GameRoomProps> = ({ gameData, players }) => {
   // Estados que ainda são de responsabilidade deste componente
   const [currentDraggedPiece, setCurrentDraggedPiece] = useState<DominoPieceType | null>(null);
   const [timeLeft, setTimeLeft] = useState(30);
+  const [isProcessingMove, setIsProcessingMove] = useState(false);
 
   // --- Os dados agora são derivados diretamente das props, não mais do estado interno ---
   const gameStarted = gameData.status === 'active' || gameData.status === 'starting';
@@ -124,6 +126,41 @@ const GameRoom: React.FC<GameRoomProps> = ({ gameData, players }) => {
       bottom: boardPiece.piece[1]
     }));
   }
+
+  // Verificar se é o primeiro movimento do jogo
+  const isFirstMove = placedPieces.length === 0;
+  
+  // Obter as extremidades abertas do tabuleiro
+  const getOpenEnds = () => {
+    if (isFirstMove) return { left: null, right: null };
+    
+    const boardState = gameData.board_state;
+    return {
+      left: boardState?.left_end || null,
+      right: boardState?.right_end || null
+    };
+  };
+
+  // Verificar se uma peça pode ser jogada
+  const canPiecePlay = (piece: DominoPieceType): boolean => {
+    if (isFirstMove) return true;
+    
+    const { left, right } = getOpenEnds();
+    return piece.top === left || piece.bottom === left || 
+           piece.top === right || piece.bottom === right;
+  };
+
+  // Determinar em qual lado a peça deve ser jogada
+  const determineSide = (piece: DominoPieceType): 'left' | 'right' | null => {
+    if (isFirstMove) return 'left'; // Para o primeiro movimento, sempre lado esquerdo
+    
+    const { left, right } = getOpenEnds();
+    
+    if (piece.top === left || piece.bottom === left) return 'left';
+    if (piece.top === right || piece.bottom === right) return 'right';
+    
+    return null;
+  };
   
   // Timer (lógica pode ser mantida ou ajustada conforme necessário)
   useEffect(() => {
@@ -134,23 +171,121 @@ const GameRoom: React.FC<GameRoomProps> = ({ gameData, players }) => {
     return () => clearInterval(timer);
   }, [gameStarted, gameData.current_player_turn]);
 
-  const handlePieceDrag = (piece: DominoPieceType) => setCurrentDraggedPiece(piece);
-  const handleDragOver = (e: React.DragEvent) => e.preventDefault();
+  const handlePieceDrag = (piece: DominoPieceType) => {
+    setCurrentDraggedPiece(piece);
+  };
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+  };
+
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault();
-    if (currentDraggedPiece) handlePiecePlayed(currentDraggedPiece);
+    if (currentDraggedPiece) {
+      handlePiecePlayed(currentDraggedPiece);
+    }
   };
   
-  // Funções de handle (handlePiecePlayed, handleAutoPlay) (sem alterações)
-  // NOTA: Estas funções agora chamarão supabase RPCs para atualizar o estado no backend.
-  const handlePiecePlayed = async (piece: DominoPieceType) => { 
-    console.log('Peça jogada:', piece);
-    // TODO: Implementar chamada para RPC do Supabase
+  // Função principal para jogar uma peça
+  const handlePiecePlayed = async (piece: DominoPieceType) => {
+    if (isProcessingMove) {
+      toast.error('Aguarde a jogada anterior ser processada');
+      return;
+    }
+
+    if (!user || gameData.current_player_turn !== user.id) {
+      toast.error('Não é sua vez de jogar');
+      return;
+    }
+
+    if (!canPiecePlay(piece)) {
+      toast.error('Esta peça não pode ser jogada nas extremidades disponíveis');
+      return;
+    }
+
+    const side = determineSide(piece);
+    if (!side) {
+      toast.error('Não foi possível determinar onde jogar esta peça');
+      return;
+    }
+
+    setIsProcessingMove(true);
+
+    try {
+      // Converter a peça para o formato JSON esperado pelo Supabase
+      const pieceJson = [piece.top, piece.bottom];
+
+      console.log('Enviando jogada:', {
+        gameId: gameData.id,
+        piece: pieceJson,
+        side
+      });
+
+      // Chamar a função RPC do Supabase
+      const { data, error } = await supabase.rpc('play_move', {
+        p_game_id: gameData.id,
+        p_piece: pieceJson,
+        p_side: side
+      });
+
+      if (error) {
+        console.error('Erro na RPC play_move:', error);
+        toast.error(`Erro ao jogar peça: ${error.message}`);
+        return;
+      }
+
+      console.log('Resultado da jogada:', data);
+
+      if (data && data.includes('ERRO:')) {
+        toast.error(data);
+        return;
+      }
+
+      // Sucesso
+      if (data && data.includes('venceu')) {
+        toast.success('🎉 Você venceu o jogo!');
+      } else {
+        toast.success('Jogada realizada com sucesso!');
+      }
+
+      // Limpar o estado de drag
+      setCurrentDraggedPiece(null);
+
+    } catch (error) {
+      console.error('Erro inesperado ao jogar peça:', error);
+      toast.error('Erro inesperado ao jogar peça');
+    } finally {
+      setIsProcessingMove(false);
+    }
   };
   
-  const handleAutoPlay = async () => { 
-    console.log('Auto play solicitado');
-    // TODO: Implementar auto play
+  const handleAutoPlay = async () => {
+    if (isProcessingMove) {
+      toast.error('Aguarde a jogada anterior ser processada');
+      return;
+    }
+
+    if (!user || gameData.current_player_turn !== user.id) {
+      toast.error('Não é sua vez de jogar');
+      return;
+    }
+
+    const userPlayer = formattedPlayers.find(p => p.id === user.id);
+    if (!userPlayer) {
+      toast.error('Jogador não encontrado');
+      return;
+    }
+
+    // Encontrar a primeira peça que pode ser jogada
+    const playablePiece = userPlayer.pieces.find(piece => canPiecePlay(piece));
+    
+    if (!playablePiece) {
+      toast.error('Nenhuma peça pode ser jogada');
+      return;
+    }
+
+    console.log('Auto play: jogando peça', playablePiece);
+    await handlePiecePlayed(playablePiece);
   };
 
   // Filtra os jogadores para separar o usuário atual dos oponentes
@@ -182,6 +317,9 @@ const GameRoom: React.FC<GameRoomProps> = ({ gameData, players }) => {
           isCurrentPlayer={userPlayer.isCurrentPlayer}
           playerName={userPlayer.name}
           timeLeft={timeLeft}
+          onAutoPlay={handleAutoPlay}
+          isProcessingMove={isProcessingMove}
+          canPiecePlay={canPiecePlay}
         />
       )}
     </div>

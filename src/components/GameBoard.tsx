@@ -22,6 +22,7 @@ const GameBoard: React.FC<GameBoardProps> = ({ placedPieces, onDrop, onDragOver 
           )}
           onDrop={onDrop}
           onDragOver={onDragOver}
+          data-testid="game-board"
         >
           {placedPieces.length === 0 ? (
             <div className="text-center text-purple-200">
@@ -32,13 +33,24 @@ const GameBoard: React.FC<GameBoardProps> = ({ placedPieces, onDrop, onDragOver 
           ) : (
             <div className="flex flex-wrap gap-1 justify-center items-center">
               {placedPieces.map((piece, index) => (
-                <DominoPiece
+                <div
                   key={`${piece.id}-${index}`}
-                  topValue={piece.top}
-                  bottomValue={piece.bottom}
-                  isPlayable={false}
-                  className="shadow-2xl"
-                />
+                  className="relative"
+                >
+                  <DominoPiece
+                    topValue={piece.top}
+                    bottomValue={piece.bottom}
+                    isPlayable={false}
+                    className="shadow-2xl"
+                  />
+                  {/* Indicador visual das extremidades se for primeira ou última peça */}
+                  {index === 0 && (
+                    <div className="absolute -left-2 top-1/2 transform -translate-y-1/2 w-2 h-2 bg-green-400 rounded-full animate-pulse" />
+                  )}
+                  {index === placedPieces.length - 1 && (
+                    <div className="absolute -right-2 top-1/2 transform -translate-y-1/2 w-2 h-2 bg-green-400 rounded-full animate-pulse" />
+                  )}
+                </div>
               ))}
             </div>
           )}

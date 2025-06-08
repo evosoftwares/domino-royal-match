@@ -3,6 +3,7 @@ import React, { useState } from 'react';
 import DominoPiece from './DominoPiece';
 import { DominoPieceType } from '@/utils/dominoUtils';
 import { cn } from '@/lib/utils';
+import { Button } from '@/components/ui/button';
 
 interface PlayerAreaProps {
   playerPieces: DominoPieceType[];
@@ -10,6 +11,9 @@ interface PlayerAreaProps {
   isCurrentPlayer: boolean;
   playerName: string;
   timeLeft?: number;
+  onAutoPlay?: () => void;
+  isProcessingMove?: boolean;
+  canPiecePlay?: (piece: DominoPieceType) => boolean;
 }
 
 const PlayerArea: React.FC<PlayerAreaProps> = ({
@@ -17,12 +21,15 @@ const PlayerArea: React.FC<PlayerAreaProps> = ({
   onPieceDrag,
   isCurrentPlayer,
   playerName,
-  timeLeft = 10
+  timeLeft = 10,
+  onAutoPlay,
+  isProcessingMove = false,
+  canPiecePlay
 }) => {
   const [draggedPiece, setDraggedPiece] = useState<DominoPieceType | null>(null);
 
   const handleDragStart = (piece: DominoPieceType) => (e: React.DragEvent) => {
-    if (!isCurrentPlayer) {
+    if (!isCurrentPlayer || isProcessingMove) {
       e.preventDefault();
       return;
     }
@@ -33,6 +40,20 @@ const PlayerArea: React.FC<PlayerAreaProps> = ({
 
   const handleDragEnd = () => {
     setDraggedPiece(null);
+  };
+
+  const handlePieceClick = (piece: DominoPieceType) => {
+    if (!isCurrentPlayer || isProcessingMove) return;
+    
+    // Se a peça pode ser jogada, simular drag and drop
+    if (canPiecePlay && canPiecePlay(piece)) {
+      onPieceDrag(piece);
+      // Simular um drop após um pequeno delay
+      setTimeout(() => {
+        const dropEvent = new DragEvent('drop', { bubbles: true });
+        document.querySelector('[data-testid="game-board"]')?.dispatchEvent(dropEvent);
+      }, 100);
+    }
   };
 
   return (
@@ -54,39 +75,66 @@ const PlayerArea: React.FC<PlayerAreaProps> = ({
           </h3>
         </div>
         
-        {isCurrentPlayer && (
-          <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2">
+          {isCurrentPlayer && onAutoPlay && (
+            <Button 
+              onClick={onAutoPlay}
+              disabled={isProcessingMove}
+              size="sm"
+              variant="outline"
+              className="bg-yellow-400/10 border-yellow-400/50 text-yellow-400 hover:bg-yellow-400/20"
+            >
+              {isProcessingMove ? 'Processando...' : 'Auto Play'}
+            </Button>
+          )}
+          
+          {isCurrentPlayer && (
             <div className={cn(
               "text-sm font-mono px-3 py-1 rounded-full",
               timeLeft <= 3 ? "bg-red-500 text-white animate-pulse" : "bg-yellow-400 text-black"
             )}>
               {timeLeft}s
             </div>
-          </div>
-        )}
+          )}
+        </div>
       </div>
 
       <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-thin scrollbar-thumb-purple-600 scrollbar-track-purple-900/20">
-        {playerPieces.map((piece) => (
-          <div key={piece.id} className="flex-shrink-0">
-            <DominoPiece
-              topValue={piece.top}
-              bottomValue={piece.bottom}
-              isDragging={draggedPiece?.id === piece.id}
-              isPlayable={isCurrentPlayer}
-              onDragStart={handleDragStart(piece)}
-              onDragEnd={handleDragEnd}
-              className={cn(
-                "transition-all duration-200",
-                !isCurrentPlayer && "grayscale"
-              )}
-            />
-          </div>
-        ))}
+        {playerPieces.map((piece) => {
+          const isPiecePlayable = canPiecePlay ? canPiecePlay(piece) : true;
+          
+          return (
+            <div key={piece.id} className="flex-shrink-0">
+              <DominoPiece
+                topValue={piece.top}
+                bottomValue={piece.bottom}
+                isDragging={draggedPiece?.id === piece.id}
+                isPlayable={isCurrentPlayer && isPiecePlayable && !isProcessingMove}
+                onDragStart={handleDragStart(piece)}
+                onDragEnd={handleDragEnd}
+                onClick={() => handlePieceClick(piece)}
+                className={cn(
+                  "transition-all duration-200",
+                  !isCurrentPlayer && "grayscale",
+                  isCurrentPlayer && !isPiecePlayable && "opacity-50 cursor-not-allowed",
+                  isCurrentPlayer && isPiecePlayable && "hover:ring-2 hover:ring-yellow-400"
+                )}
+              />
+            </div>
+          );
+        })}
       </div>
 
-      <div className="mt-3 text-sm text-purple-300">
-        {playerPieces.length} peças restantes
+      <div className="mt-3 flex items-center justify-between">
+        <div className="text-sm text-purple-300">
+          {playerPieces.length} peças restantes
+        </div>
+        
+        {isCurrentPlayer && canPiecePlay && (
+          <div className="text-xs text-yellow-400">
+            {playerPieces.filter(piece => canPiecePlay(piece)).length} peças jogáveis
+          </div>
+        )}
       </div>
     </div>
   );
