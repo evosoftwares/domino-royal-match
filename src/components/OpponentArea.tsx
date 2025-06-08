@@ -1,18 +1,10 @@
 import React from 'react';
 import { cn } from '@/lib/utils';
 import DominoPiece from './DominoPiece';
-
-interface PlayerData {
-  id: string;
-  name: string;
-  pieces: any[];
-  isCurrentPlayer: boolean;
-  position: number;
-  originalData: any;
-}
+import { ProcessedPlayer } from './OpponentsDisplay';
 
 interface OpponentAreaProps {
-  player: PlayerData;
+  player: ProcessedPlayer;
   isCurrentPlayer: boolean;
   pieceCount: number;
 }

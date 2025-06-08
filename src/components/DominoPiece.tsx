@@ -27,43 +27,32 @@ const DominoPiece: React.FC<DominoPieceProps> = ({
   const renderDots = (value: number) => {
     const safeValue = Math.max(0, Math.min(6, Math.floor(value || 0)));
     
-    // Posições dos pontos em um grid 3x3 mais intuitivo
+    // Posições dos pontos em um grid 3x3 para um layout clássico.
     const dotPatterns = {
       0: [],
-      1: [4], // Centro
-      2: [0, 8], // Diagonal principal
-      3: [0, 4, 8], // Diagonal principal + centro
-      4: [0, 2, 6, 8], // Quatro cantos
-      5: [0, 2, 4, 6, 8], // Quatro cantos + centro
-      6: [0, 1, 2, 6, 7, 8] // Duas colunas laterais
+      1: ["center"],
+      2: ["top-left", "bottom-right"],
+      3: ["top-left", "center", "bottom-right"],
+      4: ["top-left", "top-right", "bottom-left", "bottom-right"],
+      5: ["top-left", "top-right", "center", "bottom-left", "bottom-right"],
+      6: ["top-left", "top-right", "middle-left", "middle-right", "bottom-left", "bottom-right"],
     };
 
     const positions = dotPatterns[safeValue as keyof typeof dotPatterns] || [];
     
     return (
-      <div className={cn(
-        "relative flex-1 bg-gradient-to-br from-white to-gray-50 rounded-md",
-        "border border-gray-200 shadow-inner"
-      )}>
-        <div className="absolute inset-2 grid grid-cols-3 grid-rows-3 gap-0">
-          {Array.from({ length: 9 }, (_, index) => {
-            const shouldShowDot = positions.includes(index);
-            
-            return (
-              <div
-                key={index}
-                className="flex items-center justify-center"
-              >
-                {shouldShowDot && (
-                  <div className={cn(
-                    "rounded-full bg-gradient-to-br from-gray-800 to-black shadow-sm",
-                    "w-2 h-2 sm:w-2.5 sm:h-2.5" // Responsive dot size
-                  )} />
-                )}
-              </div>
-            );
-          })}
-        </div>
+      <div className="relative w-full h-full">
+        {positions.map(pos => (
+          <div key={pos} className={cn("absolute w-2.5 h-2.5 bg-white rounded-full", {
+            "top-1/4 left-1/4 -translate-x-1/2 -translate-y-1/2": pos === 'top-left',
+            "top-1/4 right-1/4 translate-x-1/2 -translate-y-1/2": pos === 'top-right',
+            "top-1/2 left-1/4 -translate-x-1/2 -translate-y-1/2": pos === 'middle-left',
+            "top-1/2 right-1/4 translate-x-1/2 -translate-y-1/2": pos === 'middle-right',
+            "bottom-1/4 left-1/4 -translate-x-1/2 translate-y-1/2": pos === 'bottom-left',
+            "bottom-1/4 right-1/4 translate-x-1/2 translate-y-1/2": pos === 'bottom-right',
+            "top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2": pos === 'center',
+          })} />
+        ))}
       </div>
     );
   };
@@ -73,31 +62,14 @@ const DominoPiece: React.FC<DominoPieceProps> = ({
   return (
     <div
       className={cn(
-        // Base styling - proporções mais realistas de dominó
-        isVertical ? "w-14 h-28" : "w-28 h-14",
-        "bg-gradient-to-br from-gray-50 via-white to-gray-100",
-        "rounded-xl shadow-lg border-2 border-gray-200",
-        "transition-all duration-300 ease-out",
-        
-        // Interactive states
-        isPlayable && [
-          "cursor-pointer",
-          "hover:shadow-xl hover:scale-105 hover:-translate-y-1",
-          "hover:border-blue-300 hover:bg-gradient-to-br hover:from-blue-50 hover:via-white hover:to-blue-50",
-          "active:scale-95 active:shadow-md"
-        ],
-        
-        // Dragging state
-        isDragging && [
-          "opacity-70 rotate-6 scale-110 z-50",
-          "shadow-2xl border-blue-400"
-        ],
-        
-        // Disabled state
-        !isPlayable && [
-          "opacity-40 cursor-not-allowed grayscale",
-          "hover:scale-100 hover:shadow-lg hover:translate-y-0"
-        ],
+        "flex rounded-lg shadow-lg border-gray-700 border",
+        "bg-gradient-to-br from-gray-900 to-black",
+        isVertical ? "w-16 h-32 flex-col" : "w-32 h-16 flex-row",
+        "transition-all duration-200",
+
+        isPlayable && "cursor-pointer hover:shadow-cyan-400/30 hover:border-cyan-400",
+        isDragging && "opacity-50 scale-105 rotate-3",
+        !isPlayable && "opacity-60 cursor-not-allowed grayscale",
         
         className
       )}
@@ -106,24 +78,12 @@ const DominoPiece: React.FC<DominoPieceProps> = ({
       onDragStart={isPlayable ? onDragStart : undefined}
       onDragEnd={isPlayable ? onDragEnd : undefined}
     >
-      {/* Conteúdo interno com padding adequado */}
+      <div className="flex-1 p-2">{renderDots(topValue)}</div>
       <div className={cn(
-        "p-2 h-full flex gap-1",
-        isVertical ? "flex-col" : "flex-row"
-      )}>
-        {renderDots(topValue)}
-        
-        {/* Linha divisória central */}
-        <div className={cn(
-          "bg-gradient-to-r from-transparent via-gray-300 to-transparent rounded-full",
-          isVertical ? "h-0.5 w-full" : "w-0.5 h-full"
-        )} />
-        
-        {renderDots(bottomValue)}
-      </div>
-      
-      {/* Efeito de brilho sutil */}
-      <div className="absolute inset-0 bg-gradient-to-tr from-transparent via-white/20 to-transparent rounded-xl pointer-events-none" />
+        "bg-gray-600",
+        isVertical ? "h-0.5 w-11/12 self-center" : "w-0.5 h-11/12 self-center"
+      )} />
+      <div className="flex-1 p-2">{renderDots(bottomValue)}</div>
     </div>
   );
 };
