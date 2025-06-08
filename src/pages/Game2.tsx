@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
@@ -53,10 +52,10 @@ const Game2: React.FC = () => {
     setError(null);
 
     try {
-      // Fetch only existing columns from games table
+      // Fetch games table with prize_amount included
       const { data: game, error: gameError } = await supabase
         .from('games')
-        .select('id, status, current_player_turn, board_state, created_at, updated_at')
+        .select('id, status, current_player_turn, board_state, prize_amount, created_at, updated_at')
         .eq('id', gameId)
         .single();
 
