@@ -4,6 +4,7 @@ import DominoPiece from './DominoPiece';
 import { DominoPieceType } from '@/utils/dominoUtils';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
+import { useIsMobile } from '@/hooks/use-mobile';
 
 interface PlayerHandProps {
   playerPieces: DominoPieceType[];
@@ -29,6 +30,7 @@ const PlayerHand: React.FC<PlayerHandProps> = ({
   canPiecePlay
 }) => {
   const [draggedPiece, setDraggedPiece] = useState<DominoPieceType | null>(null);
+  const isMobile = useIsMobile();
 
   const handleDragStart = (piece: DominoPieceType) => (e: React.DragEvent) => {
     if (!isCurrentPlayer || isProcessingMove) {
@@ -65,25 +67,31 @@ const PlayerHand: React.FC<PlayerHandProps> = ({
 
   return (
     <div className={cn(
-      "bg-gradient-to-r from-purple-900/50 to-black/50 rounded-2xl p-4 border-2 transition-all duration-300 w-full max-w-6xl mx-auto",
-      isCurrentPlayer ? "border-yellow-400 shadow-lg shadow-yellow-400/20" : "border-purple-600/30"
+      "bg-gradient-to-r from-purple-900/50 to-black/50 rounded-2xl border-2 transition-all duration-300 w-full max-w-6xl mx-auto",
+      isCurrentPlayer ? "border-yellow-400 shadow-lg shadow-yellow-400/20" : "border-purple-600/30",
+      isMobile ? "p-2" : "p-4"
     )}>
-      <div className="flex items-center justify-between mb-4">
+      <div className={cn(
+        "flex items-center justify-between",
+        isMobile ? "mb-2" : "mb-4"
+      )}>
         <div className="flex items-center gap-3">
           <div className={cn(
-            "w-4 h-4 rounded-full",
-            isCurrentPlayer ? "bg-yellow-400 animate-pulse" : "bg-gray-500"
+            "rounded-full",
+            isCurrentPlayer ? "bg-yellow-400 animate-pulse" : "bg-gray-500",
+            isMobile ? "w-2 h-2" : "w-4 h-4"
           )} />
           <h3 className={cn(
-            "text-lg font-semibold",
-            isCurrentPlayer ? "text-yellow-400" : "text-purple-200"
+            "font-semibold",
+            isCurrentPlayer ? "text-yellow-400" : "text-purple-200",
+            isMobile ? "text-sm" : "text-lg"
           )}>
             {playerName} {isCurrentPlayer && "(Sua vez)"}
           </h3>
         </div>
         
         <div className="flex items-center gap-2">
-          {isCurrentPlayer && onAutoPlay && (
+          {isCurrentPlayer && onAutoPlay && !isMobile && (
             <Button 
               onClick={onAutoPlay}
               disabled={isProcessingMove}
@@ -97,8 +105,9 @@ const PlayerHand: React.FC<PlayerHandProps> = ({
           
           {isCurrentPlayer && (
             <div className={cn(
-              "text-sm font-mono px-3 py-1 rounded-full",
-              timeLeft <= 3 ? "bg-red-500 text-white animate-pulse" : "bg-yellow-400 text-black"
+              "font-mono px-3 py-1 rounded-full",
+              timeLeft <= 3 ? "bg-red-500 text-white animate-pulse" : "bg-yellow-400 text-black",
+              isMobile ? "text-xs" : "text-sm"
             )}>
               {timeLeft}s
             </div>
@@ -106,8 +115,11 @@ const PlayerHand: React.FC<PlayerHandProps> = ({
         </div>
       </div>
 
-      {/* Mão do jogador sem scroll - todas as peças visíveis */}
-      <div className="grid grid-cols-7 gap-2 justify-items-center">
+      {/* Layout das peças adaptado para mobile landscape */}
+      <div className={cn(
+        "justify-items-center",
+        isMobile ? "grid grid-cols-7 gap-1" : "grid grid-cols-7 gap-2"
+      )}>
         {playerPieces.map((piece) => {
           const isPiecePlayable = canPiecePlay ? canPiecePlay(piece) : true;
           
@@ -125,7 +137,8 @@ const PlayerHand: React.FC<PlayerHandProps> = ({
                   "transition-all duration-200 cursor-pointer",
                   !isCurrentPlayer && "grayscale",
                   isCurrentPlayer && !isPiecePlayable && "opacity-50 cursor-not-allowed",
-                  isCurrentPlayer && isPiecePlayable && "hover:ring-2 hover:ring-yellow-400"
+                  isCurrentPlayer && isPiecePlayable && "hover:ring-2 hover:ring-yellow-400",
+                  isMobile ? "w-6 h-12" : "w-8 h-16"
                 )}
               />
             </div>
@@ -133,17 +146,19 @@ const PlayerHand: React.FC<PlayerHandProps> = ({
         })}
       </div>
 
-      <div className="mt-3 flex items-center justify-between">
-        <div className="text-sm text-purple-300">
-          {playerPieces.length} peças restantes
-        </div>
-        
-        {isCurrentPlayer && canPiecePlay && (
-          <div className="text-xs text-yellow-400">
-            {playerPieces.filter(piece => canPiecePlay(piece)).length} peças jogáveis
+      {!isMobile && (
+        <div className="mt-3 flex items-center justify-between">
+          <div className="text-sm text-purple-300">
+            {playerPieces.length} peças restantes
           </div>
-        )}
-      </div>
+          
+          {isCurrentPlayer && canPiecePlay && (
+            <div className="text-xs text-yellow-400">
+              {playerPieces.filter(piece => canPiecePlay(piece)).length} peças jogáveis
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 };

@@ -1,24 +1,41 @@
-
 import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import Game2Room from '@/components/Game2Room';
 import { toast } from 'sonner';
-import { Loader2, AlertCircle } from 'lucide-react';
+import { Loader2, AlertCircle, RotateCcw } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { RealtimeChannel } from '@supabase/supabase-js';
 import { GameData, PlayerData } from '@/types/game';
+import { useIsMobile } from '@/hooks/use-mobile';
 
 const Game2: React.FC = () => {
   const { gameId } = useParams<{ gameId: string; }>();
   const navigate = useNavigate();
   const { user } = useAuth();
+  const isMobile = useIsMobile();
   const [gameData, setGameData] = useState<GameData | null>(null);
   const [players, setPlayers] = useState<PlayerData[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [isLandscape, setIsLandscape] = useState(false);
+
+  useEffect(() => {
+    const checkOrientation = () => {
+      setIsLandscape(window.innerHeight < window.innerWidth);
+    };
+    
+    checkOrientation();
+    window.addEventListener('resize', checkOrientation);
+    window.addEventListener('orientationchange', checkOrientation);
+    
+    return () => {
+      window.removeEventListener('resize', checkOrientation);
+      window.removeEventListener('orientationchange', checkOrientation);
+    };
+  }, []);
 
   const handleBackToLobby = () => {
     navigate('/');
@@ -131,6 +148,27 @@ const Game2: React.FC = () => {
       supabase.removeChannel(gameChannel);
     };
   }, [gameId]);
+
+  // Tela para forçar rotação em mobile
+  if (isMobile && !isLandscape) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-purple-900 via-purple-800 to-black flex items-center justify-center p-4">
+        <Card className="max-w-sm mx-auto bg-slate-900/95 border-slate-700/50">
+          <CardContent className="p-8 text-center">
+            <RotateCcw className="w-24 h-24 text-purple-400 mx-auto mb-6 animate-spin" />
+            <h3 className="text-xl font-semibold text-slate-100 mb-4">Gire seu dispositivo</h3>
+            <p className="text-purple-200 mb-6">
+              Para uma melhor experiência de jogo, por favor gire seu dispositivo para o modo paisagem.
+            </p>
+            <div className="text-4xl mb-4">📱➡️📱</div>
+            <Button onClick={handleBackToLobby} variant="outline" className="bg-purple-600/20 border-purple-400/50 text-purple-300">
+              Voltar ao Lobby
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   if (isLoading) {
     return (

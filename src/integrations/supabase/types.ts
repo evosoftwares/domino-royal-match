@@ -353,12 +353,16 @@ export type Database = {
         }[]
       }
       select_first_player: {
-        Args: Record<PropertyKey, never>
+        Args: Record<PropertyKey, never> | { p_game_id: string }
         Returns: {
           player_id: number
           piece_id: number
           piece_value: number
         }[]
+      }
+      set_current_player_turn: {
+        Args: { p_game_id: string }
+        Returns: undefined
       }
       shuffle_json_array: {
         Args: { arr: Json }

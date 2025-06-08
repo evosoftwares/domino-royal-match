@@ -6,6 +6,7 @@ import { GameData, PlayerData, ProcessedPlayer, DominoPieceType } from '@/types/
 import GameBoard from './GameBoard';
 import OpponentsList from './OpponentsList';
 import PlayerHand from './PlayerHand';
+import { useIsMobile } from '@/hooks/use-mobile';
 
 interface Game2RoomProps {
   gameData: GameData;
@@ -14,6 +15,7 @@ interface Game2RoomProps {
 
 const Game2Room: React.FC<Game2RoomProps> = ({ gameData: initialGameData, players: initialPlayers }) => {
   const { user } = useAuth();
+  const isMobile = useIsMobile();
   const [gameState, setGameState] = useState(initialGameData);
   const [playersState, setPlayersState] = useState(initialPlayers);
   const [currentDraggedPiece, setCurrentDraggedPiece] = useState<DominoPieceType | null>(null);
@@ -231,39 +233,125 @@ const Game2Room: React.FC<Game2RoomProps> = ({ gameData: initialGameData, player
     );
   }
 
+  // Layout responsivo baseado na imagem
   return (
-    <div className="min-h-screen bg-gradient-to-br from-purple-900 via-purple-800 to-black flex flex-col">
-      {/* Lista de adversários no topo */}
-      <div className="flex-shrink-0 p-4">
-        <OpponentsList opponents={opponents} />
-      </div>
+    <div className="min-h-screen bg-gradient-to-br from-purple-900 via-purple-800 to-black overflow-hidden">
+      {isMobile ? (
+        // Layout mobile landscape (similar à imagem)
+        <div className="h-screen flex relative">
+          {/* Adversário esquerda */}
+          <div className="w-24 flex flex-col justify-center items-center p-2">
+            {opponents[0] && (
+              <div className="bg-gradient-to-b from-purple-900/30 to-black/30 rounded-xl p-2 border border-purple-600/20 transform -rotate-90">
+                <div className="text-xs text-purple-200 text-center mb-1">{opponents[0].name}</div>
+                <div className="flex gap-0.5 justify-center">
+                  {Array.from({ length: Math.min(opponents[0].pieces.length, 4) }).map((_, i) => (
+                    <div key={i} className="w-2 h-4 bg-gray-600 rounded border border-gray-700"></div>
+                  ))}
+                </div>
+                <div className="text-xs text-purple-300 text-center mt-1">{opponents[0].pieces.length}</div>
+              </div>
+            )}
+          </div>
 
-      {/* Mesa no meio */}
-      <div className="flex-1 flex items-center justify-center p-4">
-        <GameBoard
-          placedPieces={placedPieces}
-          onDrop={handleDrop}
-          onDragOver={handleDragOver}
-          className="w-full max-w-4xl"
-        />
-      </div>
+          {/* Área central com mesa e adversários top/bottom */}
+          <div className="flex-1 flex flex-col">
+            {/* Adversário superior */}
+            <div className="h-20 flex justify-center items-center p-2">
+              {opponents[1] && (
+                <div className="bg-gradient-to-r from-purple-900/30 to-black/30 rounded-xl p-2 border border-purple-600/20">
+                  <div className="text-xs text-purple-200 text-center mb-1">{opponents[1].name}</div>
+                  <div className="flex gap-0.5 justify-center">
+                    {Array.from({ length: Math.min(opponents[1].pieces.length, 4) }).map((_, i) => (
+                      <div key={i} className="w-3 h-2 bg-gray-600 rounded border border-gray-700"></div>
+                    ))}
+                  </div>
+                  <div className="text-xs text-purple-300 text-center mt-1">{opponents[1].pieces.length}</div>
+                </div>
+              )}
+            </div>
 
-      {/* Mão do jogador fixada no bottom */}
-      <div className="flex-shrink-0 p-4">
-        {currentUserPlayer && (
-          <PlayerHand
-            playerPieces={currentUserPlayer.pieces}
-            onPieceDrag={handlePieceDrag}
-            onPiecePlay={playPiece}
-            isCurrentPlayer={currentUserPlayer.isCurrentPlayer}
-            playerName={currentUserPlayer.name}
-            timeLeft={timeLeft}
-            onAutoPlay={handleManualAutoPlay}
-            isProcessingMove={isProcessingMove}
-            canPiecePlay={canPiecePlay}
-          />
-        )}
-      </div>
+            {/* Mesa central */}
+            <div className="flex-1 flex items-center justify-center p-2">
+              <GameBoard
+                placedPieces={placedPieces}
+                onDrop={handleDrop}
+                onDragOver={handleDragOver}
+                className="w-full h-full max-w-none"
+              />
+            </div>
+
+            {/* Mão do jogador na parte inferior */}
+            <div className="h-24 p-2">
+              {currentUserPlayer && (
+                <PlayerHand
+                  playerPieces={currentUserPlayer.pieces}
+                  onPieceDrag={handlePieceDrag}
+                  onPiecePlay={playPiece}
+                  isCurrentPlayer={currentUserPlayer.isCurrentPlayer}
+                  playerName={currentUserPlayer.name}
+                  timeLeft={timeLeft}
+                  onAutoPlay={handleManualAutoPlay}
+                  isProcessingMove={isProcessingMove}
+                  canPiecePlay={canPiecePlay}
+                />
+              )}
+            </div>
+          </div>
+
+          {/* Adversário direita */}
+          <div className="w-24 flex flex-col justify-center items-center p-2">
+            {opponents[2] && (
+              <div className="bg-gradient-to-b from-purple-900/30 to-black/30 rounded-xl p-2 border border-purple-600/20 transform rotate-90">
+                <div className="text-xs text-purple-200 text-center mb-1">{opponents[2].name}</div>
+                <div className="flex gap-0.5 justify-center">
+                  {Array.from({ length: Math.min(opponents[2].pieces.length, 4) }).map((_, i) => (
+                    <div key={i} className="w-2 h-4 bg-gray-600 rounded border border-gray-700"></div>
+                  ))}
+                </div>
+                <div className="text-xs text-purple-300 text-center mt-1">{opponents[2].pieces.length}</div>
+              </div>
+            )}
+          </div>
+
+          {/* Info do prêmio no canto superior direito */}
+          <div className="absolute top-4 right-4 bg-purple-600 text-white px-3 py-1 rounded-full text-sm font-semibold">
+            Prêmio R${gameState.prize_amount?.toFixed(2) || '0,00'}
+          </div>
+        </div>
+      ) : (
+        // Layout desktop (layout original)
+        <div className="min-h-screen flex flex-col">
+          <div className="flex-shrink-0 p-4">
+            <OpponentsList opponents={opponents} />
+          </div>
+
+          <div className="flex-1 flex items-center justify-center p-4">
+            <GameBoard
+              placedPieces={placedPieces}
+              onDrop={handleDrop}
+              onDragOver={handleDragOver}
+              className="w-full max-w-4xl"
+            />
+          </div>
+
+          <div className="flex-shrink-0 p-4">
+            {currentUserPlayer && (
+              <PlayerHand
+                playerPieces={currentUserPlayer.pieces}
+                onPieceDrag={handlePieceDrag}
+                onPiecePlay={playPiece}
+                isCurrentPlayer={currentUserPlayer.isCurrentPlayer}
+                playerName={currentUserPlayer.name}
+                timeLeft={timeLeft}
+                onAutoPlay={handleManualAutoPlay}
+                isProcessingMove={isProcessingMove}
+                canPiecePlay={canPiecePlay}
+              />
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 };
