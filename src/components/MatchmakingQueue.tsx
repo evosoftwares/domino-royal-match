@@ -1,17 +1,17 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react'; // Importe o useRef
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { toast } from 'sonner';
 
-// --- Componentes de UI e Ícones (sem alterações) ---
+// Importação dos componentes de UI e ícones
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Loader2, Users, Clock, UserPlus, UserMinus, AlertCircle, RefreshCw } from 'lucide-react';
 
-// --- Interfaces (sem alterações) ---
+// --- Interfaces e Tipos ---
 interface QueuePlayer {
   id: string;
   displayName: string;
@@ -24,8 +24,54 @@ interface QueueState {
   error: string | null;
 }
 
-// --- Componente Principal Refatorado ---
+// --- Sub-componentes para a UI (incluídos para ser um arquivo completo) ---
+
+// Componente para um jogador que está na fila
+const PlayerSlot: React.FC<{ player: QueuePlayer; isCurrentUser: boolean }> = ({ player, isCurrentUser }) => (
+  <div className="animate-fade-in flex flex-col items-center p-4 bg-slate-800/90 rounded-xl border border-slate-700/50 transition-all duration-300 hover:border-blue-500/50 hover:bg-slate-700/90">
+    <Avatar className="w-16 h-16 mb-3 border-2 border-blue-400">
+      <AvatarImage src={player.avatarUrl} alt={`Avatar de ${player.displayName}`} />
+      <AvatarFallback className="bg-blue-600 text-white font-semibold">
+        {player.displayName.charAt(0).toUpperCase()}
+      </AvatarFallback>
+    </Avatar>
+    <span className="text-slate-100 font-medium text-sm text-center truncate w-full">
+      {player.displayName}
+    </span>
+    <div className="flex items-center mt-2 text-emerald-400 text-xs font-medium">
+      <div className="w-2 h-2 bg-emerald-400 rounded-full mr-2 animate-pulse" />
+      {isCurrentUser ? 'Você' : 'Online'}
+    </div>
+  </div>
+);
+
+// Componente para um slot vazio na fila
+const EmptySlot: React.FC = () => (
+  <div className="flex flex-col items-center p-4 bg-slate-900/50 rounded-xl border border-slate-800/50 transition-all duration-300">
+    <div className="w-16 h-16 mb-3 rounded-full border-2 border-dashed border-slate-600 flex items-center justify-center">
+      <UserPlus className="w-8 h-8 text-slate-500" />
+    </div>
+    <span className="text-slate-400 text-sm text-center">Aguardando...</span>
+    <div className="flex items-center mt-2 text-slate-500 text-xs">
+      <Clock className="w-3 h-3 mr-1" />
+      Vazio
+    </div>
+  </div>
+);
+
+// Componente para o esqueleto de carregamento
+const LoadingSkeleton: React.FC = () => (
+  <div className="flex flex-col items-center p-4 bg-slate-800/50 rounded-xl border border-slate-700/30">
+    <Skeleton className="w-16 h-16 rounded-full mb-3 bg-slate-700" />
+    <Skeleton className="h-4 w-20 mb-2 bg-slate-700" />
+    <Skeleton className="h-3 w-16 bg-slate-700" />
+  </div>
+);
+
+
+// --- Componente Principal ---
 const MatchmakingQueue: React.FC = () => {
+  // --- Hooks e Estados ---
   const { user } = useAuth();
   const navigate = useNavigate();
 
@@ -37,12 +83,10 @@ const MatchmakingQueue: React.FC = () => {
   const [isUserInQueue, setIsUserInQueue] = useState(false);
   const [actionLoading, setActionLoading] = useState(false);
   
-  // O useRef é como uma "caixa" que pode guardar um valor e que sobrevive entre as renderizações.
-  // Usaremos ele para garantir que o listener de tempo real sempre tenha a versão mais recente da nossa função.
   const fetchQueueStateRef = useRef<() => void>();
 
+  // --- Funções de Lógica ---
   const fetchQueueState = useCallback(async () => {
-    // ... (o conteúdo desta função é o mesmo da versão anterior, sem alterações)
     try {
       const { data: queueData, error: queueError } = await supabase
         .from('matchmaking_queue')
@@ -78,20 +122,17 @@ const MatchmakingQueue: React.FC = () => {
 
       setQueueState({ players, isLoading: false, error: null });
       setIsUserInQueue(user ? players.some(player => player.id === user.id) : false);
-
     } catch (error: any) {
       console.error('Erro ao buscar fila:', error);
       setQueueState(prev => ({ ...prev, isLoading: false, error: 'Falha ao buscar dados da fila.' }));
     }
   }, [user]);
 
-  // Este useEffect garante que a nossa "caixa" (ref) sempre tenha a versão mais atual da função fetchQueueState.
   useEffect(() => {
     fetchQueueStateRef.current = fetchQueueState;
   });
 
   const checkIfUserIsInNewGame = useCallback(async (gameId: string) => {
-    // ... (esta função está correta e não precisa de alterações)
     if (!user) return;
     const { data, error } = await supabase.from('game_players').select('game_id').eq('game_id', gameId).eq('user_id', user.id).maybeSingle();
     if (error) { console.error('Erro ao verificar participação:', error); return; }
@@ -102,20 +143,37 @@ const MatchmakingQueue: React.FC = () => {
   }, [user, navigate]);
 
 
-  // Efeito Principal (Tempo Real e Carga Inicial) - COM A CORREÇÃO
+  // --- Efeito Principal (Tempo Real e Carga Inicial) ---
   useEffect(() => {
-    fetchQueueState(); // Carga inicial dos dados
+    const checkUserInActiveGame = async () => {
+      if (!user) return;
+      const { data: activeGame } = await supabase
+        .from('game_players')
+        .select('game_id, games!inner(status)')
+        .eq('user_id', user.id)
+        .eq('games.status', 'active')
+        .maybeSingle();
+
+      if (activeGame) {
+        toast.info('Você já está em um jogo ativo! Redirecionando...');
+        navigate(`/game2/${activeGame.game_id}`);
+        return true;
+      }
+      return false;
+    };
+    
+    checkUserInActiveGame().then(isInGame => {
+      if (!isInGame) {
+        fetchQueueStateRef.current?.();
+      }
+    });
 
     const channel = supabase
-      .channel('public:matchmaking_queue') // Usar um nome de canal simples é uma boa prática
+      .channel('matchmaking-updates')
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'matchmaking_queue' },
         () => {
-          console.log('Mudança na fila detectada. Chamando a função mais recente...');
-          // A CORREÇÃO ESTÁ AQUI:
-          // Em vez de chamar fetchQueueState() diretamente (que estaria "congelado no tempo"),
-          // chamamos a função que está dentro da nossa "caixa" (ref), que é sempre a mais atual.
           fetchQueueStateRef.current?.();
         }
       )
@@ -123,7 +181,6 @@ const MatchmakingQueue: React.FC = () => {
         'postgres_changes',
         { event: 'INSERT', schema: 'public', table: 'games' },
         (payload) => {
-          console.log('Novo jogo criado pelo backend...');
           checkIfUserIsInNewGame(payload.new.id);
         }
       )
@@ -132,11 +189,10 @@ const MatchmakingQueue: React.FC = () => {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [checkIfUserIsInNewGame]); // A dependência de fetchQueueState foi removida daqui
+  }, [user, checkIfUserIsInNewGame, navigate]);
 
 
-  // --- Funções de Ação do Usuário (com a atualização otimista confirmada) ---
-
+  // --- Funções de Ação do Usuário ---
   const joinQueue = async () => {
     if (!user || actionLoading) return;
     setActionLoading(true);
@@ -150,7 +206,6 @@ const MatchmakingQueue: React.FC = () => {
       console.error(error);
     } else {
       toast.success('Você entrou na fila!');
-      // ATUALIZAÇÃO OTIMISTA: Força a atualização da UI imediatamente
       await fetchQueueState();
     }
     setActionLoading(false);
@@ -167,60 +222,60 @@ const MatchmakingQueue: React.FC = () => {
       console.error(error);
     } else {
       toast.info('Você saiu da fila.');
-      // ATUALIZAÇÃO OTIMISTA: Força a atualização da UI imediatamente
       await fetchQueueState();
     }
     setActionLoading(false);
   };
   
   // --- Renderização da UI (JSX) ---
-  // O seu código JSX daqui para baixo já está ótimo e não precisa de alterações.
-  // ... (cole aqui o return completo com o Card, PlayerSlot, EmptySlot, etc.)
-  // O código de renderização que você já tinha estava excelente.
+  const { players, isLoading, error } = queueState;
+
+  if (isLoading) {
+    return (
+      <Card className="max-w-2xl mx-auto bg-slate-900/95">
+        <CardHeader className="text-center p-4 border-b border-slate-700/50">
+            <CardTitle className="text-slate-100">Carregando Sala...</CardTitle>
+        </CardHeader>
+        <CardContent className="grid grid-cols-2 md:grid-cols-4 gap-4 p-6">
+          {Array.from({ length: 4 }).map((_, index) => <LoadingSkeleton key={index} />)}
+        </CardContent>
+      </Card>
+    );
+  }
+
+  if (error) {
+    return (
+      <Card className="max-w-2xl mx-auto bg-slate-900/95 border-red-500/20">
+        <CardContent className="p-8 text-center">
+          <AlertCircle className="w-16 h-16 text-red-400 mx-auto mb-4" />
+          <h3 className="text-xl font-semibold text-slate-100 mb-2">Erro de Conexão</h3>
+          <p className="text-red-300 mb-6">{error}</p>
+          <Button onClick={fetchQueueState} variant="destructive">
+            <RefreshCw className="w-4 h-4 mr-2" />
+            Tentar Novamente
+          </Button>
+        </CardContent>
+      </Card>
+    );
+  }
+
   return (
     <Card className="max-w-2xl mx-auto bg-slate-900/95 border-slate-700/50 shadow-2xl">
-      <CardHeader className="text-center">
+      <CardHeader className="text-center p-4 border-b border-slate-700/50">
         <CardTitle className="text-slate-100 flex items-center justify-center gap-2 text-xl font-bold">
           <Users className="w-6 h-6 text-blue-400" />
           Procurando Partida
         </CardTitle>
-        <p className="text-slate-300 text-sm font-medium">{queueState.players.length}/4 jogadores na fila</p>
+        <p className="text-slate-300 text-sm font-medium">{players.length}/4 jogadores na fila</p>
       </CardHeader>
       <CardContent className="space-y-6 p-6">
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           {Array.from({ length: 4 }).map((_, index) => {
-            if (queueState.isLoading) {
-              return (
-                <div key={index} className="flex flex-col items-center p-4 bg-slate-800/50 rounded-xl">
-                  <Skeleton className="w-16 h-16 rounded-full mb-3 bg-slate-700" />
-                  <Skeleton className="h-4 w-20 bg-slate-700" />
-                </div>
-              );
-            }
-            const player = queueState.players[index];
+            const player = players[index];
             return player ? (
-              <div key={player.id} className="flex flex-col items-center p-4 bg-slate-800/90 rounded-xl">
-                <Avatar className="w-16 h-16 mb-3 border-2 border-blue-400">
-                  <AvatarImage src={player.avatarUrl} alt={`Avatar de ${player.displayName}`} />
-                  <AvatarFallback>{player.displayName.charAt(0)}</AvatarFallback>
-                </Avatar>
-                <span className="text-slate-100 font-medium text-sm text-center truncate w-full">{player.displayName}</span>
-                 <div className="flex items-center mt-2 text-emerald-400 text-xs font-medium">
-                  <div className="w-2 h-2 bg-emerald-400 rounded-full mr-2 animate-pulse" />
-                  {player.id === user?.id ? 'Você' : 'Online'}
-                </div>
-              </div>
+              <PlayerSlot key={player.id} player={player} isCurrentUser={player.id === user?.id} />
             ) : (
-              <div key={index} className="flex flex-col items-center p-4 bg-slate-900/50 rounded-xl border border-slate-800/50">
-                <div className="w-16 h-16 mb-3 rounded-full border-2 border-dashed border-slate-600 flex items-center justify-center">
-                  <UserPlus className="w-8 h-8 text-slate-500" />
-                </div>
-                <span className="text-slate-400 text-sm">Aguardando...</span>
-                <div className="flex items-center mt-2 text-slate-500 text-xs">
-                  <Clock className="w-3 h-3 mr-1" />
-                  Vazio
-                </div>
-              </div>
+              <EmptySlot key={index} />
             );
           })}
         </div>
@@ -240,7 +295,7 @@ const MatchmakingQueue: React.FC = () => {
 
         <Button
           onClick={isUserInQueue ? leaveQueue : joinQueue}
-          disabled={!user || actionLoading || (queueState.players.length >= 4 && !isUserInQueue)}
+          disabled={!user || actionLoading || (players.length >= 4 && !isUserInQueue)}
           className={`w-full transition-all duration-300 font-semibold text-base py-3 ${
             isUserInQueue 
               ? 'bg-red-600 hover:bg-red-700 text-white shadow-lg' 
