@@ -52,10 +52,10 @@ const Game2: React.FC = () => {
     setError(null);
 
     try {
-      // Fetch game data with only existing columns
+      // Otimização: buscar apenas as colunas necessárias ao invés de '*'
       const { data: game, error: gameError } = await supabase
         .from('games')
-        .select('id, status, current_player_turn, board_state, created_at, updated_at, prize_amount')
+        .select('id, status, current_player_turn, board_state, created_at, updated_at, max_players')
         .eq('id', gameId)
         .single();
 
@@ -65,10 +65,10 @@ const Game2: React.FC = () => {
         return;
       }
       
-      // Fetch players data with only existing columns
+      // Otimização: buscar apenas os campos necessários dos jogadores
       const { data: gamePlayers, error: playersError } = await supabase
         .from('game_players')
-        .select(`id, user_id, game_id, position, hand, status, profiles(full_name, avatar_url)`)
+        .select(`id, user_id, game_id, position, hand, is_ready, profiles(full_name, avatar_url)`)
         .eq('game_id', gameId)
         .order('position');
 
