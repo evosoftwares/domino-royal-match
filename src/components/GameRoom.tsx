@@ -45,73 +45,14 @@ const GameRoom: React.FC<GameRoomProps> = ({ gameData: initialGameData, players:
   const [isProcessingMove, setIsProcessingMove] = useState(false);
   const [timeLeft, setTimeLeft] = useState(30);
 
-  // Função para buscar dados atualizados do jogo
-  const fetchGameData = useCallback(async () => {
-    try {
-      const { data: game, error: gameError } = await supabase
-        .from('games')
-        .select('*')
-        .eq('id', gameState.id)
-        .single();
-
-      if (gameError) {
-        console.error('Erro ao buscar dados do jogo:', gameError);
-        return;
-      }
-
-      const { data: players, error: playersError } = await supabase
-        .from('game_players')
-        .select(`
-          *,
-          profiles!game_players_user_id_fkey (
-            full_name,
-            avatar_url
-          )
-        `)
-        .eq('game_id', gameState.id)
-        .order('position');
-
-      if (playersError) {
-        console.error('Erro ao buscar jogadores:', playersError);
-        return;
-      }
-
-      setGameState(game);
-      setPlayersState(players || []);
-    } catch (error) {
-      console.error('Erro inesperado ao buscar dados:', error);
-    }
-  }, [gameState.id]);
-
-  // Real-time subscriptions
+  // Atualizar estados quando props mudam
   useEffect(() => {
-    const gameChannel = supabase.channel(`game-${gameState.id}`)
-      .on('postgres_changes', {
-        event: '*',
-        schema: 'public',
-        table: 'games',
-        filter: `id=eq.${gameState.id}`
-      }, (payload) => {
-        console.log('Game updated:', payload);
-        if (payload.new) {
-          setGameState(payload.new as GameData);
-        }
-      })
-      .on('postgres_changes', {
-        event: '*',
-        schema: 'public',
-        table: 'game_players',
-        filter: `game_id=eq.${gameState.id}`
-      }, (payload) => {
-        console.log('Players updated:', payload);
-        fetchGameData();
-      })
-      .subscribe();
+    setGameState(initialGameData);
+  }, [initialGameData]);
 
-    return () => {
-      supabase.removeChannel(gameChannel);
-    };
-  }, [gameState.id, fetchGameData]);
+  useEffect(() => {
+    setPlayersState(initialPlayers);
+  }, [initialPlayers]);
 
   // Timer do turno
   useEffect(() => {
@@ -137,28 +78,50 @@ const GameRoom: React.FC<GameRoomProps> = ({ gameData: initialGameData, players:
     setTimeLeft(30);
   }, [gameState.current_player_turn]);
 
+  // Log para debug
+  useEffect(() => {
+    console.log('GameRoom - Game State:', gameState);
+    console.log('GameRoom - Players State:', playersState);
+    console.log('GameRoom - Current User:', user?.id);
+  }, [gameState, playersState, user]);
+
   // Processar dados dos jogadores
   const processedPlayers = playersState.map(player => {
     let pieces: DominoPieceType[] = [];
     
-    // Corrigir parsing da mão do jogador
+    console.log(`Processing player ${player.profiles?.full_name || 'Unknown'} hand:`, player.hand);
+    
+    // Verificar se há dados na mão
     if (player.hand && Array.isArray(player.hand)) {
       pieces = player.hand.map((piece: any, index: number) => {
         // Verificar se é array de números [top, bottom]
-        if (Array.isArray(piece) && piece.length === 2) {
+        if (Array.isArray(piece) && piece.length === 2 && 
+            typeof piece[0] === 'number' && typeof piece[1] === 'number') {
           return {
             id: `${player.user_id}-piece-${index}`,
             top: piece[0],
             bottom: piece[1]
           };
         }
+        
+        // Verificar se é objeto com propriedades top/bottom
+        if (piece && typeof piece === 'object' && 
+            typeof piece.top === 'number' && typeof piece.bottom === 'number') {
+          return {
+            id: `${player.user_id}-piece-${index}`,
+            top: piece.top,
+            bottom: piece.bottom
+          };
+        }
+        
+        console.warn('Invalid piece format:', piece);
         return null;
       }).filter(Boolean);
     }
     
     return {
       id: player.user_id,
-      name: player.profiles?.full_name || 'Jogador',
+      name: player.profiles?.full_name || `Jogador ${player.position}`,
       pieces,
       isCurrentPlayer: gameState.current_player_turn === player.user_id,
       position: player.position,
@@ -166,18 +129,38 @@ const GameRoom: React.FC<GameRoomProps> = ({ gameData: initialGameData, players:
     };
   });
 
+  console.log('Processed Players:', processedPlayers);
+
   const userPlayer = processedPlayers.find(p => p.id === user?.id);
-  const otherPlayers = processedPlayers.filter(p => p.id !== user?.id).slice(0, 3);
+  const otherPlayers = processedPlayers.filter(p => p.id !== user?.id);
+
+  console.log('User Player:', userPlayer);
+  console.log('Other Players:', otherPlayers);
 
   // Processar peças do tabuleiro
   let placedPieces: DominoPieceType[] = [];
   if (gameState.board_state?.pieces && Array.isArray(gameState.board_state.pieces)) {
-    placedPieces = gameState.board_state.pieces.map((boardPiece: any, index: number) => ({
-      id: `board-piece-${index}`,
-      top: boardPiece.piece[0],
-      bottom: boardPiece.piece[1]
-    }));
+    placedPieces = gameState.board_state.pieces.map((boardPiece: any, index: number) => {
+      // Verificar diferentes formatos possíveis
+      let piece;
+      if (boardPiece.piece && Array.isArray(boardPiece.piece)) {
+        piece = boardPiece.piece;
+      } else if (Array.isArray(boardPiece)) {
+        piece = boardPiece;
+      } else {
+        console.warn('Invalid board piece format:', boardPiece);
+        return null;
+      }
+
+      return {
+        id: `board-piece-${index}`,
+        top: piece[0],
+        bottom: piece[1]
+      };
+    }).filter(Boolean);
   }
+
+  console.log('Placed Pieces:', placedPieces);
 
   const isFirstMove = placedPieces.length === 0;
 
@@ -196,6 +179,8 @@ const GameRoom: React.FC<GameRoomProps> = ({ gameData: initialGameData, players:
     if (isFirstMove) return true;
     
     const { left, right } = getOpenEnds();
+    console.log('Checking piece play:', piece, 'against ends:', { left, right });
+    
     if (left === null && right === null) return false;
     
     return piece.top === left || piece.bottom === left || 
@@ -264,7 +249,11 @@ const GameRoom: React.FC<GameRoomProps> = ({ gameData: initialGameData, players:
 
     try {
       const pieceArray = [piece.top, piece.bottom];
-      console.log('Calling play_move with:', { piece: pieceArray, side });
+      console.log('Calling play_move with:', { 
+        game_id: gameState.id, 
+        piece: pieceArray, 
+        side 
+      });
 
       const { data, error } = await supabase.rpc('play_move', {
         p_game_id: gameState.id,
@@ -280,19 +269,20 @@ const GameRoom: React.FC<GameRoomProps> = ({ gameData: initialGameData, players:
 
       console.log('RPC response:', data);
 
-      if (data && data.includes('ERRO:')) {
-        toast.error(data);
-        return;
-      }
-
-      if (data && data.includes('venceu')) {
-        toast.success('🎉 Você venceu o jogo!');
+      if (data && typeof data === 'string') {
+        if (data.includes('ERRO:')) {
+          toast.error(data);
+          return;
+        }
+        
+        if (data.includes('venceu') || data.includes('Vitória')) {
+          toast.success('🎉 Você venceu o jogo!');
+        } else {
+          toast.success('Jogada realizada com sucesso!');
+        }
       } else {
         toast.success('Jogada realizada com sucesso!');
       }
-
-      // Forçar atualização dos dados
-      await fetchGameData();
 
     } catch (error) {
       console.error('Erro inesperado ao jogar peça:', error);
@@ -315,12 +305,14 @@ const GameRoom: React.FC<GameRoomProps> = ({ gameData: initialGameData, players:
     await playPiece(playablePiece);
   };
 
+  // Verificar se o jogo está ativo
   if (gameState.status !== 'active') {
     return (
       <div className="min-h-screen bg-gradient-to-br from-purple-900 via-purple-800 to-black flex items-center justify-center">
         <div className="text-center p-8 text-white">
           <h2 className="text-2xl font-bold mb-4">Aguardando início do jogo...</h2>
           <p className="text-purple-200">Status: {gameState.status}</p>
+          <p className="text-purple-200 mt-2">Jogadores conectados: {playersState.length}</p>
         </div>
       </div>
     );
@@ -329,9 +321,18 @@ const GameRoom: React.FC<GameRoomProps> = ({ gameData: initialGameData, players:
   return (
     <div className="min-h-screen bg-gradient-to-br from-purple-900 via-purple-800 to-black p-4">
       <div className="max-w-7xl mx-auto">
+        {/* Debug info */}
+        <div className="mb-4 p-2 bg-black/30 rounded text-white text-xs">
+          <p>Jogo: {gameState.id}</p>
+          <p>Status: {gameState.status}</p>
+          <p>Turno: {gameState.current_player_turn}</p>
+          <p>Jogadores: {playersState.length}</p>
+          <p>Peças no tabuleiro: {placedPieces.length}</p>
+        </div>
+
         {/* Área dos oponentes no topo */}
         <div className="grid grid-cols-3 gap-4 mb-6">
-          {otherPlayers.map(player => (
+          {otherPlayers.slice(0, 3).map(player => (
             <OpponentArea
               key={player.id}
               player={player}

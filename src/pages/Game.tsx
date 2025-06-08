@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
@@ -28,7 +29,7 @@ interface PlayerData {
   position: number;
   hand: any;
   status: string;
-  profiles: PlayerProfile; // Added the missing profiles property
+  profiles: PlayerProfile;
 }
 
 const Game: React.FC = () => {
@@ -49,6 +50,8 @@ const Game: React.FC = () => {
     }
 
     try {
+      console.log('Verificando acesso ao jogo:', gameId, 'para usuário:', user.id);
+
       // Verificar se o usuário está no jogo
       const { data: playerData, error: playerError } = await supabase
         .from('game_players')
@@ -57,11 +60,20 @@ const Game: React.FC = () => {
         .eq('user_id', user.id)
         .single();
 
-      if (playerError || !playerData) {
+      if (playerError) {
+        console.error('Erro ao verificar jogador:', playerError);
         setError('Você não tem acesso a este jogo');
         setIsLoading(false);
         return;
       }
+
+      if (!playerData) {
+        setError('Você não está neste jogo');
+        setIsLoading(false);
+        return;
+      }
+
+      console.log('Jogador encontrado:', playerData);
 
       // Buscar dados do jogo
       const { data: game, error: gameError } = await supabase
@@ -70,13 +82,16 @@ const Game: React.FC = () => {
         .eq('id', gameId)
         .single();
 
-      if (gameError || !game) {
+      if (gameError) {
+        console.error('Erro ao buscar jogo:', gameError);
         setError('Jogo não encontrado');
         setIsLoading(false);
         return;
       }
 
-      // Buscar todos os jogadores
+      console.log('Dados do jogo:', game);
+
+      // Buscar todos os jogadores com profiles
       const { data: allPlayers, error: playersError } = await supabase
         .from('game_players')
         .select(`
@@ -91,20 +106,56 @@ const Game: React.FC = () => {
 
       if (playersError) {
         console.error('Erro ao buscar jogadores:', playersError);
+        setError('Erro ao carregar jogadores');
+        setIsLoading(false);
+        return;
       }
+
+      console.log('Jogadores encontrados:', allPlayers);
 
       setGameData(game);
       setPlayers(allPlayers || []);
       setIsLoading(false);
-      toast.success('Jogo carregado com sucesso!');
+      
+      if (allPlayers && allPlayers.length > 0) {
+        toast.success(`Jogo carregado! ${allPlayers.length} jogadores conectados`);
+      }
     } catch (error: any) {
-      console.error('Erro ao verificar acesso ao jogo:', error);
-      setError('Erro ao carregar o jogo');
+      console.error('Erro inesperado ao verificar acesso ao jogo:', error);
+      setError('Erro ao carregar o jogo: ' + error.message);
       setIsLoading(false);
     }
   };
 
-  // Subscrição em tempo real para atualizações do jogo
+  // Função para buscar dados atualizados
+  const fetchGameData = async () => {
+    if (!gameId) return;
+
+    try {
+      const [gameResponse, playersResponse] = await Promise.all([
+        supabase.from('games').select('*').eq('id', gameId).single(),
+        supabase.from('game_players').select(`
+          *,
+          profiles!game_players_user_id_fkey (
+            full_name,
+            avatar_url
+          )
+        `).eq('game_id', gameId).order('position')
+      ]);
+
+      if (gameResponse.data) {
+        setGameData(gameResponse.data);
+      }
+
+      if (playersResponse.data) {
+        setPlayers(playersResponse.data);
+      }
+    } catch (error) {
+      console.error('Erro ao atualizar dados:', error);
+    }
+  };
+
+  // Subscrição em tempo real
   useEffect(() => {
     verifyGameAccess();
 
@@ -117,7 +168,7 @@ const Game: React.FC = () => {
         table: 'games',
         filter: `id=eq.${gameId}`
       }, payload => {
-        console.log('Atualização do jogo:', payload);
+        console.log('Game updated via realtime:', payload);
         if (payload.new) {
           setGameData(payload.new as GameData);
         }
@@ -128,13 +179,13 @@ const Game: React.FC = () => {
         table: 'game_players',
         filter: `game_id=eq.${gameId}`
       }, payload => {
-        console.log('Atualização dos jogadores:', payload);
-        // Recarregar dados dos jogadores
-        verifyGameAccess();
+        console.log('Players updated via realtime:', payload);
+        fetchGameData();
       })
       .subscribe();
 
     return () => {
+      console.log('Cleaning up realtime subscription');
       supabase.removeChannel(gameChannel);
     };
   }, [gameId, user]);
@@ -175,17 +226,24 @@ const Game: React.FC = () => {
   }
 
   if (!gameData) {
-    return null;
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-purple-900 via-purple-800 to-black flex items-center justify-center">
+        <Card className="max-w-md mx-auto bg-slate-900/95 border-slate-700/50">
+          <CardContent className="p-8 text-center">
+            <h3 className="text-xl font-semibold text-slate-100 mb-2">Jogo não encontrado</h3>
+            <p className="text-purple-200 mb-6">Os dados do jogo não puderam ser carregados</p>
+            <Button onClick={handleBackToLobby} className="bg-purple-600 hover:bg-purple-700">
+              Voltar ao Lobby
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    );
   }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-purple-900 via-purple-800 to-black">
       <div className="container mx-auto px-4 py-8">
-        {/* Header com informações do jogo */}
-
-        {/* Componente do jogo agora recebe 'gameData' e 'players' como props.
-          Isso cria o elo que estava faltando.
-        */}
         <GameRoom gameData={gameData} players={players} />
       </div>
     </div>
