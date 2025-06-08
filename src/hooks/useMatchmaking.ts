@@ -1,211 +1,138 @@
+// src/hooks/useMatchmaking.ts
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
+import { useAuth } from './useAuth';
+import { useNavigate } from 'react-router-dom';
 
-export interface MatchmakingState {
-  isInQueue: boolean;
-  queueCount: number;
-  isLoading: boolean;
-  gameId: string | null;
-}
-
-interface MatchmakingResponse {
-  success: boolean;
-  error?: string;
-  message?: string;
-  queue_count?: number;
-  game_id?: string;
+// Tipos para clareza
+interface QueuePlayer {
+  id: string;
+  full_name: string;
+  avatar_url: string;
 }
 
 export const useMatchmaking = () => {
-  const [state, setState] = useState<MatchmakingState>({
-    isInQueue: false,
-    queueCount: 0,
-    isLoading: false,
-    gameId: null
-  });
+  const { user } = useAuth();
+  const navigate = useNavigate();
+  const [isInQueue, setIsInQueue] = useState(false);
+  const [playersInQueue, setPlayersInQueue] = useState<QueuePlayer[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  
+  // Ref para garantir que a criação do jogo seja chamada apenas uma vez
+  const hasCalledStartGame = useRef(false);
 
-  // Subscrição em tempo real para monitorar a fila
+  // Função para buscar o estado atual da fila e atualizar a UI
+  const fetchQueueState = useCallback(async () => {
+    const { data: queueEntries, error } = await supabase
+      .from('matchmaking_queue')
+      .select('user_id, profiles(id, full_name, avatar_url)')
+      .eq('status', 'searching');
+
+    if (error) {
+      toast.error('Erro ao buscar a fila.');
+      console.error(error);
+      setPlayersInQueue([]);
+      return;
+    }
+    
+    // Mapeia os dados para o formato que a UI espera
+    const players = queueEntries.map(entry => ({
+      id: entry.profiles.id,
+      ...entry.profiles
+    })) as QueuePlayer[];
+    
+    setPlayersInQueue(players);
+    if (user) {
+      setIsInQueue(players.some(p => p.id === user.id));
+    }
+  }, [user]);
+
+  // Efeito para verificar o estado inicial e se inscrever em atualizações
   useEffect(() => {
+    setIsLoading(true);
+    fetchQueueState().finally(() => setIsLoading(false));
+
     const channel = supabase
       .channel('matchmaking-updates')
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'matchmaking_queue'
-        },
-        async () => {
-          // Atualizar contador da fila quando houver mudanças
-          await updateQueueCount();
-        }
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'matchmaking_queue' }, 
+        () => fetchQueueState()
       )
-      .on(
-        'postgres_changes',
-        {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'games'
-        },
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'games' }, 
         (payload) => {
-          console.log('Novo jogo criado:', payload);
-          // Verificar se o usuário foi incluído neste jogo
-          checkIfUserInGame(payload.new.id);
+          // Se um novo jogo for criado, verifica se o usuário atual está nele
+          if (user) {
+            const playerIds = payload.new.players || [];
+            if (playerIds.includes(user.id)) {
+              toast.success('Partida encontrada! Redirecionando...');
+              navigate(`/game2/${payload.new.id}`);
+            }
+          }
         }
-      )
-      .subscribe();
+      ).subscribe();
 
     return () => {
       supabase.removeChannel(channel);
     };
-  }, []);
+  }, [user, fetchQueueState, navigate]);
 
-  const updateQueueCount = async () => {
-    try {
-      const { count } = await supabase
-        .from('matchmaking_queue')
-        .select('*', { count: 'exact' })
-        .eq('status', 'searching');
+
+  // === LÓGICA DE GATILHO PARA INICIAR O JOGO (A CORREÇÃO PRINCIPAL) ===
+  useEffect(() => {
+    if (playersInQueue.length >= 4 && !hasCalledStartGame.current && user) {
       
-      setState(prev => ({ ...prev, queueCount: count || 0 }));
-    } catch (error) {
-      console.error('Erro ao atualizar contador da fila:', error);
-    }
-  };
+      const playerIds = playersInQueue.map(p => p.id).sort();
+      // O primeiro jogador na lista (ordenado por ID) fica responsável por chamar a função
+      const isResponsible = user.id === playerIds[0];
 
-  const checkIfUserInGame = async (gameId: string) => {
-    try {
-      const { data: user } = await supabase.auth.getUser();
-      if (!user.user) return;
+      if (isResponsible) {
+        hasCalledStartGame.current = true;
+        
+        const startGame = async () => {
+          toast.info('Fila completa. Criando a partida...');
+          const { error } = await supabase.functions.invoke('start-game', {
+            body: { players: playerIds },
+          });
 
-      const { data } = await supabase
-        .from('game_players')
-        .select('*')
-        .eq('game_id', gameId)
-        .eq('user_id', user.user.id)
-        .single();
-
-      if (data) {
-        setState(prev => ({ 
-          ...prev, 
-          isInQueue: false, 
-          gameId: gameId 
-        }));
-        toast.success('Partida encontrada! Redirecionando...');
+          if (error) {
+            toast.error(`Erro ao criar a partida: ${error.message}`);
+            hasCalledStartGame.current = false; // Permite nova tentativa
+          }
+          // Se der certo, a subscrição acima vai redirecionar todos
+        };
+        startGame();
       }
-    } catch (error) {
-      console.error('Erro ao verificar se usuário está no jogo:', error);
     }
-  };
+  }, [playersInQueue, user, navigate]);
+
 
   const joinQueue = async () => {
-    setState(prev => ({ ...prev, isLoading: true }));
-    
-    try {
-      const { data, error } = await supabase.rpc('join_matchmaking_queue');
-      
-      if (error) throw error;
-      
-      const response = data as unknown as MatchmakingResponse;
-      
-      if (response.success) {
-        setState(prev => ({ 
-          ...prev, 
-          isInQueue: true, 
-          queueCount: response.queue_count || 0
-        }));
-        toast.success(response.message || 'Adicionado à fila');
-        
-        // Tentar criar jogo a cada nova entrada na fila
-        await tryCreateGame();
-      } else {
-        toast.error(response.error || 'Erro ao entrar na fila');
-      }
-    } catch (error: any) {
-      toast.error(error.message || 'Erro ao entrar na fila');
-    } finally {
-      setState(prev => ({ ...prev, isLoading: false }));
-    }
+    if (!user) return;
+    setActionLoading(true);
+    // Usando upsert para evitar erros se o usuário já estiver na fila
+    const { error } = await supabase.from('matchmaking_queue').upsert({ user_id: user.id, status: 'searching' });
+    if (error) toast.error(error.message);
+    else toast.success('Você entrou na fila!');
+    setActionLoading(false);
   };
 
   const leaveQueue = async () => {
-    setState(prev => ({ ...prev, isLoading: true }));
-    
-    try {
-      const { data, error } = await supabase.rpc('leave_matchmaking_queue');
-      
-      if (error) throw error;
-      
-      const response = data as unknown as MatchmakingResponse;
-      
-      if (response.success) {
-        setState(prev => ({ 
-          ...prev, 
-          isInQueue: false, 
-          queueCount: 0 
-        }));
-        toast.success(response.message || 'Removido da fila');
-      } else {
-        toast.error(response.error || 'Erro ao sair da fila');
-      }
-    } catch (error: any) {
-      toast.error(error.message || 'Erro ao sair da fila');
-    } finally {
-      setState(prev => ({ ...prev, isLoading: false }));
-    }
+    if (!user) return;
+    setActionLoading(true);
+    const { error } = await supabase.from('matchmaking_queue').delete().eq('user_id', user.id);
+    if (error) toast.error(error.message);
+    else toast.info('Você saiu da fila.');
+    setActionLoading(false);
   };
-
-  const tryCreateGame = async () => {
-    try {
-      const { data, error } = await supabase.rpc('create_game_when_ready');
-      
-      if (error) throw error;
-      
-      const response = data as unknown as MatchmakingResponse;
-      
-      if (response.success) {
-        console.log('Jogo criado:', response.game_id);
-        // O realtime vai detectar a criação e redirecionar o usuário
-      }
-    } catch (error) {
-      console.error('Erro ao tentar criar jogo:', error);
-    }
-  };
-
-  // Verificar status inicial ao carregar
-  useEffect(() => {
-    const checkInitialStatus = async () => {
-      try {
-        const { data: user } = await supabase.auth.getUser();
-        if (!user.user) return;
-
-        // Verificar se está na fila
-        const { data: queueEntry } = await supabase
-          .from('matchmaking_queue')
-          .select('*')
-          .eq('user_id', user.user.id)
-          .eq('status', 'searching')
-          .single();
-
-        if (queueEntry) {
-          setState(prev => ({ ...prev, isInQueue: true }));
-        }
-
-        // Atualizar contador inicial
-        await updateQueueCount();
-      } catch (error) {
-        console.error('Erro ao verificar status inicial:', error);
-      }
-    };
-
-    checkInitialStatus();
-  }, []);
 
   return {
-    ...state,
+    isInQueue,
+    playersInQueue,
+    isLoading,
     joinQueue,
-    leaveQueue
+    leaveQueue,
+    // Removi 'gameId' porque o redirecionamento agora é feito pela subscrição
   };
 };
+
