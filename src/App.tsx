@@ -11,6 +11,7 @@ import Dashboard from "./pages/Dashboard";
 import Profile from "./pages/Profile";
 import Auth from "./pages/Auth";
 import Game from "./pages/Game";
+import Game2 from "./pages/Game2";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -37,6 +38,11 @@ const App = () => (
             <Route path="/game/:gameId" element={
               <ProtectedRoute>
                 <Game />
+              </ProtectedRoute>
+            } />
+            <Route path="/game2/:gameId" element={
+              <ProtectedRoute>
+                <Game2 />
               </ProtectedRoute>
             } />
             <Route path="/" element={

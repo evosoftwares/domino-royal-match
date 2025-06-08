@@ -335,6 +335,10 @@ export type Database = {
         Args: Record<PropertyKey, never>
         Returns: Json
       }
+      pass_turn: {
+        Args: { p_game_id: string }
+        Returns: string
+      }
       play_move: {
         Args: { p_game_id: string; p_piece: Json; p_side: string }
         Returns: string
