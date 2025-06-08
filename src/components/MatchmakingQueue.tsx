@@ -64,7 +64,7 @@ const MatchmakingQueue: React.FC = () => {
       if (activeGame) {
         console.log('Usuário já está em jogo ativo:', activeGame.game_id);
         toast.info('Você já está em um jogo ativo!');
-        navigate(`/game/${activeGame.game_id}`);
+        navigate(`/game2/${activeGame.game_id}`);
         return true;
       }
       return false;
