@@ -184,14 +184,29 @@ const MatchmakingQueue: React.FC = () => {
           checkIfUserIsInNewGame(payload.new.id);
         }
       )
-      .subscribe();
+      // --- A MUDANÇA ESTÁ AQUI ---
+      .subscribe((status) => {
+        // Esta função será chamada sempre que o status da conexão mudar.
+        console.log(`[Realtime] Status do canal 'matchmaking-updates': ${status}`);
+
+        if (status === 'SUBSCRIBED') {
+          // Se aparecer isso, significa que a conexão foi um sucesso!
+          console.log('[Realtime] Conectado e ouvindo por mudanças!');
+        }
+
+        if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
+          // Se aparecer isso, há um problema na conexão.
+          console.error('[Realtime] Falha ao conectar no canal de tempo real!');
+          toast.error("Erro de conexão com o tempo real.");
+        }
+      });
 
     return () => {
       supabase.removeChannel(channel);
     };
   }, [user, checkIfUserIsInNewGame, navigate]);
 
-
+  
   // --- Funções de Ação do Usuário ---
   const joinQueue = async () => {
     if (!user || actionLoading) return;
