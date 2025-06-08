@@ -125,7 +125,7 @@ const MatchmakingQueue: React.FC = () => {
         toast.success('Partida encontrada! Redirecionando...');
         
         setTimeout(() => {
-          navigate(`/game/${gameId}`);
+          navigate(`/game2/${gameId}`);
         }, 1500);
       }
     } catch (error) {

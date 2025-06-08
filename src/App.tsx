@@ -35,11 +35,6 @@ const App = () => (
                 <Dashboard />
               </ProtectedRoute>
             } />
-            <Route path="/game/:gameId" element={
-              <ProtectedRoute>
-                <Game />
-              </ProtectedRoute>
-            } />
             <Route path="/game2/:gameId" element={
               <ProtectedRoute>
                 <Game2 />
