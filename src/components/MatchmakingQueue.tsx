@@ -3,11 +3,13 @@ import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { toast } from 'sonner';
+
+// Importação dos componentes de UI e ícones
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Loader2, Users, Clock, UserPlus, UserMinus } from 'lucide-react';
+import { Loader2, Users, Clock, UserPlus, UserMinus, AlertCircle, RefreshCw } from 'lucide-react';
 
 // --- Interfaces e Tipos ---
 interface QueuePlayer {
@@ -22,7 +24,7 @@ interface QueueState {
   error: string | null;
 }
 
-// --- Componente Principal Refatorado ---
+// --- Componente Principal ---
 const MatchmakingQueue: React.FC = () => {
   // --- Hooks e Estados ---
   const { user } = useAuth();
@@ -30,16 +32,19 @@ const MatchmakingQueue: React.FC = () => {
 
   const [queueState, setQueueState] = useState<QueueState>({
     players: [],
-    isLoading: true, // Apenas para o carregamento inicial da página.
+    isLoading: true, // Verdadeiro apenas para a carga inicial da página
     error: null,
   });
 
   const [isUserInQueue, setIsUserInQueue] = useState(false);
-  const [actionLoading, setActionLoading] = useState(false); // Controla o estado de loading dos botões.
+  const [actionLoading, setActionLoading] = useState(false); // Controla o estado de loading dos botões
 
   // --- Funções de Lógica ---
 
-  // Busca o estado atual da fila e atualiza a UI.
+  /**
+   * Busca o estado atual da fila de matchmaking no banco de dados
+   * e atualiza a interface do usuário.
+   */
   const fetchQueueState = useCallback(async () => {
     try {
       const { data: queueData, error: queueError } = await supabase
@@ -83,7 +88,10 @@ const MatchmakingQueue: React.FC = () => {
     }
   }, [user]);
 
-  // Verifica se o usuário pertence a um novo jogo criado pelo backend.
+  /**
+   * Chamado quando um novo jogo é criado no backend.
+   * Verifica se o usuário atual faz parte deste novo jogo e o redireciona.
+   */
   const checkIfUserIsInNewGame = useCallback(async (gameId: string) => {
     if (!user) return;
 
@@ -107,13 +115,35 @@ const MatchmakingQueue: React.FC = () => {
   }, [user, navigate]);
 
 
-  // --- Efeitos Colaterais (useEffect) ---
+  // --- Efeito Principal (Tempo Real e Carga Inicial) ---
 
-  // Efeito principal para tempo real. Roda uma vez quando o componente é montado.
   useEffect(() => {
-    // Busca o estado inicial da fila.
-    fetchQueueState();
+    // 1. Verifica se o usuário já está em um jogo ativo ao carregar a página
+    const checkUserInActiveGame = async () => {
+      if (!user) return;
+      const { data: activeGame } = await supabase
+        .from('game_players')
+        .select('game_id, games!inner(status)')
+        .eq('user_id', user.id)
+        .eq('games.status', 'active')
+        .maybeSingle();
 
+      if (activeGame) {
+        toast.info('Você já está em um jogo ativo! Redirecionando...');
+        navigate(`/game2/${activeGame.game_id}`);
+        return true;
+      }
+      return false;
+    };
+    
+    checkUserInActiveGame().then(isInGame => {
+      if (!isInGame) {
+        // 2. Se não estiver em jogo, busca o estado inicial da fila
+        fetchQueueState();
+      }
+    });
+
+    // 3. Configura os listeners de tempo real
     const channel = supabase
       .channel('public:matchmaking_queue')
       .on(
@@ -134,10 +164,11 @@ const MatchmakingQueue: React.FC = () => {
       )
       .subscribe();
 
+    // 4. Função de limpeza para remover o listener ao sair da página
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [fetchQueueState, checkIfUserIsInNewGame]);
+  }, [user, fetchQueueState, checkIfUserIsInNewGame, navigate]);
 
 
   // --- Funções de Ação do Usuário ---
@@ -155,6 +186,8 @@ const MatchmakingQueue: React.FC = () => {
       console.error(error);
     } else {
       toast.success('Você entrou na fila!');
+      // ATUALIZAÇÃO OTIMISTA: Força a atualização da UI imediatamente
+      await fetchQueueState();
     }
     setActionLoading(false);
   };
@@ -170,12 +203,46 @@ const MatchmakingQueue: React.FC = () => {
       console.error(error);
     } else {
       toast.info('Você saiu da fila.');
+      // ATUALIZAÇÃO OTIMISTA: Força a atualização da UI imediatamente
+      await fetchQueueState();
     }
     setActionLoading(false);
   };
   
   // --- Renderização da UI (JSX) ---
-  const { players, isLoading } = queueState;
+  const { players, isLoading, error } = queueState;
+
+  if (isLoading) {
+    return (
+      <Card className="max-w-2xl mx-auto bg-slate-900/95">
+        <CardHeader className="text-center"><CardTitle>Carregando...</CardTitle></CardHeader>
+        <CardContent className="grid grid-cols-2 md:grid-cols-4 gap-4 p-6">
+          {Array.from({ length: 4 }).map((_, index) => (
+            <div key={index} className="flex flex-col items-center p-4 bg-slate-800/50 rounded-xl">
+              <Skeleton className="w-16 h-16 rounded-full mb-3 bg-slate-700" />
+              <Skeleton className="h-4 w-20 bg-slate-700" />
+            </div>
+          ))}
+        </CardContent>
+      </Card>
+    );
+  }
+
+  if (error) {
+    return (
+      <Card className="max-w-2xl mx-auto bg-slate-900/95 border-red-500/20">
+        <CardContent className="p-8 text-center">
+          <AlertCircle className="w-16 h-16 text-red-400 mx-auto mb-4" />
+          <h3 className="text-xl font-semibold text-slate-100 mb-2">Erro de Conexão</h3>
+          <p className="text-red-300 mb-6">{error}</p>
+          <Button onClick={fetchQueueState} variant="destructive">
+            <RefreshCw className="w-4 h-4 mr-2" />
+            Tentar Novamente
+          </Button>
+        </CardContent>
+      </Card>
+    );
+  }
 
   return (
     <Card className="max-w-2xl mx-auto bg-slate-900/95 border-slate-700/50 shadow-2xl">
@@ -189,14 +256,6 @@ const MatchmakingQueue: React.FC = () => {
       <CardContent className="space-y-6 p-6">
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           {Array.from({ length: 4 }).map((_, index) => {
-            if (isLoading) {
-              return (
-                <div key={index} className="flex flex-col items-center p-4 bg-slate-800/50 rounded-xl">
-                  <Skeleton className="w-16 h-16 rounded-full mb-3 bg-slate-700" />
-                  <Skeleton className="h-4 w-20 bg-slate-700" />
-                </div>
-              );
-            }
             const player = players[index];
             return player ? (
               <div key={player.id} className="flex flex-col items-center p-4 bg-slate-800/90 rounded-xl">
