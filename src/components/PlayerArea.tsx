@@ -31,6 +31,8 @@ const PlayerArea: React.FC<PlayerAreaProps> = ({
   const [draggedPiece, setDraggedPiece] = useState<DominoPieceType | null>(null);
 
   const handleDragStart = (piece: DominoPieceType) => (e: React.DragEvent) => {
+    console.log('Drag start for piece:', piece);
+    
     if (!isCurrentPlayer || isProcessingMove) {
       e.preventDefault();
       return;
@@ -44,15 +46,20 @@ const PlayerArea: React.FC<PlayerAreaProps> = ({
 
     setDraggedPiece(piece);
     onPieceDrag(piece);
+    
     e.dataTransfer.effectAllowed = 'move';
     e.dataTransfer.setData('text/plain', piece.id);
+    e.dataTransfer.setData('application/json', JSON.stringify(piece));
   };
 
   const handleDragEnd = () => {
+    console.log('Drag end');
     setDraggedPiece(null);
   };
 
   const handlePieceClick = (piece: DominoPieceType) => {
+    console.log('Piece clicked:', piece);
+    
     if (!isCurrentPlayer || isProcessingMove) return;
     
     const isPiecePlayable = canPiecePlay ? canPiecePlay(piece) : true;

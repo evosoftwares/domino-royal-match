@@ -1,14 +1,14 @@
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { toast } from 'sonner';
 import { DominoPieceType } from '@/utils/dominoUtils';
-import DominoPiece from './DominoPiece';
+import GameBoard from './GameBoard';
+import PlayerArea from './PlayerArea';
+import OpponentArea from './OpponentArea';
 import { cn } from '@/lib/utils';
-import { Button } from '@/components/ui/button';
 
-// Interfaces para tipos de dados
 interface GameData {
   id: string;
   status: string;
@@ -37,72 +37,61 @@ interface GameRoomProps {
   players: PlayerData[];
 }
 
-// Componente para mostrar oponentes no topo
-const OpponentCard: React.FC<{ 
-  player: PlayerData; 
-  isCurrentPlayer: boolean;
-  pieceCount: number;
-}> = ({ player, isCurrentPlayer, pieceCount }) => {
-  return (
-    <div className={cn(
-      "bg-gradient-to-r from-purple-900/30 to-black/30 rounded-xl p-4 border transition-all duration-300",
-      isCurrentPlayer ? "border-yellow-400 shadow-lg shadow-yellow-400/20" : "border-purple-600/20"
-    )}>
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <div className={cn(
-            "w-3 h-3 rounded-full transition-colors",
-            isCurrentPlayer ? "bg-yellow-400 animate-pulse" : "bg-gray-500"
-          )} />
-          <div>
-            <span className={cn(
-              "text-sm font-medium",
-              isCurrentPlayer ? "text-yellow-400" : "text-purple-200"
-            )}>
-              {player.profiles?.full_name || 'Jogador'}
-            </span>
-            {isCurrentPlayer && (
-              <div className="text-xs text-green-400 font-semibold">Jogando...</div>
-            )}
-          </div>
-        </div>
-        
-        <div className="flex items-center gap-1">
-          {Array.from({ length: pieceCount }).map((_, index) => (
-            <div
-              key={index}
-              className="w-2 h-4 bg-white/70 rounded-sm border border-black/20 shadow-sm"
-              title={`Peça ${index + 1}`}
-            />
-          ))}
-          <span className="ml-2 text-xs text-purple-300">{pieceCount}</span>
-        </div>
-      </div>
-    </div>
-  );
-};
-
-// Componente principal do GameRoom
-const GameRoom: React.FC<GameRoomProps> = ({ gameData, players }) => {
+const GameRoom: React.FC<GameRoomProps> = ({ gameData: initialGameData, players: initialPlayers }) => {
   const { user } = useAuth();
+  const [gameState, setGameState] = useState(initialGameData);
+  const [playersState, setPlayersState] = useState(initialPlayers);
   const [currentDraggedPiece, setCurrentDraggedPiece] = useState<DominoPieceType | null>(null);
-  const [timeLeft, setTimeLeft] = useState(30);
   const [isProcessingMove, setIsProcessingMove] = useState(false);
-  const [gameState, setGameState] = useState(gameData);
-  const [playersState, setPlayersState] = useState(players);
-  const boardRef = useRef<HTMLDivElement>(null);
+  const [timeLeft, setTimeLeft] = useState(30);
 
-  // Sincronização em tempo real
+  // Função para buscar dados atualizados do jogo
+  const fetchGameData = useCallback(async () => {
+    try {
+      const { data: game, error: gameError } = await supabase
+        .from('games')
+        .select('*')
+        .eq('id', gameState.id)
+        .single();
+
+      if (gameError) {
+        console.error('Erro ao buscar dados do jogo:', gameError);
+        return;
+      }
+
+      const { data: players, error: playersError } = await supabase
+        .from('game_players')
+        .select(`
+          *,
+          profiles!game_players_user_id_fkey (
+            full_name,
+            avatar_url
+          )
+        `)
+        .eq('game_id', gameState.id)
+        .order('position');
+
+      if (playersError) {
+        console.error('Erro ao buscar jogadores:', playersError);
+        return;
+      }
+
+      setGameState(game);
+      setPlayersState(players || []);
+    } catch (error) {
+      console.error('Erro inesperado ao buscar dados:', error);
+    }
+  }, [gameState.id]);
+
+  // Real-time subscriptions
   useEffect(() => {
-    if (!gameData.id) return;
-
-    const gameChannel = supabase.channel(`game-${gameData.id}`)
+    const gameChannel = supabase.channel(`game-${gameState.id}`)
       .on('postgres_changes', {
         event: '*',
         schema: 'public',
         table: 'games',
-        filter: `id=eq.${gameData.id}`
-      }, payload => {
+        filter: `id=eq.${gameState.id}`
+      }, (payload) => {
         console.log('Game updated:', payload);
         if (payload.new) {
           setGameState(payload.new as GameData);
@@ -112,53 +101,25 @@ const GameRoom: React.FC<GameRoomProps> = ({ gameData, players }) => {
         event: '*',
         schema: 'public',
         table: 'game_players',
-        filter: `game_id=eq.${gameData.id}`
-      }, payload => {
+        filter: `game_id=eq.${gameState.id}`
+      }, (payload) => {
         console.log('Players updated:', payload);
-        // Recarregar dados dos jogadores
-        fetchPlayers();
+        fetchGameData();
       })
       .subscribe();
 
     return () => {
       supabase.removeChannel(gameChannel);
     };
-  }, [gameData.id]);
+  }, [gameState.id, fetchGameData]);
 
-  // Função para buscar jogadores atualizados
-  const fetchPlayers = async () => {
-    try {
-      const { data, error } = await supabase
-        .from('game_players')
-        .select(`
-          *,
-          profiles!game_players_user_id_fkey (
-            full_name,
-            avatar_url
-          )
-        `)
-        .eq('game_id', gameData.id)
-        .order('position');
-
-      if (error) {
-        console.error('Erro ao buscar jogadores:', error);
-        return;
-      }
-
-      setPlayersState(data || []);
-    } catch (error) {
-      console.error('Erro inesperado ao buscar jogadores:', error);
-    }
-  };
-
-  // Timer de turno
+  // Timer do turno
   useEffect(() => {
     if (gameState.status !== 'active') return;
     
     const timer = setInterval(() => {
       setTimeLeft(prev => {
         if (prev <= 1) {
-          // Auto play quando o tempo acabar
           if (gameState.current_player_turn === user?.id) {
             handleAutoPlay();
           }
@@ -171,21 +132,28 @@ const GameRoom: React.FC<GameRoomProps> = ({ gameData, players }) => {
     return () => clearInterval(timer);
   }, [gameState.current_player_turn, gameState.status]);
 
-  // Resetar timer quando muda o turno
+  // Reset timer quando muda o turno
   useEffect(() => {
     setTimeLeft(30);
   }, [gameState.current_player_turn]);
 
-  // Converter dados para formato interno
-  const formattedPlayers = playersState.map(player => {
+  // Processar dados dos jogadores
+  const processedPlayers = playersState.map(player => {
     let pieces: DominoPieceType[] = [];
     
+    // Corrigir parsing da mão do jogador
     if (player.hand && Array.isArray(player.hand)) {
-      pieces = player.hand.map((piece: [number, number], index: number) => ({
-        id: `${player.user_id}-piece-${index}`,
-        top: piece[0],
-        bottom: piece[1]
-      }));
+      pieces = player.hand.map((piece: any, index: number) => {
+        // Verificar se é array de números [top, bottom]
+        if (Array.isArray(piece) && piece.length === 2) {
+          return {
+            id: `${player.user_id}-piece-${index}`,
+            top: piece[0],
+            bottom: piece[1]
+          };
+        }
+        return null;
+      }).filter(Boolean);
     }
     
     return {
@@ -198,9 +166,12 @@ const GameRoom: React.FC<GameRoomProps> = ({ gameData, players }) => {
     };
   });
 
-  // Peças no tabuleiro
+  const userPlayer = processedPlayers.find(p => p.id === user?.id);
+  const otherPlayers = processedPlayers.filter(p => p.id !== user?.id).slice(0, 3);
+
+  // Processar peças do tabuleiro
   let placedPieces: DominoPieceType[] = [];
-  if (gameState.board_state && typeof gameState.board_state === 'object' && gameState.board_state.pieces) {
+  if (gameState.board_state?.pieces && Array.isArray(gameState.board_state.pieces)) {
     placedPieces = gameState.board_state.pieces.map((boardPiece: any, index: number) => ({
       id: `board-piece-${index}`,
       top: boardPiece.piece[0],
@@ -209,10 +180,8 @@ const GameRoom: React.FC<GameRoomProps> = ({ gameData, players }) => {
   }
 
   const isFirstMove = placedPieces.length === 0;
-  const userPlayer = formattedPlayers.find(p => p.id === user?.id);
-  const otherPlayers = formattedPlayers.filter(p => p.id !== user?.id);
 
-  // Verificar extremidades abertas
+  // Obter extremidades abertas
   const getOpenEnds = () => {
     if (isFirstMove) return { left: null, right: null };
     
@@ -227,6 +196,8 @@ const GameRoom: React.FC<GameRoomProps> = ({ gameData, players }) => {
     if (isFirstMove) return true;
     
     const { left, right } = getOpenEnds();
+    if (left === null && right === null) return false;
+    
     return piece.top === left || piece.bottom === left || 
            piece.top === right || piece.bottom === right;
   };
@@ -237,28 +208,16 @@ const GameRoom: React.FC<GameRoomProps> = ({ gameData, players }) => {
     
     const { left, right } = getOpenEnds();
     
-    if (piece.top === left || piece.bottom === left) return 'left';
-    if (piece.top === right || piece.bottom === right) return 'right';
+    if ((piece.top === left || piece.bottom === left) && left !== null) return 'left';
+    if ((piece.top === right || piece.bottom === right) && right !== null) return 'right';
     
     return null;
   };
 
   // Handlers de drag and drop
-  const handleDragStart = (piece: DominoPieceType) => (e: React.DragEvent) => {
-    if (!userPlayer?.isCurrentPlayer || isProcessingMove) {
-      e.preventDefault();
-      return;
-    }
-
-    if (!canPiecePlay(piece)) {
-      e.preventDefault();
-      toast.error('Esta peça não pode ser jogada');
-      return;
-    }
-
+  const handlePieceDrag = (piece: DominoPieceType) => {
+    console.log('Piece drag started:', piece);
     setCurrentDraggedPiece(piece);
-    e.dataTransfer.effectAllowed = 'move';
-    e.dataTransfer.setData('text/plain', piece.id);
   };
 
   const handleDragOver = (e: React.DragEvent) => {
@@ -268,18 +227,18 @@ const GameRoom: React.FC<GameRoomProps> = ({ gameData, players }) => {
 
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault();
-    if (currentDraggedPiece && userPlayer?.isCurrentPlayer) {
+    console.log('Drop event triggered with piece:', currentDraggedPiece);
+    
+    if (currentDraggedPiece && userPlayer?.isCurrentPlayer && !isProcessingMove) {
       playPiece(currentDraggedPiece);
     }
     setCurrentDraggedPiece(null);
   };
 
-  const handleDragEnd = () => {
-    setCurrentDraggedPiece(null);
-  };
-
   // Jogar peça
   const playPiece = async (piece: DominoPieceType) => {
+    console.log('Attempting to play piece:', piece);
+    
     if (isProcessingMove) {
       toast.error('Aguarde a jogada anterior ser processada');
       return;
@@ -304,21 +263,22 @@ const GameRoom: React.FC<GameRoomProps> = ({ gameData, players }) => {
     setIsProcessingMove(true);
 
     try {
-      const pieceJson = [piece.top, piece.bottom];
-
-      console.log('Jogando peça:', { piece: pieceJson, side });
+      const pieceArray = [piece.top, piece.bottom];
+      console.log('Calling play_move with:', { piece: pieceArray, side });
 
       const { data, error } = await supabase.rpc('play_move', {
         p_game_id: gameState.id,
-        p_piece: pieceJson,
+        p_piece: pieceArray,
         p_side: side
       });
 
       if (error) {
-        console.error('Erro na jogada:', error);
+        console.error('Erro na RPC play_move:', error);
         toast.error(`Erro ao jogar peça: ${error.message}`);
         return;
       }
+
+      console.log('RPC response:', data);
 
       if (data && data.includes('ERRO:')) {
         toast.error(data);
@@ -331,8 +291,11 @@ const GameRoom: React.FC<GameRoomProps> = ({ gameData, players }) => {
         toast.success('Jogada realizada com sucesso!');
       }
 
+      // Forçar atualização dos dados
+      await fetchGameData();
+
     } catch (error) {
-      console.error('Erro inesperado:', error);
+      console.error('Erro inesperado ao jogar peça:', error);
       toast.error('Erro inesperado ao jogar peça');
     } finally {
       setIsProcessingMove(false);
@@ -341,7 +304,7 @@ const GameRoom: React.FC<GameRoomProps> = ({ gameData, players }) => {
 
   // Auto play
   const handleAutoPlay = async () => {
-    if (!userPlayer || !userPlayer.isCurrentPlayer) return;
+    if (!userPlayer?.isCurrentPlayer || isProcessingMove) return;
 
     const playablePiece = userPlayer.pieces.find(piece => canPiecePlay(piece));
     if (!playablePiece) {
@@ -369,9 +332,9 @@ const GameRoom: React.FC<GameRoomProps> = ({ gameData, players }) => {
         {/* Área dos oponentes no topo */}
         <div className="grid grid-cols-3 gap-4 mb-6">
           {otherPlayers.map(player => (
-            <OpponentCard
+            <OpponentArea
               key={player.id}
-              player={player.originalData}
+              player={player}
               isCurrentPlayer={player.isCurrentPlayer}
               pieceCount={player.pieces.length}
             />
@@ -379,128 +342,26 @@ const GameRoom: React.FC<GameRoomProps> = ({ gameData, players }) => {
         </div>
 
         {/* Mesa de jogo centralizada */}
-        <div className="flex justify-center mb-6">
-          <div 
-            ref={boardRef}
-            className={cn(
-              "w-full max-w-4xl min-h-[300px] bg-gradient-to-br from-green-800/30 to-green-900/30 rounded-3xl border-4 border-green-600/30 backdrop-blur-sm p-8",
-              "flex items-center justify-center"
-            )}
-            onDrop={handleDrop}
-            onDragOver={handleDragOver}
-          >
-            {placedPieces.length === 0 ? (
-              <div className="text-center text-green-200">
-                <div className="text-6xl mb-4">🎯</div>
-                <p className="text-xl font-semibold">Arraste a primeira peça aqui</p>
-                <p className="text-sm opacity-75 mt-2">O jogo começará com sua jogada</p>
-              </div>
-            ) : (
-              <div className="flex flex-col items-center gap-2 max-w-full overflow-auto">
-                {placedPieces.map((piece, index) => (
-                  <div key={`${piece.id}-${index}`} className="relative">
-                    <DominoPiece
-                      topValue={piece.top}
-                      bottomValue={piece.bottom}
-                      isPlayable={false}
-                      className="shadow-2xl transform rotate-90"
-                    />
-                    {index === 0 && (
-                      <div className="absolute -top-2 left-1/2 transform -translate-x-1/2 w-2 h-2 bg-green-400 rounded-full animate-pulse" />
-                    )}
-                    {index === placedPieces.length - 1 && (
-                      <div className="absolute -bottom-2 left-1/2 transform -translate-x-1/2 w-2 h-2 bg-green-400 rounded-full animate-pulse" />
-                    )}
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        </div>
+        <GameBoard
+          placedPieces={placedPieces}
+          onDrop={handleDrop}
+          onDragOver={handleDragOver}
+          className="mb-6"
+        />
 
         {/* Área do jogador atual */}
         {userPlayer && (
-          <div className={cn(
-            "bg-gradient-to-r from-purple-900/50 to-black/50 rounded-2xl p-6 border-2 transition-all duration-300",
-            userPlayer.isCurrentPlayer ? "border-yellow-400 shadow-lg shadow-yellow-400/20" : "border-purple-600/30"
-          )}>
-            <div className="flex items-center justify-between mb-4">
-              <div className="flex items-center gap-3">
-                <div className={cn(
-                  "w-4 h-4 rounded-full",
-                  userPlayer.isCurrentPlayer ? "bg-yellow-400 animate-pulse" : "bg-gray-500"
-                )} />
-                <h3 className={cn(
-                  "text-lg font-semibold",
-                  userPlayer.isCurrentPlayer ? "text-yellow-400" : "text-purple-200"
-                )}>
-                  {userPlayer.name} {userPlayer.isCurrentPlayer && "(Sua vez)"}
-                </h3>
-              </div>
-              
-              <div className="flex items-center gap-2">
-                {userPlayer.isCurrentPlayer && (
-                  <>
-                    <Button 
-                      onClick={handleAutoPlay}
-                      disabled={isProcessingMove}
-                      size="sm"
-                      variant="outline"
-                      className="bg-yellow-400/10 border-yellow-400/50 text-yellow-400 hover:bg-yellow-400/20"
-                    >
-                      {isProcessingMove ? 'Processando...' : 'Auto Play'}
-                    </Button>
-                    
-                    <div className={cn(
-                      "text-sm font-mono px-3 py-1 rounded-full",
-                      timeLeft <= 3 ? "bg-red-500 text-white animate-pulse" : "bg-yellow-400 text-black"
-                    )}>
-                      {timeLeft}s
-                    </div>
-                  </>
-                )}
-              </div>
-            </div>
-
-            {/* Peças do jogador */}
-            <div className="flex gap-2 overflow-x-auto pb-2">
-              {userPlayer.pieces.map((piece) => {
-                const isPiecePlayable = canPiecePlay(piece);
-                
-                return (
-                  <div key={piece.id} className="flex-shrink-0">
-                    <DominoPiece
-                      topValue={piece.top}
-                      bottomValue={piece.bottom}
-                      isDragging={currentDraggedPiece?.id === piece.id}
-                      isPlayable={userPlayer.isCurrentPlayer && isPiecePlayable && !isProcessingMove}
-                      onDragStart={handleDragStart(piece)}
-                      onDragEnd={handleDragEnd}
-                      onClick={() => userPlayer.isCurrentPlayer && isPiecePlayable && playPiece(piece)}
-                      className={cn(
-                        "transition-all duration-200",
-                        !userPlayer.isCurrentPlayer && "grayscale",
-                        userPlayer.isCurrentPlayer && !isPiecePlayable && "opacity-50 cursor-not-allowed",
-                        userPlayer.isCurrentPlayer && isPiecePlayable && "hover:ring-2 hover:ring-yellow-400 cursor-pointer"
-                      )}
-                    />
-                  </div>
-                );
-              })}
-            </div>
-
-            <div className="mt-3 flex items-center justify-between">
-              <div className="text-sm text-purple-300">
-                {userPlayer.pieces.length} peças restantes
-              </div>
-              
-              {userPlayer.isCurrentPlayer && (
-                <div className="text-xs text-yellow-400">
-                  {userPlayer.pieces.filter(piece => canPiecePlay(piece)).length} peças jogáveis
-                </div>
-              )}
-            </div>
-          </div>
+          <PlayerArea
+            playerPieces={userPlayer.pieces}
+            onPieceDrag={handlePieceDrag}
+            onPiecePlay={playPiece}
+            isCurrentPlayer={userPlayer.isCurrentPlayer}
+            playerName={userPlayer.name}
+            timeLeft={timeLeft}
+            onAutoPlay={handleAutoPlay}
+            isProcessingMove={isProcessingMove}
+            canPiecePlay={canPiecePlay}
+          />
         )}
       </div>
     </div>
