@@ -7,6 +7,7 @@ import GameBoard from './GameBoard';
 import OpponentsList from './OpponentsList';
 import PlayerHand from './PlayerHand';
 import GamePlayersHeader from './GamePlayersHeader';
+import PlayerUI from './PlayerUI';
 import { useIsMobile } from '@/hooks/use-mobile';
 
 interface Game2RoomProps {
@@ -25,6 +26,8 @@ const Game2Room: React.FC<Game2RoomProps> = ({
   const [currentDraggedPiece, setCurrentDraggedPiece] = useState<DominoPieceType | null>(null);
   const [isProcessingMove, setIsProcessingMove] = useState(false);
 
+  // OTIMIZAÇÃO: Estes useEffects são necessários para sincronizar o estado interno
+  // com as props recebidas, mas o React.memo acima vai evitar re-renderizações desnecessárias
   useEffect(() => {
     setGameState(initialGameData);
   }, [initialGameData]);
@@ -276,4 +279,6 @@ const Game2Room: React.FC<Game2RoomProps> = ({
   );
 };
 
-export default Game2Room;
+// Envolva a exportação com React.memo para evitar re-renderizações desnecessárias
+// quando as props gameData e players não mudaram de verdade
+export default React.memo(Game2Room);
