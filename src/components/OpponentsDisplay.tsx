@@ -3,7 +3,7 @@ import React from 'react';
 import { ProcessedPlayer } from '@/types/game';
 import OpponentArea from './OpponentArea';
 
-export { ProcessedPlayer } from '@/types/game';
+export type { ProcessedPlayer } from '@/types/game';
 
 interface OpponentsDisplayProps {
   opponents: ProcessedPlayer[];

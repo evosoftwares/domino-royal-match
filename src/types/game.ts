@@ -1,3 +1,4 @@
+
 export interface PlayerProfile {
   full_name: string;
   avatar_url: string;
@@ -36,4 +37,4 @@ export interface ProcessedPlayer {
   isCurrentPlayer: boolean;
   position: number;
   originalData: PlayerData;
-} 
+}
