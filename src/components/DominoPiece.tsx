@@ -27,14 +27,15 @@ const DominoPiece: React.FC<DominoPieceProps> = ({
     // Safety check: ensure value is within valid range (0-6)
     const safeValue = Math.max(0, Math.min(6, Math.floor(value || 0)));
     
+    // Grid positions based on your specification (1-9 grid)
     const dotPositions = {
-      0: [],
-      1: ['center'],
-      2: ['top-left', 'bottom-right'],
-      3: ['top-left', 'center', 'bottom-right'],
-      4: ['top-left', 'top-right', 'bottom-left', 'bottom-right'],
-      5: ['top-left', 'top-right', 'center', 'bottom-left', 'bottom-right'],
-      6: ['top-left', 'top-right', 'middle-left', 'middle-right', 'bottom-left', 'bottom-right']
+      0: [], // Nenhuma bolinha
+      1: [5], // Uma bolinha no centro
+      2: [1, 9], // Duas bolinhas em uma diagonal
+      3: [1, 5, 9], // Três bolinhas na mesma diagonal
+      4: [1, 3, 7, 9], // Uma bolinha em cada canto
+      5: [1, 3, 5, 7, 9], // Uma bolinha em cada canto e uma no centro
+      6: [1, 4, 7, 3, 6, 9] // Duas colunas verticais com três bolinhas cada
     };
 
     const positions = dotPositions[safeValue as keyof typeof dotPositions] || [];
@@ -44,22 +45,23 @@ const DominoPiece: React.FC<DominoPieceProps> = ({
         "relative w-full h-12 bg-white rounded-lg border border-gray-300",
         position === 'bottom' && "border-t-2 border-t-gray-400"
       )}>
-        <div className="absolute inset-1 grid grid-cols-3 grid-rows-3 gap-1">
-          {positions.map((dotPosition, index) => (
-            <div
-              key={index}
-              className={cn(
-                "w-2 h-2 bg-black rounded-full",
-                dotPosition === 'top-left' && "justify-self-start self-start",
-                dotPosition === 'top-right' && "justify-self-end self-start",
-                dotPosition === 'center' && "justify-self-center self-center",
-                dotPosition === 'middle-left' && "justify-self-start self-center",
-                dotPosition === 'middle-right' && "justify-self-end self-center",
-                dotPosition === 'bottom-left' && "justify-self-start self-end",
-                dotPosition === 'bottom-right' && "justify-self-end self-end"
-              )}
-            />
-          ))}
+        <div className="absolute inset-1 grid grid-cols-3 grid-rows-3 gap-0">
+          {/* Create all 9 grid positions */}
+          {Array.from({ length: 9 }, (_, index) => {
+            const gridPosition = index + 1; // Grid positions 1-9
+            const shouldShowDot = positions.includes(gridPosition);
+            
+            return (
+              <div
+                key={gridPosition}
+                className="flex items-center justify-center"
+              >
+                {shouldShowDot && (
+                  <div className="w-2 h-2 bg-black rounded-full" />
+                )}
+              </div>
+            );
+          })}
         </div>
       </div>
     );
