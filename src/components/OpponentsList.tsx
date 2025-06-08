@@ -44,7 +44,7 @@ const OpponentsList: React.FC<OpponentsListProps> = ({ opponents }) => {
                 bottomValue={0}
                 orientation="horizontal"
                 isPlayable={false}
-                className="w-6 h-3 opacity-50"
+                className="w-6 h-4 opacity-50"
               />
             ))}
             {player.pieces.length > 8 && (
