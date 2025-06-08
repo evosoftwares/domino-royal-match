@@ -17,12 +17,18 @@ interface GameData {
   created_at: string;
 }
 
+interface PlayerProfile {
+  full_name: string;
+  avatar_url: string;
+}
+
 interface PlayerData {
   id: string;
   user_id: string;
   position: number;
   hand: any;
   status: string;
+  profiles: PlayerProfile; // Added the missing profiles property
 }
 
 const Game: React.FC = () => {
