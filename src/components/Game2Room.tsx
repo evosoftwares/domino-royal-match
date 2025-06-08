@@ -8,31 +8,36 @@ import OpponentsList from './OpponentsList';
 import PlayerHand from './PlayerHand';
 import GamePlayersHeader from './GamePlayersHeader';
 import { useIsMobile } from '@/hooks/use-mobile';
+
 interface Game2RoomProps {
   gameData: GameData;
   players: PlayerData[];
 }
+
 const Game2Room: React.FC<Game2RoomProps> = ({
   gameData: initialGameData,
   players: initialPlayers
 }) => {
-  const {
-    user
-  } = useAuth();
+  const { user } = useAuth();
   const isMobile = useIsMobile();
   const [gameState, setGameState] = useState(initialGameData);
   const [playersState, setPlayersState] = useState(initialPlayers);
   const [currentDraggedPiece, setCurrentDraggedPiece] = useState<DominoPieceType | null>(null);
   const [isProcessingMove, setIsProcessingMove] = useState(false);
   const [timeLeft, setTimeLeft] = useState(15);
+  const [autoPlayEnabled, setAutoPlayEnabled] = useState(false);
+
   useEffect(() => {
     setGameState(initialGameData);
   }, [initialGameData]);
+
   useEffect(() => {
     setPlayersState(initialPlayers);
   }, [initialPlayers]);
+
   useEffect(() => {
     if (gameState.status !== 'active') return;
+    
     const timer = setInterval(() => {
       setTimeLeft(prev => {
         if (prev <= 1) {
@@ -44,23 +49,44 @@ const Game2Room: React.FC<Game2RoomProps> = ({
         return prev - 1;
       });
     }, 1000);
+    
     return () => clearInterval(timer);
   }, [gameState.current_player_turn, gameState.status, user?.id, isProcessingMove]);
+
   useEffect(() => {
     setTimeLeft(15);
   }, [gameState.current_player_turn]);
-  const processedPlayers: ProcessedPlayer[] = playersState.map((player): ProcessedPlayer => {
-    const pieces: DominoPieceType[] = player.hand && Array.isArray(player.hand) ? player.hand.map((piece: any, index: number): DominoPieceType | null => {
-      if (piece && typeof piece === 'object' && 'l' in piece && 'r' in piece) {
-        return {
-          id: `${player.user_id}-piece-${index}`,
-          top: piece.l,
-          bottom: piece.r,
-          originalFormat: piece
-        };
+
+  // Auto play periodically when enabled
+  useEffect(() => {
+    if (!autoPlayEnabled || gameState.status !== 'active' || gameState.current_player_turn !== user?.id) {
+      return;
+    }
+
+    const autoPlayInterval = setInterval(() => {
+      if (!isProcessingMove && gameState.current_player_turn === user?.id) {
+        handlePeriodicAutoPlay();
       }
-      return null;
-    }).filter((p): p is DominoPieceType => p !== null) : [];
+    }, 10000); // Auto play every 10 seconds
+
+    return () => clearInterval(autoPlayInterval);
+  }, [autoPlayEnabled, gameState.status, gameState.current_player_turn, user?.id, isProcessingMove]);
+
+  const processedPlayers: ProcessedPlayer[] = playersState.map((player): ProcessedPlayer => {
+    const pieces: DominoPieceType[] = player.hand && Array.isArray(player.hand) 
+      ? player.hand.map((piece: any, index: number): DominoPieceType | null => {
+          if (piece && typeof piece === 'object' && 'l' in piece && 'r' in piece) {
+            return {
+              id: `${player.user_id}-piece-${index}`,
+              top: piece.l,
+              bottom: piece.r,
+              originalFormat: piece
+            };
+          }
+          return null;
+        }).filter((p): p is DominoPieceType => p !== null)
+      : [];
+
     return {
       id: player.user_id,
       name: player.profiles?.full_name || `Jogador ${player.position}`,
@@ -70,8 +96,10 @@ const Game2Room: React.FC<Game2RoomProps> = ({
       originalData: player
     };
   });
+
   const currentUserPlayer = processedPlayers.find(p => p.id === user?.id);
   const opponents = processedPlayers.filter(p => p.id !== user?.id);
+
   let placedPieces: DominoPieceType[] = [];
   if (gameState.board_state?.pieces && Array.isArray(gameState.board_state.pieces)) {
     placedPieces = gameState.board_state.pieces.map((boardPiece: any, index: number) => {
@@ -85,6 +113,7 @@ const Game2Room: React.FC<Game2RoomProps> = ({
       } else {
         return null;
       }
+
       return {
         id: `board-piece-${index}`,
         top: piece[0],
@@ -92,43 +121,65 @@ const Game2Room: React.FC<Game2RoomProps> = ({
       };
     }).filter((p): p is DominoPieceType => p !== null);
   }
+
   const isFirstMove = placedPieces.length === 0;
+
   const getOpenEnds = useCallback(() => {
-    if (isFirstMove) return {
-      left: null,
-      right: null
-    };
+    if (isFirstMove) return { left: null, right: null };
     return {
       left: gameState.board_state?.left_end || null,
       right: gameState.board_state?.right_end || null
     };
   }, [isFirstMove, gameState.board_state]);
+
   const canPiecePlay = useCallback((piece: DominoPieceType): boolean => {
     if (isFirstMove) return true;
-    const {
-      left,
-      right
-    } = getOpenEnds();
+    const { left, right } = getOpenEnds();
     if (left === null && right === null) return false;
     return piece.top === left || piece.bottom === left || piece.top === right || piece.bottom === right;
   }, [isFirstMove, getOpenEnds]);
+
   const determineSide = useCallback((piece: DominoPieceType): 'left' | 'right' | null => {
     if (isFirstMove) return 'left';
-    const {
-      left,
-      right
-    } = getOpenEnds();
+    const { left, right } = getOpenEnds();
     if ((piece.top === left || piece.bottom === left) && left !== null) return 'left';
     if ((piece.top === right || piece.bottom === right) && right !== null) return 'right';
     return null;
   }, [isFirstMove, getOpenEnds]);
+
+  // New function to handle periodic auto play using Supabase function
+  const handlePeriodicAutoPlay = useCallback(async () => {
+    if (isProcessingMove) return;
+    
+    setIsProcessingMove(true);
+    try {
+      const { error } = await supabase.rpc('play_piece_periodically', {
+        p_game_id: gameState.id
+      });
+
+      if (error) {
+        console.error('Erro no auto play periódico:', error.message);
+        toast.error(`Erro no auto play: ${error.message}`);
+      } else {
+        toast.success('Jogada automática realizada!');
+      }
+    } catch (e: any) {
+      console.error('Erro inesperado no auto play periódico:', e);
+      toast.error('Erro inesperado no auto play.');
+    } finally {
+      setIsProcessingMove(false);
+    }
+  }, [gameState.id, isProcessingMove]);
+
   const handlePieceDrag = (piece: DominoPieceType) => {
     setCurrentDraggedPiece(piece);
   };
+
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault();
     e.dataTransfer.dropEffect = 'move';
   };
+
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault();
     if (currentDraggedPiece && currentUserPlayer?.isCurrentPlayer && !isProcessingMove) {
@@ -136,37 +187,38 @@ const Game2Room: React.FC<Game2RoomProps> = ({
     }
     setCurrentDraggedPiece(null);
   };
+
   const playPiece = useCallback(async (piece: DominoPieceType) => {
     if (isProcessingMove) {
       toast.error('Aguarde, processando jogada anterior.');
       return;
     }
+
     if (!user || gameState.current_player_turn !== user.id) {
       toast.error('Não é a sua vez de jogar.');
       return;
     }
+
     if (!canPiecePlay(piece)) {
       toast.error('Essa peça não pode ser jogada.');
       return;
     }
+
     const side = determineSide(piece);
     if (!side) {
       toast.error('Não foi possível determinar o lado da jogada.');
       return;
     }
+
     setIsProcessingMove(true);
     try {
-      const pieceForRPC = (piece as any).originalFormat || {
-        l: piece.top,
-        r: piece.bottom
-      };
-      const {
-        error
-      } = await supabase.rpc('play_move', {
+      const pieceForRPC = (piece as any).originalFormat || { l: piece.top, r: piece.bottom };
+      const { error } = await supabase.rpc('play_move', {
         p_game_id: gameState.id,
         p_piece: pieceForRPC,
         p_side: side
       });
+
       if (error) {
         toast.error(`Erro ao jogar: ${error.message}`);
       } else {
@@ -178,15 +230,16 @@ const Game2Room: React.FC<Game2RoomProps> = ({
       setIsProcessingMove(false);
     }
   }, [isProcessingMove, user, gameState.id, gameState.current_player_turn, canPiecePlay, determineSide]);
+
   const handlePassTurn = useCallback(async () => {
     if (isProcessingMove) return;
     setIsProcessingMove(true);
+    
     try {
-      const {
-        error
-      } = await supabase.rpc('pass_turn', {
+      const { error } = await supabase.rpc('pass_turn', {
         p_game_id: gameState.id
       });
+
       if (error) {
         toast.error(`Erro ao passar a vez: ${error.message}`);
       } else {
@@ -198,6 +251,7 @@ const Game2Room: React.FC<Game2RoomProps> = ({
       setIsProcessingMove(false);
     }
   }, [gameState.id, isProcessingMove]);
+
   const handleForceAutoPlay = useCallback(() => {
     const playablePieces = currentUserPlayer?.pieces.filter(canPiecePlay) || [];
     if (playablePieces.length > 0) {
@@ -206,6 +260,7 @@ const Game2Room: React.FC<Game2RoomProps> = ({
       handlePassTurn();
     }
   }, [currentUserPlayer, canPiecePlay, playPiece, handlePassTurn]);
+
   const handleManualAutoPlay = () => {
     const playablePieces = currentUserPlayer?.pieces.filter(canPiecePlay);
     if (!playablePieces || playablePieces.length === 0) {
@@ -215,95 +270,179 @@ const Game2Room: React.FC<Game2RoomProps> = ({
     }
     playPiece(playablePieces[0]);
   };
+
+  const toggleAutoPlay = () => {
+    setAutoPlayEnabled(!autoPlayEnabled);
+    toast.info(autoPlayEnabled ? 'Auto play desabilitado' : 'Auto play habilitado');
+  };
+
   if (gameState.status !== 'active') {
-    return <div className="min-h-screen bg-gradient-to-br from-purple-900 via-purple-800 to-black flex items-center justify-center">
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-purple-900 via-purple-800 to-black flex items-center justify-center">
         <div className="text-center p-8 text-white">
           <h2 className="text-2xl font-bold mb-4">Aguardando início do jogo...</h2>
           <p className="text-purple-200">Status: {gameState.status}</p>
           <p className="text-purple-200 mt-2">Jogadores conectados: {playersState.length}</p>
         </div>
-      </div>;
+      </div>
+    );
   }
 
   // Layout responsivo baseado na imagem
-  return <div className="min-h-screen bg-gradient-to-br from-purple-900 via-purple-800 to-black overflow-hidden">
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-purple-900 via-purple-800 to-black overflow-hidden">
       {/* Header com jogadores - sempre no topo */}
-      
+      <GamePlayersHeader gameId={gameState.id} />
 
-      {isMobile ?
-    // Layout mobile landscape (similar à imagem)
-    <div className="h-screen flex relative">
+      {isMobile ? (
+        // Layout mobile landscape (similar à imagem)
+        <div className="h-screen flex relative">
           {/* Adversário esquerda */}
           <div className="w-24 flex flex-col justify-center items-center p-2">
-            {opponents[0] && <div className="bg-gradient-to-b from-purple-900/30 to-black/30 rounded-xl p-2 border border-purple-600/20 transform -rotate-90">
+            {opponents[0] && (
+              <div className="bg-gradient-to-b from-purple-900/30 to-black/30 rounded-xl p-2 border border-purple-600/20 transform -rotate-90">
                 <div className="text-xs text-purple-200 text-center mb-1">{opponents[0].name}</div>
                 <div className="flex gap-0.5 justify-center">
-                  {Array.from({
-              length: Math.min(opponents[0].pieces.length, 4)
-            }).map((_, i) => <div key={i} className="w-2 h-4 bg-gray-600 rounded border border-gray-700"></div>)}
+                  {Array.from({ length: Math.min(opponents[0].pieces.length, 4) }).map((_, i) => (
+                    <div key={i} className="w-2 h-4 bg-gray-600 rounded border border-gray-700"></div>
+                  ))}
                 </div>
                 <div className="text-xs text-purple-300 text-center mt-1">{opponents[0].pieces.length}</div>
-              </div>}
+              </div>
+            )}
           </div>
 
           {/* Área central com mesa e adversários top/bottom */}
           <div className="flex-1 flex flex-col">
             {/* Adversário superior */}
             <div className="h-20 flex justify-center items-center p-2">
-              {opponents[1] && <div className="bg-gradient-to-r from-purple-900/30 to-black/30 rounded-xl p-2 border border-purple-600/20">
+              {opponents[1] && (
+                <div className="bg-gradient-to-r from-purple-900/30 to-black/30 rounded-xl p-2 border border-purple-600/20">
                   <div className="text-xs text-purple-200 text-center mb-1">{opponents[1].name}</div>
                   <div className="flex gap-0.5 justify-center">
-                    {Array.from({
-                length: Math.min(opponents[1].pieces.length, 4)
-              }).map((_, i) => <div key={i} className="w-3 h-2 bg-gray-600 rounded border border-gray-700"></div>)}
+                    {Array.from({ length: Math.min(opponents[1].pieces.length, 4) }).map((_, i) => (
+                      <div key={i} className="w-3 h-2 bg-gray-600 rounded border border-gray-700"></div>
+                    ))}
                   </div>
                   <div className="text-xs text-purple-300 text-center mt-1">{opponents[1].pieces.length}</div>
-                </div>}
+                </div>
+              )}
             </div>
 
             {/* Mesa central */}
             <div className="flex-1 flex items-center justify-center p-2">
-              <GameBoard placedPieces={placedPieces} onDrop={handleDrop} onDragOver={handleDragOver} className="w-full h-full max-w-none" />
+              <GameBoard 
+                placedPieces={placedPieces} 
+                onDrop={handleDrop} 
+                onDragOver={handleDragOver} 
+                className="w-full h-full max-w-none" 
+              />
             </div>
 
             {/* Mão do jogador na parte inferior */}
             <div className="h-24 p-2">
-              {currentUserPlayer && <PlayerHand playerPieces={currentUserPlayer.pieces} onPieceDrag={handlePieceDrag} onPiecePlay={playPiece} isCurrentPlayer={currentUserPlayer.isCurrentPlayer} playerName={currentUserPlayer.name} timeLeft={timeLeft} onAutoPlay={handleManualAutoPlay} isProcessingMove={isProcessingMove} canPiecePlay={canPiecePlay} />}
+              {currentUserPlayer && (
+                <PlayerHand 
+                  playerPieces={currentUserPlayer.pieces}
+                  onPieceDrag={handlePieceDrag}
+                  onPiecePlay={playPiece}
+                  isCurrentPlayer={currentUserPlayer.isCurrentPlayer}
+                  playerName={currentUserPlayer.name}
+                  timeLeft={timeLeft}
+                  onAutoPlay={handleManualAutoPlay}
+                  isProcessingMove={isProcessingMove}
+                  canPiecePlay={canPiecePlay}
+                />
+              )}
             </div>
           </div>
 
           {/* Adversário direita */}
           <div className="w-24 flex flex-col justify-center items-center p-2">
-            {opponents[2] && <div className="bg-gradient-to-b from-purple-900/30 to-black/30 rounded-xl p-2 border border-purple-600/20 transform rotate-90">
+            {opponents[2] && (
+              <div className="bg-gradient-to-b from-purple-900/30 to-black/30 rounded-xl p-2 border border-purple-600/20 transform rotate-90">
                 <div className="text-xs text-purple-200 text-center mb-1">{opponents[2].name}</div>
                 <div className="flex gap-0.5 justify-center">
-                  {Array.from({
-              length: Math.min(opponents[2].pieces.length, 4)
-            }).map((_, i) => <div key={i} className="w-2 h-4 bg-gray-600 rounded border border-gray-700"></div>)}
+                  {Array.from({ length: Math.min(opponents[2].pieces.length, 4) }).map((_, i) => (
+                    <div key={i} className="w-2 h-4 bg-gray-600 rounded border border-gray-700"></div>
+                  ))}
                 </div>
                 <div className="text-xs text-purple-300 text-center mt-1">{opponents[2].pieces.length}</div>
-              </div>}
+              </div>
+            )}
           </div>
 
-          {/* Info do prêmio no canto superior direito */}
-          <div className="absolute top-4 right-4 bg-purple-600 text-white px-3 py-1 rounded-full text-sm font-semibold">
-            Prêmio R${gameState.prize_amount?.toFixed(2) || '0,00'}
+          {/* Controles do auto play e info do prêmio */}
+          <div className="absolute top-4 right-4 flex flex-col gap-2">
+            <div className="bg-purple-600 text-white px-3 py-1 rounded-full text-sm font-semibold">
+              Prêmio R${gameState.prize_amount?.toFixed(2) || '0,00'}
+            </div>
+            {currentUserPlayer?.isCurrentPlayer && (
+              <button
+                onClick={toggleAutoPlay}
+                className={`px-3 py-1 rounded-full text-xs font-semibold transition-colors ${
+                  autoPlayEnabled 
+                    ? 'bg-green-600 text-white' 
+                    : 'bg-gray-600 text-gray-200'
+                }`}
+              >
+                Auto Play: {autoPlayEnabled ? 'ON' : 'OFF'}
+              </button>
+            )}
           </div>
-        </div> :
-    // Layout desktop (layout original)
-    <div className="min-h-screen flex flex-col">
+        </div>
+      ) : (
+        // Layout desktop (layout original)
+        <div className="min-h-screen flex flex-col">
           <div className="flex-shrink-0 p-4">
             <OpponentsList opponents={opponents} />
           </div>
 
           <div className="flex-1 flex items-center justify-center p-4 px-0 py-[56px] my-0">
-            <GameBoard placedPieces={placedPieces} onDrop={handleDrop} onDragOver={handleDragOver} className="w-full max-w-4xl" />
+            <GameBoard 
+              placedPieces={placedPieces} 
+              onDrop={handleDrop} 
+              onDragOver={handleDragOver} 
+              className="w-full max-w-4xl" 
+            />
           </div>
 
-          <div className="flex-shrink-0 p-4">
-            {currentUserPlayer && <PlayerHand playerPieces={currentUserPlayer.pieces} onPieceDrag={handlePieceDrag} onPiecePlay={playPiece} isCurrentPlayer={currentUserPlayer.isCurrentPlayer} playerName={currentUserPlayer.name} timeLeft={timeLeft} onAutoPlay={handleManualAutoPlay} isProcessingMove={isProcessingMove} canPiecePlay={canPiecePlay} />}
+          <div className="flex-shrink-0 p-4 flex items-center justify-between">
+            <div className="flex-1">
+              {currentUserPlayer && (
+                <PlayerHand 
+                  playerPieces={currentUserPlayer.pieces}
+                  onPieceDrag={handlePieceDrag}
+                  onPiecePlay={playPiece}
+                  isCurrentPlayer={currentUserPlayer.isCurrentPlayer}
+                  playerName={currentUserPlayer.name}
+                  timeLeft={timeLeft}
+                  onAutoPlay={handleManualAutoPlay}
+                  isProcessingMove={isProcessingMove}
+                  canPiecePlay={canPiecePlay}
+                />
+              )}
+            </div>
+            
+            {currentUserPlayer?.isCurrentPlayer && (
+              <div className="ml-4">
+                <button
+                  onClick={toggleAutoPlay}
+                  className={`px-4 py-2 rounded-lg font-semibold transition-colors ${
+                    autoPlayEnabled 
+                      ? 'bg-green-600 text-white hover:bg-green-700' 
+                      : 'bg-gray-600 text-gray-200 hover:bg-gray-700'
+                  }`}
+                >
+                  Auto Play: {autoPlayEnabled ? 'ON' : 'OFF'}
+                </button>
+              </div>
+            )}
           </div>
-        </div>}
-    </div>;
+        </div>
+      )}
+    </div>
+  );
 };
+
 export default Game2Room;

@@ -343,6 +343,10 @@ export type Database = {
         Args: { p_game_id: string; p_piece: Json; p_side: string }
         Returns: string
       }
+      play_piece_periodically: {
+        Args: { p_game_id: string }
+        Returns: undefined
+      }
       run_matchmaker: {
         Args: Record<PropertyKey, never>
         Returns: {
