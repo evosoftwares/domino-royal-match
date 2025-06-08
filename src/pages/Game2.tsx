@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
@@ -52,10 +53,10 @@ const Game2: React.FC = () => {
     setError(null);
 
     try {
-      // Otimização: buscar apenas as colunas necessárias ao invés de '*'
+      // Fetch only existing columns from games table
       const { data: game, error: gameError } = await supabase
         .from('games')
-        .select('id, status, current_player_turn, board_state, created_at, updated_at, max_players')
+        .select('id, status, current_player_turn, board_state, created_at, updated_at')
         .eq('id', gameId)
         .single();
 
@@ -65,10 +66,10 @@ const Game2: React.FC = () => {
         return;
       }
       
-      // Otimização: buscar apenas os campos necessários dos jogadores
+      // Fetch only existing columns from game_players table
       const { data: gamePlayers, error: playersError } = await supabase
         .from('game_players')
-        .select(`id, user_id, game_id, position, hand, is_ready, profiles(full_name, avatar_url)`)
+        .select(`id, user_id, game_id, position, hand, status, profiles(full_name, avatar_url)`)
         .eq('game_id', gameId)
         .order('position');
 
