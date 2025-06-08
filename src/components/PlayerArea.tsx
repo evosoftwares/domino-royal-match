@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button';
 interface PlayerAreaProps {
   playerPieces: DominoPieceType[];
   onPieceDrag: (piece: DominoPieceType) => void;
+  onPiecePlay: (piece: DominoPieceType) => void;
   isCurrentPlayer: boolean;
   playerName: string;
   timeLeft?: number;
@@ -19,9 +20,10 @@ interface PlayerAreaProps {
 const PlayerArea: React.FC<PlayerAreaProps> = ({
   playerPieces,
   onPieceDrag,
+  onPiecePlay,
   isCurrentPlayer,
   playerName,
-  timeLeft = 10,
+  timeLeft = 30,
   onAutoPlay,
   isProcessingMove = false,
   canPiecePlay
@@ -33,9 +35,17 @@ const PlayerArea: React.FC<PlayerAreaProps> = ({
       e.preventDefault();
       return;
     }
+
+    const isPiecePlayable = canPiecePlay ? canPiecePlay(piece) : true;
+    if (!isPiecePlayable) {
+      e.preventDefault();
+      return;
+    }
+
     setDraggedPiece(piece);
     onPieceDrag(piece);
     e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/plain', piece.id);
   };
 
   const handleDragEnd = () => {
@@ -45,14 +55,9 @@ const PlayerArea: React.FC<PlayerAreaProps> = ({
   const handlePieceClick = (piece: DominoPieceType) => {
     if (!isCurrentPlayer || isProcessingMove) return;
     
-    // Se a peça pode ser jogada, simular drag and drop
-    if (canPiecePlay && canPiecePlay(piece)) {
-      onPieceDrag(piece);
-      // Simular um drop após um pequeno delay
-      setTimeout(() => {
-        const dropEvent = new DragEvent('drop', { bubbles: true });
-        document.querySelector('[data-testid="game-board"]')?.dispatchEvent(dropEvent);
-      }, 100);
+    const isPiecePlayable = canPiecePlay ? canPiecePlay(piece) : true;
+    if (isPiecePlayable) {
+      onPiecePlay(piece);
     }
   };
 
@@ -114,7 +119,7 @@ const PlayerArea: React.FC<PlayerAreaProps> = ({
                 onDragEnd={handleDragEnd}
                 onClick={() => handlePieceClick(piece)}
                 className={cn(
-                  "transition-all duration-200",
+                  "transition-all duration-200 cursor-pointer",
                   !isCurrentPlayer && "grayscale",
                   isCurrentPlayer && !isPiecePlayable && "opacity-50 cursor-not-allowed",
                   isCurrentPlayer && isPiecePlayable && "hover:ring-2 hover:ring-yellow-400"
