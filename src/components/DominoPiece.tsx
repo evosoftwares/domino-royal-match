@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { cn } from '@/lib/utils';
 
@@ -23,41 +22,42 @@ const DominoPiece: React.FC<DominoPieceProps> = ({
   onDragEnd,
   className
 }) => {
-  const renderDots = (value: number, position: 'top' | 'bottom') => {
-    // Safety check: ensure value is within valid range (0-6)
+  const renderDots = (value: number, isBottom: boolean = false) => {
     const safeValue = Math.max(0, Math.min(6, Math.floor(value || 0)));
     
-    // Grid positions based on your specification (1-9 grid)
-    const dotPositions = {
-      0: [], // Nenhuma bolinha
-      1: [5], // Uma bolinha no centro
-      2: [1, 9], // Duas bolinhas em uma diagonal
-      3: [1, 5, 9], // Três bolinhas na mesma diagonal
-      4: [1, 3, 7, 9], // Uma bolinha em cada canto
-      5: [1, 3, 5, 7, 9], // Uma bolinha em cada canto e uma no centro
-      6: [1, 4, 7, 3, 6, 9] // Duas colunas verticais com três bolinhas cada
+    // Posições dos pontos em um grid 3x3 mais intuitivo
+    const dotPatterns = {
+      0: [],
+      1: [4], // Centro
+      2: [0, 8], // Diagonal principal
+      3: [0, 4, 8], // Diagonal principal + centro
+      4: [0, 2, 6, 8], // Quatro cantos
+      5: [0, 2, 4, 6, 8], // Quatro cantos + centro
+      6: [0, 1, 2, 6, 7, 8] // Duas colunas laterais
     };
 
-    const positions = dotPositions[safeValue as keyof typeof dotPositions] || [];
-
+    const positions = dotPatterns[safeValue as keyof typeof dotPatterns] || [];
+    
     return (
       <div className={cn(
-        "relative w-full h-8 bg-white rounded-md border border-gray-300",
-        position === 'bottom' && "border-t-2 border-t-gray-400"
+        "relative flex-1 bg-gradient-to-br from-white to-gray-50 rounded-md",
+        "border border-gray-200 shadow-inner",
+        isBottom && "border-t-2 border-t-gray-400"
       )}>
-        <div className="absolute inset-1 grid grid-cols-3 grid-rows-3 gap-0">
-          {/* Create all 9 grid positions */}
+        <div className="absolute inset-2 grid grid-cols-3 grid-rows-3 gap-0">
           {Array.from({ length: 9 }, (_, index) => {
-            const gridPosition = index + 1; // Grid positions 1-9
-            const shouldShowDot = positions.includes(gridPosition);
+            const shouldShowDot = positions.includes(index);
             
             return (
               <div
-                key={gridPosition}
+                key={index}
                 className="flex items-center justify-center"
               >
                 {shouldShowDot && (
-                  <div className="w-1.5 h-1.5 bg-black rounded-full" />
+                  <div className={cn(
+                    "rounded-full bg-gradient-to-br from-gray-800 to-black shadow-sm",
+                    "w-2 h-2 sm:w-2.5 sm:h-2.5" // Responsive dot size
+                  )} />
                 )}
               </div>
             );
@@ -70,21 +70,50 @@ const DominoPiece: React.FC<DominoPieceProps> = ({
   return (
     <div
       className={cn(
-        "w-12 h-24 bg-gradient-to-b from-gray-100 to-gray-200 rounded-lg shadow-md cursor-pointer transition-all duration-200 border-2 border-gray-300",
-        isPlayable && "hover:shadow-lg hover:scale-105 hover:border-yellow-400",
-        isDragging && "opacity-50 rotate-12 scale-110",
-        !isPlayable && "opacity-50 cursor-not-allowed",
+        // Base styling - proporções mais realistas de dominó
+        "w-14 h-28 bg-gradient-to-br from-gray-50 via-white to-gray-100",
+        "rounded-xl shadow-lg border-2 border-gray-200",
+        "transition-all duration-300 ease-out",
+        
+        // Interactive states
+        isPlayable && [
+          "cursor-pointer",
+          "hover:shadow-xl hover:scale-105 hover:-translate-y-1",
+          "hover:border-blue-300 hover:bg-gradient-to-br hover:from-blue-50 hover:via-white hover:to-blue-50",
+          "active:scale-95 active:shadow-md"
+        ],
+        
+        // Dragging state
+        isDragging && [
+          "opacity-70 rotate-6 scale-110 z-50",
+          "shadow-2xl border-blue-400"
+        ],
+        
+        // Disabled state
+        !isPlayable && [
+          "opacity-40 cursor-not-allowed grayscale",
+          "hover:scale-100 hover:shadow-lg hover:translate-y-0"
+        ],
+        
         className
       )}
       draggable={isPlayable}
-      onClick={onClick}
-      onDragStart={onDragStart}
-      onDragEnd={onDragEnd}
+      onClick={isPlayable ? onClick : undefined}
+      onDragStart={isPlayable ? onDragStart : undefined}
+      onDragEnd={isPlayable ? onDragEnd : undefined}
     >
-      <div className="p-1 h-full flex flex-col gap-1">
-        {renderDots(topValue, 'top')}
-        {renderDots(bottomValue, 'bottom')}
+      {/* Conteúdo interno com padding adequado */}
+      <div className="p-2 h-full flex flex-col gap-1">
+        {renderDots(topValue, false)}
+        
+        {/* Linha divisória central */}
+        <div className="h-0.5 bg-gradient-to-r from-transparent via-gray-300 to-transparent rounded-full" />
+        
+        {renderDots(bottomValue, true)}
       </div>
+      
+      {/* Efeito de brilho sutil */}
+      <div className="absolute inset-0 bg-gradient-to-tr from-transparent via-white/20 to-transparent rounded-xl pointer-events-none" />
     </div>
   );
 };
