@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
@@ -43,7 +42,8 @@ const GameRoom: React.FC<GameRoomProps> = ({ gameData: initialGameData, players:
   const [playersState, setPlayersState] = useState(initialPlayers);
   const [currentDraggedPiece, setCurrentDraggedPiece] = useState<DominoPieceType | null>(null);
   const [isProcessingMove, setIsProcessingMove] = useState(false);
-  const [timeLeft, setTimeLeft] = useState(30);
+  const [timeLeft, setTimeLeft] = useState(10);
+  const [lastTurnChange, setLastTurnChange] = useState<number>(Date.now());
 
   // Debug - Log de dados iniciais
   useEffect(() => {
@@ -64,28 +64,32 @@ const GameRoom: React.FC<GameRoomProps> = ({ gameData: initialGameData, players:
     setPlayersState(initialPlayers);
   }, [initialPlayers]);
 
-  // Timer do turno
+  // Timer do turno com auto-play
   useEffect(() => {
     if (gameState.status !== 'active') return;
     
     const timer = setInterval(() => {
       setTimeLeft(prev => {
         if (prev <= 1) {
-          if (gameState.current_player_turn === user?.id) {
-            handleAutoPlay();
+          // Se o tempo acabou e é a vez do jogador atual
+          if (gameState.current_player_turn === user?.id && !isProcessingMove) {
+            console.log('Tempo esgotado! Executando auto-play...');
+            handleForceAutoPlay();
           }
-          return 30;
+          return 10; // Reset para 10 segundos
         }
         return prev - 1;
       });
     }, 1000);
 
     return () => clearInterval(timer);
-  }, [gameState.current_player_turn, gameState.status]);
+  }, [gameState.current_player_turn, gameState.status, user?.id, isProcessingMove]);
 
   // Reset timer quando muda o turno
   useEffect(() => {
-    setTimeLeft(30);
+    setTimeLeft(10);
+    setLastTurnChange(Date.now());
+    console.log('Turno mudou, timer resetado para 10 segundos');
   }, [gameState.current_player_turn]);
 
   // Processar dados dos jogadores com formato correto
@@ -245,7 +249,7 @@ const GameRoom: React.FC<GameRoomProps> = ({ gameData: initialGameData, players:
     setCurrentDraggedPiece(null);
   };
 
-  // Jogar peça
+  // Jogar peça (atualizado para resetar timer)
   const playPiece = async (piece: DominoPieceType) => {
     console.log('Attempting to play piece:', piece);
     
@@ -310,6 +314,10 @@ const GameRoom: React.FC<GameRoomProps> = ({ gameData: initialGameData, players:
         toast.success('Jogada realizada com sucesso!');
       }
 
+      // Reset do timer após jogada bem-sucedida
+      setTimeLeft(10);
+      setLastTurnChange(Date.now());
+
     } catch (error) {
       console.error('Erro inesperado ao jogar peça:', error);
       toast.error('Erro inesperado ao jogar peça');
@@ -318,17 +326,65 @@ const GameRoom: React.FC<GameRoomProps> = ({ gameData: initialGameData, players:
     }
   };
 
-  // Auto play
-  const handleAutoPlay = async () => {
+  // Auto play forçado (quando o tempo acaba)
+  const handleForceAutoPlay = async () => {
+    if (!userPlayer?.isCurrentPlayer || isProcessingMove) {
+      console.log('Não é possível fazer auto-play:', { 
+        isCurrentPlayer: userPlayer?.isCurrentPlayer, 
+        isProcessingMove 
+      });
+      return;
+    }
+
+    console.log('Executando auto-play forçado...');
+    
+    const playablePieces = userPlayer.pieces.filter(piece => canPiecePlay(piece));
+    
+    if (playablePieces.length === 0) {
+      console.log('Nenhuma peça pode ser jogada, passando a vez...');
+      toast.error('Tempo esgotado! Nenhuma peça pode ser jogada.');
+      
+      // Chamar função para passar a vez
+      try {
+        const { error } = await supabase.rpc('pass_turn', {
+          p_game_id: gameState.id
+        });
+        
+        if (error) {
+          console.error('Erro ao passar a vez:', error);
+          toast.error('Erro ao passar a vez');
+        } else {
+          toast.info('Vez passada automaticamente');
+        }
+      } catch (error) {
+        console.error('Erro inesperado ao passar a vez:', error);
+      }
+      return;
+    }
+
+    // Jogar a primeira peça possível
+    const pieceToPlay = playablePieces[0];
+    console.log('Auto-play: jogando peça', pieceToPlay);
+    toast.warning(`Tempo esgotado! Jogando automaticamente: ${pieceToPlay.top}-${pieceToPlay.bottom}`);
+    
+    await playPiece(pieceToPlay);
+  };
+
+  // Auto play manual (botão)
+  const handleManualAutoPlay = async () => {
     if (!userPlayer?.isCurrentPlayer || isProcessingMove) return;
 
-    const playablePiece = userPlayer.pieces.find(piece => canPiecePlay(piece));
-    if (!playablePiece) {
+    const playablePieces = userPlayer.pieces.filter(piece => canPiecePlay(piece));
+    if (playablePieces.length === 0) {
       toast.error('Nenhuma peça pode ser jogada');
       return;
     }
 
-    await playPiece(playablePiece);
+    const pieceToPlay = playablePieces[0];
+    console.log('Auto-play manual: jogando peça', pieceToPlay);
+    toast.info(`Jogando automaticamente: ${pieceToPlay.top}-${pieceToPlay.bottom}`);
+    
+    await playPiece(pieceToPlay);
   };
 
   // Verificar se o jogo está ativo
@@ -361,7 +417,8 @@ const GameRoom: React.FC<GameRoomProps> = ({ gameData: initialGameData, players:
               <p><strong>Jogador atual:</strong> {userPlayer?.name || 'N/A'}</p>
               <p><strong>Peças do jogador:</strong> {userPlayer?.pieces.length || 0}</p>
               <p><strong>É minha vez:</strong> {userPlayer?.isCurrentPlayer ? 'SIM' : 'NÃO'}</p>
-              <p><strong>Outros jogadores:</strong> {otherPlayers.length}</p>
+              <p><strong>Tempo restante:</strong> {timeLeft}s</p>
+              <p><strong>Auto-play em:</strong> {timeLeft <= 3 ? '⚠️ ' + timeLeft + 's' : timeLeft + 's'}</p>
             </div>
           </div>
         </div>
@@ -395,7 +452,7 @@ const GameRoom: React.FC<GameRoomProps> = ({ gameData: initialGameData, players:
             isCurrentPlayer={userPlayer.isCurrentPlayer}
             playerName={userPlayer.name}
             timeLeft={timeLeft}
-            onAutoPlay={handleAutoPlay}
+            onAutoPlay={handleManualAutoPlay}
             isProcessingMove={isProcessingMove}
             canPiecePlay={canPiecePlay}
           />
