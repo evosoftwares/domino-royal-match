@@ -37,13 +37,12 @@ const DominoPiece: React.FC<DominoPieceProps> = ({
       5: ["top-left", "top-right", "center", "bottom-left", "bottom-right"],
       6: ["top-left", "top-right", "middle-left", "middle-right", "bottom-left", "bottom-right"],
     };
-
     const positions = dotPatterns[safeValue as keyof typeof dotPatterns] || [];
     
     return (
       <div className="relative w-full h-full">
         {positions.map(pos => (
-          <div key={pos} className={cn("absolute w-2.5 h-2.5 bg-white rounded-full", {
+          <div key={pos} className={cn("absolute w-1 h-1 bg-white rounded-full", {
             "top-1/4 left-1/4 -translate-x-1/2 -translate-y-1/2": pos === 'top-left',
             "top-1/4 right-1/4 translate-x-1/2 -translate-y-1/2": pos === 'top-right',
             "top-1/2 left-1/4 -translate-x-1/2 -translate-y-1/2": pos === 'middle-left',
@@ -62,13 +61,10 @@ const DominoPiece: React.FC<DominoPieceProps> = ({
   return (
     <div
       className={cn(
-        "flex rounded-md md:rounded-lg shadow-lg border-gray-700 border",
+        "flex rounded-lg shadow-lg border-gray-700 border",
         "bg-gradient-to-br from-gray-900 to-black",
-        isVertical 
-          ? "w-12 h-24 md:w-16 md:h-32 flex-col" 
-          : "w-24 h-12 md:w-32 md:h-16 flex-row",
+        isVertical ? "w-8 h-16 flex-col" : "w-16 h-8 flex-row",
         "transition-all duration-200",
-
         isPlayable && "cursor-pointer hover:shadow-cyan-400/30 hover:border-cyan-400",
         isDragging && "opacity-50 scale-105 rotate-3",
         !isPlayable && "opacity-60 cursor-not-allowed grayscale",
@@ -80,12 +76,12 @@ const DominoPiece: React.FC<DominoPieceProps> = ({
       onDragStart={isPlayable ? onDragStart : undefined}
       onDragEnd={isPlayable ? onDragEnd : undefined}
     >
-      <div className="flex-1 p-1 md:p-2">{renderDots(topValue)}</div>
+      <div className="flex-1 p-1">{renderDots(topValue)}</div>
       <div className={cn(
         "bg-gray-600",
-        isVertical ? "h-px w-10/12 self-center" : "w-px h-10/12 self-center"
+        isVertical ? "h-0.5 w-11/12 self-center" : "w-0.5 h-11/12 self-center"
       )} />
-      <div className="flex-1 p-1 md:p-2">{renderDots(bottomValue)}</div>
+      <div className="flex-1 p-1">{renderDots(bottomValue)}</div>
     </div>
   );
 };
