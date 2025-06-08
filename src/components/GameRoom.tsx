@@ -45,6 +45,15 @@ const GameRoom: React.FC<GameRoomProps> = ({ gameData: initialGameData, players:
   const [isProcessingMove, setIsProcessingMove] = useState(false);
   const [timeLeft, setTimeLeft] = useState(30);
 
+  // Debug - Log de dados iniciais
+  useEffect(() => {
+    console.log('=== GAME ROOM DEBUG ===');
+    console.log('Game Data:', initialGameData);
+    console.log('Initial Players:', initialPlayers);
+    console.log('Current User ID:', user?.id);
+    console.log('======================');
+  }, [initialGameData, initialPlayers, user]);
+
   // Atualizar estados quando props mudam
   useEffect(() => {
     setGameState(initialGameData);
@@ -78,23 +87,40 @@ const GameRoom: React.FC<GameRoomProps> = ({ gameData: initialGameData, players:
     setTimeLeft(30);
   }, [gameState.current_player_turn]);
 
-  // Log para debug
-  useEffect(() => {
-    console.log('GameRoom - Game State:', gameState);
-    console.log('GameRoom - Players State:', playersState);
-    console.log('GameRoom - Current User:', user?.id);
-  }, [gameState, playersState, user]);
-
-  // Processar dados dos jogadores
+  // Processar dados dos jogadores com formato correto
   const processedPlayers = playersState.map(player => {
     let pieces: DominoPieceType[] = [];
     
-    console.log(`Processing player ${player.profiles?.full_name || 'Unknown'} hand:`, player.hand);
+    console.log(`=== PROCESSANDO JOGADOR ${player.profiles?.full_name || 'Unknown'} ===`);
+    console.log('Player hand raw:', player.hand);
+    console.log('Player hand type:', typeof player.hand);
     
     // Verificar se há dados na mão
     if (player.hand && Array.isArray(player.hand)) {
       pieces = player.hand.map((piece: any, index: number) => {
-        // Verificar se é array de números [top, bottom]
+        console.log(`Piece ${index}:`, piece, 'Type:', typeof piece);
+        
+        // Formato esperado: {"l": 3, "r": 4}
+        if (piece && typeof piece === 'object' && 
+            typeof piece.l === 'number' && typeof piece.r === 'number') {
+          return {
+            id: `${player.user_id}-piece-${index}`,
+            top: piece.l,
+            bottom: piece.r
+          };
+        }
+        
+        // Formato alternativo: {"left": 3, "right": 4}
+        if (piece && typeof piece === 'object' && 
+            typeof piece.left === 'number' && typeof piece.right === 'number') {
+          return {
+            id: `${player.user_id}-piece-${index}`,
+            top: piece.left,
+            bottom: piece.right
+          };
+        }
+        
+        // Formato array [3, 4]
         if (Array.isArray(piece) && piece.length === 2 && 
             typeof piece[0] === 'number' && typeof piece[1] === 'number') {
           return {
@@ -104,20 +130,12 @@ const GameRoom: React.FC<GameRoomProps> = ({ gameData: initialGameData, players:
           };
         }
         
-        // Verificar se é objeto com propriedades top/bottom
-        if (piece && typeof piece === 'object' && 
-            typeof piece.top === 'number' && typeof piece.bottom === 'number') {
-          return {
-            id: `${player.user_id}-piece-${index}`,
-            top: piece.top,
-            bottom: piece.bottom
-          };
-        }
-        
         console.warn('Invalid piece format:', piece);
         return null;
       }).filter(Boolean);
     }
+    
+    console.log(`Jogador ${player.profiles?.full_name} processado com ${pieces.length} peças:`, pieces);
     
     return {
       id: player.user_id,
@@ -129,7 +147,8 @@ const GameRoom: React.FC<GameRoomProps> = ({ gameData: initialGameData, players:
     };
   });
 
-  console.log('Processed Players:', processedPlayers);
+  console.log('=== PROCESSED PLAYERS ===');
+  console.log('All processed players:', processedPlayers);
 
   const userPlayer = processedPlayers.find(p => p.id === user?.id);
   const otherPlayers = processedPlayers.filter(p => p.id !== user?.id);
@@ -141,12 +160,14 @@ const GameRoom: React.FC<GameRoomProps> = ({ gameData: initialGameData, players:
   let placedPieces: DominoPieceType[] = [];
   if (gameState.board_state?.pieces && Array.isArray(gameState.board_state.pieces)) {
     placedPieces = gameState.board_state.pieces.map((boardPiece: any, index: number) => {
-      // Verificar diferentes formatos possíveis
       let piece;
       if (boardPiece.piece && Array.isArray(boardPiece.piece)) {
         piece = boardPiece.piece;
       } else if (Array.isArray(boardPiece)) {
         piece = boardPiece;
+      } else if (boardPiece && typeof boardPiece === 'object' && 
+                 typeof boardPiece.l === 'number' && typeof boardPiece.r === 'number') {
+        piece = [boardPiece.l, boardPiece.r];
       } else {
         console.warn('Invalid board piece format:', boardPiece);
         return null;
@@ -248,6 +269,7 @@ const GameRoom: React.FC<GameRoomProps> = ({ gameData: initialGameData, players:
     setIsProcessingMove(true);
 
     try {
+      // Converter para formato esperado pela função play_move
       const pieceArray = [piece.top, piece.bottom];
       console.log('Calling play_move with:', { 
         game_id: gameState.id, 
@@ -321,13 +343,23 @@ const GameRoom: React.FC<GameRoomProps> = ({ gameData: initialGameData, players:
   return (
     <div className="min-h-screen bg-gradient-to-br from-purple-900 via-purple-800 to-black p-4">
       <div className="max-w-7xl mx-auto">
-        {/* Debug info */}
-        <div className="mb-4 p-2 bg-black/30 rounded text-white text-xs">
-          <p>Jogo: {gameState.id}</p>
-          <p>Status: {gameState.status}</p>
-          <p>Turno: {gameState.current_player_turn}</p>
-          <p>Jogadores: {playersState.length}</p>
-          <p>Peças no tabuleiro: {placedPieces.length}</p>
+        {/* Debug info - Enhanced */}
+        <div className="mb-4 p-4 bg-black/50 rounded text-white text-xs font-mono">
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <p><strong>Jogo:</strong> {gameState.id}</p>
+              <p><strong>Status:</strong> {gameState.status}</p>
+              <p><strong>Turno:</strong> {gameState.current_player_turn}</p>
+              <p><strong>Jogadores:</strong> {playersState.length}</p>
+              <p><strong>Peças no tabuleiro:</strong> {placedPieces.length}</p>
+            </div>
+            <div>
+              <p><strong>Jogador atual:</strong> {userPlayer?.name || 'N/A'}</p>
+              <p><strong>Peças do jogador:</strong> {userPlayer?.pieces.length || 0}</p>
+              <p><strong>É minha vez:</strong> {userPlayer?.isCurrentPlayer ? 'SIM' : 'NÃO'}</p>
+              <p><strong>Outros jogadores:</strong> {otherPlayers.length}</p>
+            </div>
+          </div>
         </div>
 
         {/* Área dos oponentes no topo */}

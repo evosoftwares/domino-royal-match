@@ -311,7 +311,6 @@ export type Database = {
       finish_game: {
         Args:
           | Record<PropertyKey, never>
-          | { p_game_id: string }
           | { p_game_id: string; p_winner_id: string }
         Returns: undefined
       }
@@ -337,9 +336,7 @@ export type Database = {
         Returns: Json
       }
       play_move: {
-        Args:
-          | { p_game_id: string; p_piece: Json; p_side: string }
-          | { p_game_id: string; p_piece: Json; p_side: string }
+        Args: { p_game_id: string; p_piece: Json; p_side: string }
         Returns: string
       }
       run_matchmaker: {

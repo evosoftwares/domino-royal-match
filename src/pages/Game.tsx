@@ -41,8 +41,8 @@ const Game: React.FC = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Verificar se o usuário pode acessar este jogo
-  const verifyGameAccess = async () => {
+  // Buscar dados do jogo e jogadores
+  const fetchGameData = async () => {
     if (!gameId || !user) {
       setError('ID do jogo ou usuário não encontrado');
       setIsLoading(false);
@@ -50,30 +50,26 @@ const Game: React.FC = () => {
     }
 
     try {
-      console.log('Verificando acesso ao jogo:', gameId, 'para usuário:', user.id);
+      console.log('=== FETCHING GAME DATA ===');
+      console.log('Game ID:', gameId);
+      console.log('User ID:', user.id);
 
-      // Verificar se o usuário está no jogo
-      const { data: playerData, error: playerError } = await supabase
+      // Primeiro, verificar se o usuário está no jogo
+      const { data: userPlayerCheck, error: userCheckError } = await supabase
         .from('game_players')
         .select('*')
         .eq('game_id', gameId)
         .eq('user_id', user.id)
         .single();
 
-      if (playerError) {
-        console.error('Erro ao verificar jogador:', playerError);
+      if (userCheckError || !userPlayerCheck) {
+        console.error('Usuário não está no jogo:', userCheckError);
         setError('Você não tem acesso a este jogo');
         setIsLoading(false);
         return;
       }
 
-      if (!playerData) {
-        setError('Você não está neste jogo');
-        setIsLoading(false);
-        return;
-      }
-
-      console.log('Jogador encontrado:', playerData);
+      console.log('User player check passed:', userPlayerCheck);
 
       // Buscar dados do jogo
       const { data: game, error: gameError } = await supabase
@@ -89,13 +85,17 @@ const Game: React.FC = () => {
         return;
       }
 
-      console.log('Dados do jogo:', game);
+      console.log('Game data fetched:', game);
 
       // Buscar todos os jogadores com profiles
-      const { data: allPlayers, error: playersError } = await supabase
+      const { data: gamePlayers, error: playersError } = await supabase
         .from('game_players')
         .select(`
-          *,
+          id,
+          user_id,
+          position,
+          hand,
+          status,
           profiles!game_players_user_id_fkey (
             full_name,
             avatar_url
@@ -111,55 +111,44 @@ const Game: React.FC = () => {
         return;
       }
 
-      console.log('Jogadores encontrados:', allPlayers);
+      console.log('=== PLAYERS DATA FETCHED ===');
+      console.log('Raw players data:', gamePlayers);
+      
+      // Log detalhado de cada jogador
+      gamePlayers?.forEach((player, index) => {
+        console.log(`Player ${index + 1}:`, {
+          id: player.id,
+          user_id: player.user_id,
+          position: player.position,
+          hand: player.hand,
+          hand_type: typeof player.hand,
+          hand_length: Array.isArray(player.hand) ? player.hand.length : 'Not array',
+          status: player.status,
+          profile: player.profiles
+        });
+      });
 
       setGameData(game);
-      setPlayers(allPlayers || []);
+      setPlayers(gamePlayers || []);
       setIsLoading(false);
       
-      if (allPlayers && allPlayers.length > 0) {
-        toast.success(`Jogo carregado! ${allPlayers.length} jogadores conectados`);
+      if (gamePlayers && gamePlayers.length > 0) {
+        toast.success(`Jogo carregado! ${gamePlayers.length} jogadores encontrados`);
       }
     } catch (error: any) {
-      console.error('Erro inesperado ao verificar acesso ao jogo:', error);
+      console.error('Erro inesperado ao carregar jogo:', error);
       setError('Erro ao carregar o jogo: ' + error.message);
       setIsLoading(false);
     }
   };
 
-  // Função para buscar dados atualizados
-  const fetchGameData = async () => {
-    if (!gameId) return;
-
-    try {
-      const [gameResponse, playersResponse] = await Promise.all([
-        supabase.from('games').select('*').eq('id', gameId).single(),
-        supabase.from('game_players').select(`
-          *,
-          profiles!game_players_user_id_fkey (
-            full_name,
-            avatar_url
-          )
-        `).eq('game_id', gameId).order('position')
-      ]);
-
-      if (gameResponse.data) {
-        setGameData(gameResponse.data);
-      }
-
-      if (playersResponse.data) {
-        setPlayers(playersResponse.data);
-      }
-    } catch (error) {
-      console.error('Erro ao atualizar dados:', error);
-    }
-  };
-
   // Subscrição em tempo real
   useEffect(() => {
-    verifyGameAccess();
+    fetchGameData();
 
     if (!gameId) return;
+
+    console.log('Setting up realtime subscriptions for game:', gameId);
 
     const gameChannel = supabase.channel(`game-${gameId}`)
       .on('postgres_changes', {
@@ -179,13 +168,13 @@ const Game: React.FC = () => {
         table: 'game_players',
         filter: `game_id=eq.${gameId}`
       }, payload => {
-        console.log('Players updated via realtime:', payload);
-        fetchGameData();
+        console.log('Game players updated via realtime:', payload);
+        fetchGameData(); // Re-fetch para garantir dados atualizados
       })
       .subscribe();
 
     return () => {
-      console.log('Cleaning up realtime subscription');
+      console.log('Cleaning up realtime subscription for game:', gameId);
       supabase.removeChannel(gameChannel);
     };
   }, [gameId, user]);
