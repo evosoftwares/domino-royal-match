@@ -6,6 +6,7 @@ import { GameData, PlayerData, ProcessedPlayer, DominoPieceType } from '@/types/
 import GameBoard from './GameBoard';
 import OpponentsList from './OpponentsList';
 import PlayerHand from './PlayerHand';
+import GamePlayersHeader from './GamePlayersHeader';
 import { useIsMobile } from '@/hooks/use-mobile';
 
 interface Game2RoomProps {
@@ -236,6 +237,14 @@ const Game2Room: React.FC<Game2RoomProps> = ({ gameData: initialGameData, player
   // Layout responsivo baseado na imagem
   return (
     <div className="min-h-screen bg-gradient-to-br from-purple-900 via-purple-800 to-black overflow-hidden">
+      {/* Header com jogadores - sempre no topo */}
+      <div className="p-4">
+        <GamePlayersHeader 
+          gameId={gameState.id} 
+          currentPlayerId={gameState.current_player_turn} 
+        />
+      </div>
+
       {isMobile ? (
         // Layout mobile landscape (similar à imagem)
         <div className="h-screen flex relative">
