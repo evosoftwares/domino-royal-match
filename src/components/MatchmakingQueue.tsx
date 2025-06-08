@@ -182,13 +182,23 @@ const MatchmakingQueue: React.FC = () => {
       
       const response = data as any;
       
-      if (response?.success) {
+      if (response?.success && response.game_id) {
         console.log('Jogo criado com sucesso:', response.game_id);
-        toast.success('Partida criada! Verificando participantes...');
-        
-        if (response.game_id) {
-          await checkIfUserInGame(response.game_id);
+        toast.success('Partida criada! Definindo primeiro jogador...');
+
+        // Chamar a função para definir o primeiro jogador
+        const { error: setCurrentPlayerError } = await supabase.rpc('set_current_player_turn', {
+          p_game_id: response.game_id
+        });
+
+        if (setCurrentPlayerError) {
+          console.error('Erro ao definir o primeiro jogador:', setCurrentPlayerError);
+          toast.error('Não foi possível definir o primeiro jogador.');
+        } else {
+          console.log('Primeiro jogador definido com sucesso para o jogo:', response.game_id);
         }
+
+        await checkIfUserInGame(response.game_id);
       } else {
         console.log('Não foi possível criar jogo:', response?.message);
       }
