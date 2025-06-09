@@ -1,5 +1,4 @@
-
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { Wallet, Transaction, TransactionCreate } from '@/types/wallet';
 import { toast } from 'sonner';
@@ -11,14 +10,7 @@ export const useWallet = () => {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    if (user) {
-      loadWallet();
-      loadTransactions();
-    }
-  }, [user]);
-
-  const loadWallet = async () => {
+  const loadWallet = useCallback(async () => {
     if (!user) return;
 
     try {
@@ -43,14 +35,15 @@ export const useWallet = () => {
         };
         setWallet(walletData);
       }
-    } catch (error: any) {
-      toast.error('Erro ao carregar carteira: ' + error.message);
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Erro desconhecido';
+      toast.error('Erro ao carregar carteira: ' + errorMessage);
     } finally {
       setLoading(false);
     }
-  };
+  }, [user]);
 
-  const loadTransactions = async () => {
+  const loadTransactions = useCallback(async () => {
     if (!user) return;
 
     try {
@@ -75,10 +68,18 @@ export const useWallet = () => {
       }));
       
       setTransactions(walletTransactions);
-    } catch (error: any) {
-      toast.error('Erro ao carregar transações: ' + error.message);
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Erro desconhecido';
+      toast.error('Erro ao carregar transações: ' + errorMessage);
     }
-  };
+  }, [user]);
+
+  useEffect(() => {
+    if (user) {
+      loadWallet();
+      loadTransactions();
+    }
+  }, [user, loadWallet, loadTransactions]);
 
   const addFunds = async (amount: number, description: string = 'Depósito') => {
     if (!wallet || amount <= 0) return false;
@@ -130,8 +131,9 @@ export const useWallet = () => {
       
       toast.success(`R$ ${amount.toFixed(2)} adicionados à carteira!`);
       return true;
-    } catch (error: any) {
-      toast.error('Erro ao adicionar fundos: ' + error.message);
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Erro desconhecido';
+      toast.error('Erro ao adicionar fundos: ' + errorMessage);
       return false;
     } finally {
       setLoading(false);
@@ -191,8 +193,9 @@ export const useWallet = () => {
       
       toast.success(`R$ ${amount.toFixed(2)} sacados da carteira!`);
       return true;
-    } catch (error: any) {
-      toast.error('Erro ao sacar fundos: ' + error.message);
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Erro desconhecido';
+      toast.error('Erro ao sacar fundos: ' + errorMessage);
       return false;
     } finally {
       setLoading(false);
@@ -252,8 +255,9 @@ export const useWallet = () => {
       
       toast.success(`Pagamento de R$ ${amount.toFixed(2)} realizado!`);
       return true;
-    } catch (error: any) {
-      toast.error('Erro ao realizar pagamento: ' + error.message);
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Erro desconhecido';
+      toast.error('Erro ao realizar pagamento: ' + errorMessage);
       return false;
     } finally {
       setLoading(false);

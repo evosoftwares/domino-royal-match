@@ -1,5 +1,4 @@
-
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -34,13 +33,7 @@ const Profile = () => {
     phone: ''
   });
 
-  useEffect(() => {
-    if (user) {
-      fetchProfile();
-    }
-  }, [user]);
-
-  const fetchProfile = async () => {
+  const fetchProfile = useCallback(async () => {
     try {
       const { data, error } = await supabase
         .from('profiles')
@@ -86,12 +79,19 @@ const Profile = () => {
           });
         }
       }
-    } catch (error: any) {
-      toast.error('Erro ao carregar perfil: ' + error.message);
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Erro desconhecido';
+      toast.error('Erro ao carregar perfil: ' + errorMessage);
     } finally {
       setLoading(false);
     }
-  };
+  }, [user?.id, user?.name]);
+
+  useEffect(() => {
+    if (user) {
+      fetchProfile();
+    }
+  }, [user, fetchProfile]);
 
   const handleSave = async () => {
     if (!user) return;
@@ -111,8 +111,9 @@ const Profile = () => {
       if (error) throw error;
 
       toast.success('Perfil atualizado com sucesso!');
-    } catch (error: any) {
-      toast.error('Erro ao salvar perfil: ' + error.message);
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Erro desconhecido';
+      toast.error('Erro ao salvar perfil: ' + errorMessage);
     } finally {
       setSaving(false);
     }
