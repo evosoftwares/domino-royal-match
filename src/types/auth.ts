@@ -1,4 +1,3 @@
-
 export interface User {
   id: string;
   email: string;
@@ -6,9 +5,17 @@ export interface User {
   created_at: string;
 }
 
+export interface Session {
+  access_token: string;
+  refresh_token: string;
+  expires_in: number;
+  token_type: string;
+  user: User;
+}
+
 export interface AuthResponse {
   user: User | null;
-  session: any;
+  session: Session | null;
   error?: string;
 }
 

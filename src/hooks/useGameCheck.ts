@@ -1,5 +1,4 @@
-
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { useNavigate } from 'react-router-dom';
@@ -10,14 +9,7 @@ export const useGameCheck = () => {
   const navigate = useNavigate();
   const [isCheckingGame, setIsCheckingGame] = useState(false);
 
-  // Verificar se o usuário já está em um jogo ativo ao carregar
-  useEffect(() => {
-    if (user) {
-      checkUserActiveGame();
-    }
-  }, [user]);
-
-  const checkUserActiveGame = async () => {
+  const checkUserActiveGame = useCallback(async () => {
     if (!user || isCheckingGame) return false;
 
     setIsCheckingGame(true);
@@ -53,7 +45,14 @@ export const useGameCheck = () => {
     } finally {
       setIsCheckingGame(false);
     }
-  };
+  }, [user, isCheckingGame, navigate]);
+
+  // Verificar se o usuário já está em um jogo ativo ao carregar
+  useEffect(() => {
+    if (user) {
+      checkUserActiveGame();
+    }
+  }, [user, checkUserActiveGame]);
 
   const preventDuplicateGameCreation = async (userIds: string[]) => {
     try {

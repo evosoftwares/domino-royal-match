@@ -1,4 +1,3 @@
-
 import { useState, useEffect, createContext, useContext, ReactNode } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { User, LoginCredentials, RegisterCredentials } from '@/types/auth';
@@ -67,8 +66,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       }
       toast.success('Login realizado com sucesso!');
       return true;
-    } catch (error: any) {
-      toast.error(error.message || 'Erro ao fazer login');
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Erro ao fazer login';
+      toast.error(errorMessage);
       return false;
     } finally {
       setLoading(false);
@@ -107,8 +107,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
       toast.success('Conta criada com sucesso! Verifique seu email para confirmação.');
       return true;
-    } catch (error: any) {
-      toast.error(error.message || 'Erro ao criar conta');
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Erro ao criar conta';
+      toast.error(errorMessage);
       return false;
     } finally {
       setLoading(false);
@@ -121,8 +122,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       const { error } = await supabase.auth.signOut();
       if (error) throw error;
       toast.success('Logout realizado com sucesso!');
-    } catch (error: any) {
-      toast.error(error.message || 'Erro ao fazer logout');
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Erro ao fazer logout';
+      toast.error(errorMessage);
     } finally {
       setLoading(false);
     }
