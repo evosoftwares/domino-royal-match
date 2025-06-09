@@ -46,3 +46,31 @@ export interface ProcessedPlayer {
   position: number;
   originalData: PlayerData;
 }
+
+// Interfaces específicas para drag and drop
+export interface PlayerHandProps {
+  dominoes: DominoPieceType[];
+  onPlayDomino: (domino: DominoPieceType) => void;
+  disabled?: boolean;
+}
+
+export interface DragEndEvent {
+  active: {
+    id: string;
+    data: {
+      current: {
+        topValue: number;
+        bottomValue: number;
+        id: string;
+      };
+    };
+  };
+  over?: {
+    id: string;
+    data: {
+      current: {
+        type: string;
+      };
+    };
+  } | null;
+}
