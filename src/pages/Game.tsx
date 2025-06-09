@@ -4,42 +4,38 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import GameRoom from '@/components/GameRoom';
 import { toast } from 'sonner';
-import { Loader2, AlertCircle } from 'lucide-react';
+import { Loader2, AlertCircle, RotateCcw } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { RealtimeChannel } from '@supabase/supabase-js';
-
-interface GameData {
-  id: string;
-  status: string;
-  prize_amount: number;
-  current_player_turn: string | null;
-  board_state: any;
-  created_at: string;
-}
-
-interface PlayerProfile {
-  full_name: string;
-  avatar_url: string;
-}
-
-interface PlayerData {
-  id: string;
-  user_id: string;
-  position: number;
-  hand: any;
-  status: string;
-  profiles?: PlayerProfile;
-}
+import { GameData, PlayerData } from '@/types/game';
+import { useIsMobile } from '@/hooks/use-mobile';
 
 const Game: React.FC = () => {
   const { gameId } = useParams<{ gameId: string; }>();
   const navigate = useNavigate();
   const { user } = useAuth();
+  const isMobile = useIsMobile();
   const [gameData, setGameData] = useState<GameData | null>(null);
   const [players, setPlayers] = useState<PlayerData[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [isLandscape, setIsLandscape] = useState(false);
+
+  useEffect(() => {
+    const checkOrientation = () => {
+      setIsLandscape(window.innerHeight < window.innerWidth);
+    };
+    
+    checkOrientation();
+    window.addEventListener('resize', checkOrientation);
+    window.addEventListener('orientationchange', checkOrientation);
+    
+    return () => {
+      window.removeEventListener('resize', checkOrientation);
+      window.removeEventListener('orientationchange', checkOrientation);
+    };
+  }, []);
 
   const handleBackToLobby = () => {
     navigate('/');
@@ -56,9 +52,10 @@ const Game: React.FC = () => {
     setError(null);
 
     try {
+      // Fetch games table with prize_amount included
       const { data: game, error: gameError } = await supabase
         .from('games')
-        .select('*')
+        .select('id, status, current_player_turn, board_state, prize_amount, created_at, updated_at')
         .eq('id', gameId)
         .single();
 
@@ -68,9 +65,10 @@ const Game: React.FC = () => {
         return;
       }
       
+      // Fetch only existing columns from game_players table
       const { data: gamePlayers, error: playersError } = await supabase
         .from('game_players')
-        .select(`*, profiles(full_name, avatar_url)`)
+        .select(`id, user_id, game_id, position, hand, status, profiles(full_name, avatar_url)`)
         .eq('game_id', gameId)
         .order('position');
 
@@ -99,7 +97,6 @@ const Game: React.FC = () => {
       setIsLoading(false);
     }
   }, [gameId, user, navigate]);
-
 
   useEffect(() => {
     fetchInitialData();
@@ -131,7 +128,7 @@ const Game: React.FC = () => {
               .select('full_name, avatar_url')
               .eq('id', newPlayer.user_id)
               .single();
-            newPlayer.profiles = profileData as PlayerProfile;
+            newPlayer.profiles = profileData;
           }
           setPlayers(currentPlayers => [...currentPlayers, newPlayer]);
           toast.info(`${newPlayer.profiles?.full_name || 'Novo jogador'} entrou no jogo.`);
@@ -154,6 +151,26 @@ const Game: React.FC = () => {
     };
   }, [gameId]);
 
+  // Tela para forçar rotação em mobile
+  if (isMobile && !isLandscape) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-purple-900 via-purple-800 to-black flex items-center justify-center p-4">
+        <Card className="max-w-sm mx-auto bg-slate-900/95 border-slate-700/50">
+          <CardContent className="p-8 text-center">
+            <RotateCcw className="w-24 h-24 text-purple-400 mx-auto mb-6 animate-spin" />
+            <h3 className="text-xl font-semibold text-slate-100 mb-4">Gire seu dispositivo</h3>
+            <p className="text-purple-200 mb-6">
+              Para uma melhor experiência de jogo, por favor gire seu dispositivo para o modo paisagem.
+            </p>
+            <div className="text-4xl mb-4">📱➡️📱</div>
+            <Button onClick={handleBackToLobby} variant="outline" className="bg-purple-600/20 border-purple-400/50 text-purple-300">
+              Voltar ao Lobby
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   if (isLoading) {
     return (

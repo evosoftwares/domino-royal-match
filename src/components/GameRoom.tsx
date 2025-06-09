@@ -2,12 +2,12 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { toast } from 'sonner';
-import { DominoPieceType } from '@/utils/dominoUtils';
+import { GameData, PlayerData, ProcessedPlayer, DominoPieceType } from '@/types/game';
 import GameBoard from './GameBoard';
-import PlayerArea from './PlayerArea';
-import OpponentsDisplay, { ProcessedPlayer } from './OpponentsDisplay';
-import { cn } from '@/lib/utils';
-import { GameData, PlayerData } from '@/types/game';
+import OpponentsList from './OpponentsList';
+import PlayerHand from './PlayerHand';
+import GamePlayersHeader from './GamePlayersHeader';
+import { useIsMobile } from '@/hooks/use-mobile';
 
 interface GameRoomProps {
   gameData: GameData;
@@ -16,11 +16,11 @@ interface GameRoomProps {
 
 const GameRoom: React.FC<GameRoomProps> = ({ gameData: initialGameData, players: initialPlayers }) => {
   const { user } = useAuth();
+  const isMobile = useIsMobile();
   const [gameState, setGameState] = useState(initialGameData);
   const [playersState, setPlayersState] = useState(initialPlayers);
   const [currentDraggedPiece, setCurrentDraggedPiece] = useState<DominoPieceType | null>(null);
   const [isProcessingMove, setIsProcessingMove] = useState(false);
-  const [timeLeft, setTimeLeft] = useState(15);
 
   useEffect(() => {
     setGameState(initialGameData);
@@ -30,27 +30,21 @@ const GameRoom: React.FC<GameRoomProps> = ({ gameData: initialGameData, players:
     setPlayersState(initialPlayers);
   }, [initialPlayers]);
 
+  // Auto-play melhorado com timeout de 10 segundos
   useEffect(() => {
-    if (gameState.status !== 'active') return;
-    
-    const timer = setInterval(() => {
-      setTimeLeft(prev => {
-        if (prev <= 1) {
-          if (gameState.current_player_turn === user?.id && !isProcessingMove) {
-            handleForceAutoPlay();
-          }
-          return 15;
-        }
-        return prev - 1;
-      });
-    }, 1000);
+    const isMyTurn = gameState.status === 'active' && gameState.current_player_turn === user?.id;
 
-    return () => clearInterval(timer);
-  }, [gameState.current_player_turn, gameState.status, user?.id, isProcessingMove]);
+    if (isMyTurn) {
+      const timerId = setTimeout(() => {
+        toast.info('Tempo esgotado. Realizando jogada automática...');
+        handleAutoPlayOnTimeout();
+      }, 10000);
 
-  useEffect(() => {
-    setTimeLeft(15);
-  }, [gameState.current_player_turn]);
+      return () => {
+        clearTimeout(timerId);
+      };
+    }
+  }, [gameState.current_player_turn, gameState.status, user?.id]);
 
   const processedPlayers: ProcessedPlayer[] = playersState.map((player): ProcessedPlayer => {
     const pieces: DominoPieceType[] = (player.hand && Array.isArray(player.hand))
@@ -77,8 +71,8 @@ const GameRoom: React.FC<GameRoomProps> = ({ gameData: initialGameData, players:
     };
   });
 
-  const userPlayer = processedPlayers.find(p => p.id === user?.id);
-  const otherPlayers = processedPlayers.filter(p => p.id !== user?.id);
+  const currentUserPlayer = processedPlayers.find(p => p.id === user?.id);
+  const opponents = processedPlayers.filter(p => p.id !== user?.id);
 
   let placedPieces: DominoPieceType[] = [];
   if (gameState.board_state?.pieces && Array.isArray(gameState.board_state.pieces)) {
@@ -139,7 +133,7 @@ const GameRoom: React.FC<GameRoomProps> = ({ gameData: initialGameData, players:
 
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault();
-    if (currentDraggedPiece && userPlayer?.isCurrentPlayer && !isProcessingMove) {
+    if (currentDraggedPiece && currentUserPlayer?.isCurrentPlayer && !isProcessingMove) {
       playPiece(currentDraggedPiece);
     }
     setCurrentDraggedPiece(null);
@@ -202,24 +196,25 @@ const GameRoom: React.FC<GameRoomProps> = ({ gameData: initialGameData, players:
     }
   }, [gameState.id, isProcessingMove]);
 
-  const handleForceAutoPlay = useCallback(() => {
-    const playablePieces = userPlayer?.pieces.filter(canPiecePlay) || [];
-    if (playablePieces.length > 0) {
-      playPiece(playablePieces[0]);
-    } else {
-      handlePassTurn();
+  // Auto-play melhorado usando o RPC do backend
+  const handleAutoPlayOnTimeout = useCallback(async () => {
+    if (isProcessingMove) return;
+    setIsProcessingMove(true);
+    try {
+      const { error } = await supabase.rpc('play_piece_periodically', {
+        p_game_id: gameState.id,
+      });
+      if (error) {
+        toast.error(`Erro no auto play: ${error.message}`);
+      } else {
+        toast.success('Jogada automática realizada pelo sistema!');
+      }
+    } catch (e: any) {
+      toast.error('Erro inesperado no auto play.');
+    } finally {
+      setIsProcessingMove(false);
     }
-  }, [userPlayer, canPiecePlay, playPiece, handlePassTurn]);
-
-  const handleManualAutoPlay = () => {
-    const playablePieces = userPlayer?.pieces.filter(canPiecePlay);
-    if (!playablePieces || playablePieces.length === 0) {
-      toast.info('Nenhuma peça jogável, passando a vez.');
-      handlePassTurn();
-      return;
-    }
-    playPiece(playablePieces[0]);
-  };
+  }, [gameState.id, isProcessingMove]);
 
   if (gameState.status !== 'active') {
     return (
@@ -234,33 +229,70 @@ const GameRoom: React.FC<GameRoomProps> = ({ gameData: initialGameData, players:
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-purple-900 via-purple-800 to-black p-4">
-      <div className="max-w-7xl mx-auto">
-        <OpponentsDisplay opponents={otherPlayers} />
-
-        <GameBoard
-          placedPieces={placedPieces}
-          onDrop={handleDrop}
-          onDragOver={handleDragOver}
-          className="mb-6"
-        />
-
-        {userPlayer && (
-          <PlayerArea
-            playerPieces={userPlayer.pieces}
-            onPieceDrag={handlePieceDrag}
-            onPiecePlay={playPiece}
-            isCurrentPlayer={userPlayer.isCurrentPlayer}
-            playerName={userPlayer.name}
-            timeLeft={timeLeft}
-            onAutoPlay={handleManualAutoPlay}
-            isProcessingMove={isProcessingMove}
-            canPiecePlay={canPiecePlay}
-          />
-        )}
-      </div>
+    <div className="min-h-screen bg-gradient-to-br from-purple-900 via-purple-800 to-black overflow-hidden">
+      <GamePlayersHeader gameId={gameState.id} />
+      {isMobile ? (
+        <div className="h-screen flex relative">
+          {/* Layout mobile simplificado */}
+          <div className="flex-1 flex flex-col">
+            <div className="flex-shrink-0 p-2">
+              <OpponentsList opponents={opponents} />
+            </div>
+            <div className="flex-1 flex items-center justify-center p-2">
+              <GameBoard 
+                placedPieces={placedPieces} 
+                onDrop={handleDrop} 
+                onDragOver={handleDragOver} 
+                className="w-full max-w-sm" 
+              />
+            </div>
+            <div className="flex-shrink-0 p-2">
+              {currentUserPlayer && (
+                <PlayerHand 
+                  playerPieces={currentUserPlayer.pieces}
+                  onPieceDrag={handlePieceDrag}
+                  onPiecePlay={playPiece}
+                  isCurrentPlayer={currentUserPlayer.isCurrentPlayer}
+                  playerName={currentUserPlayer.name}
+                  isProcessingMove={isProcessingMove}
+                  canPiecePlay={canPiecePlay}
+                />
+              )}
+            </div>
+          </div>
+        </div>
+      ) : (
+        <div className="min-h-screen flex flex-col">
+          <div className="flex-shrink-0 p-4">
+            <OpponentsList opponents={opponents} />
+          </div>
+          <div className="flex-1 flex items-center justify-center p-4 px-0 py-[56px] my-0">
+            <GameBoard 
+              placedPieces={placedPieces} 
+              onDrop={handleDrop} 
+              onDragOver={handleDragOver} 
+              className="w-full max-w-4xl" 
+            />
+          </div>
+          <div className="flex-shrink-0 p-4 flex items-center justify-between">
+            <div className="flex-1">
+              {currentUserPlayer && (
+                <PlayerHand 
+                  playerPieces={currentUserPlayer.pieces}
+                  onPieceDrag={handlePieceDrag}
+                  onPiecePlay={playPiece}
+                  isCurrentPlayer={currentUserPlayer.isCurrentPlayer}
+                  playerName={currentUserPlayer.name}
+                  isProcessingMove={isProcessingMove}
+                  canPiecePlay={canPiecePlay}
+                />
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
 
-export default GameRoom;
+export default React.memo(GameRoom);
