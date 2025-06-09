@@ -1,7 +1,12 @@
-
 export interface PlayerProfile {
   full_name: string;
   avatar_url: string;
+}
+
+export interface BoardState {
+  pieces: DominoPieceType[];
+  leftEnd: number;
+  rightEnd: number;
 }
 
 export interface GameData {
@@ -9,7 +14,7 @@ export interface GameData {
   status: string;
   prize_amount: number;
   current_player_turn: string | null;
-  board_state: any;
+  board_state: BoardState | null;
   created_at: string;
 }
 
@@ -17,7 +22,7 @@ export interface PlayerData {
   id: string;
   user_id: string;
   position: number;
-  hand: any;
+  hand: DominoPieceType[];
   status: string;
   profiles?: PlayerProfile;
 }
@@ -27,7 +32,10 @@ export interface DominoPieceType {
   top: number;
   bottom: number;
   orientation?: 'vertical' | 'horizontal';
-  originalFormat?: any;
+  originalFormat?: {
+    id: string;
+    values: [number, number];
+  };
 }
 
 export interface ProcessedPlayer {
