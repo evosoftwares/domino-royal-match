@@ -1,5 +1,4 @@
-
-import React, { useState } from 'react';
+import React from 'react';
 import DominoPiece from './DominoPiece';
 import { DominoPieceType } from '@/utils/dominoUtils';
 import { cn } from '@/lib/utils';
@@ -8,7 +7,6 @@ import { useIsMobile } from '@/hooks/use-mobile';
 
 interface PlayerHandProps {
   playerPieces: DominoPieceType[];
-  onPieceDrag: (piece: DominoPieceType) => void;
   onPiecePlay: (piece: DominoPieceType) => void;
   isCurrentPlayer: boolean;
   playerName: string;
@@ -20,7 +18,6 @@ interface PlayerHandProps {
 
 const PlayerHand: React.FC<PlayerHandProps> = ({
   playerPieces,
-  onPieceDrag,
   onPiecePlay,
   isCurrentPlayer,
   playerName,
@@ -29,32 +26,7 @@ const PlayerHand: React.FC<PlayerHandProps> = ({
   isProcessingMove = false,
   canPiecePlay
 }) => {
-  const [draggedPiece, setDraggedPiece] = useState<DominoPieceType | null>(null);
   const isMobile = useIsMobile();
-
-  const handleDragStart = (piece: DominoPieceType) => (e: React.DragEvent) => {
-    if (!isCurrentPlayer || isProcessingMove) {
-      e.preventDefault();
-      return;
-    }
-
-    const isPiecePlayable = canPiecePlay ? canPiecePlay(piece) : true;
-    if (!isPiecePlayable) {
-      e.preventDefault();
-      return;
-    }
-
-    setDraggedPiece(piece);
-    onPieceDrag(piece);
-    
-    e.dataTransfer.effectAllowed = 'move';
-    e.dataTransfer.setData('text/plain', piece.id);
-    e.dataTransfer.setData('application/json', JSON.stringify(piece));
-  };
-
-  const handleDragEnd = () => {
-    setDraggedPiece(null);
-  };
 
   const handlePieceClick = (piece: DominoPieceType) => {
     if (!isCurrentPlayer || isProcessingMove) return;
@@ -126,18 +98,17 @@ const PlayerHand: React.FC<PlayerHandProps> = ({
           return (
             <div key={piece.id} className="flex justify-center">
               <DominoPiece
+                id={piece.id}
                 topValue={piece.top}
                 bottomValue={piece.bottom}
-                isDragging={draggedPiece?.id === piece.id}
+                enableDrag={isCurrentPlayer && isPiecePlayable && !isProcessingMove}
                 isPlayable={isCurrentPlayer && isPiecePlayable && !isProcessingMove}
-                onDragStart={handleDragStart(piece)}
-                onDragEnd={handleDragEnd}
                 onClick={() => handlePieceClick(piece)}
                 className={cn(
                   "transition-all duration-200 cursor-pointer",
                   !isCurrentPlayer && "grayscale",
                   isCurrentPlayer && !isPiecePlayable && "opacity-50 cursor-not-allowed",
-                  isCurrentPlayer && isPiecePlayable && "hover:ring-2 hover:ring-yellow-400",
+                  isCurrentPlayer && isPiecePlayable && "hover:ring-2 hover:ring-purple-400",
                   isMobile ? "w-6 h-12" : "w-8 h-16"
                 )}
               />

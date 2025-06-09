@@ -1,5 +1,6 @@
 import React from 'react';
 import { cn } from '@/lib/utils';
+import { useDraggable } from '@dnd-kit/core';
 
 interface DominoPieceProps {
   topValue: number;
@@ -7,10 +8,10 @@ interface DominoPieceProps {
   isDragging?: boolean;
   isPlayable?: boolean;
   onClick?: () => void;
-  onDragStart?: (e: React.DragEvent) => void;
-  onDragEnd?: (e: React.DragEvent) => void;
   className?: string;
   orientation?: 'vertical' | 'horizontal';
+  id?: string;
+  enableDrag?: boolean;
 }
 
 const DominoPiece: React.FC<DominoPieceProps> = ({
@@ -19,11 +20,29 @@ const DominoPiece: React.FC<DominoPieceProps> = ({
   isDragging = false,
   isPlayable = true,
   onClick,
-  onDragStart,
-  onDragEnd,
   className,
-  orientation = 'vertical'
+  orientation = 'vertical',
+  id,
+  enableDrag = false
 }) => {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    isDragging: dndIsDragging,
+  } = useDraggable({
+    id: id || `domino-${topValue}-${bottomValue}`,
+    disabled: !enableDrag || !isPlayable,
+    data: {
+      topValue,
+      bottomValue,
+      id: id || `domino-${topValue}-${bottomValue}`
+    }
+  });
+
+  const isCurrentlyDragging = isDragging || dndIsDragging;
+
   const renderDots = (value: number) => {
     const safeValue = Math.max(0, Math.min(6, Math.floor(value || 0)));
     
@@ -58,23 +77,33 @@ const DominoPiece: React.FC<DominoPieceProps> = ({
 
   const isVertical = orientation === 'vertical';
 
+  const style = transform ? {
+    transform: `translate3d(${transform.x}px, ${transform.y}px, 0)`,
+  } : undefined;
+
   return (
     <div
+      ref={setNodeRef}
+      style={style}
       className={cn(
         "flex rounded-lg shadow-lg border-gray-700 border",
         "bg-gradient-to-br from-gray-900 to-black",
         isVertical ? "w-8 h-16 flex-col" : "w-16 h-8 flex-row",
         "transition-all duration-200",
-        isPlayable && "cursor-pointer hover:shadow-cyan-400/30 hover:border-cyan-400",
-        isDragging && "opacity-50 scale-105 rotate-3",
+        isPlayable && "cursor-pointer hover:shadow-purple-400/30 hover:border-purple-400",
+        isCurrentlyDragging && "opacity-50 scale-105 z-50",
         !isPlayable && "opacity-60 cursor-not-allowed grayscale",
-        
+        enableDrag && isPlayable && "cursor-grab active:cursor-grabbing",
         className
       )}
-      draggable={isPlayable}
       onClick={isPlayable ? onClick : undefined}
-      onDragStart={isPlayable ? onDragStart : undefined}
-      onDragEnd={isPlayable ? onDragEnd : undefined}
+      role="button"
+      aria-label={`Domino piece: ${topValue} and ${bottomValue}`}
+      aria-pressed={isCurrentlyDragging}
+      aria-disabled={!isPlayable}
+      tabIndex={isPlayable ? 0 : -1}
+      {...(enableDrag && isPlayable ? attributes : {})}
+      {...(enableDrag && isPlayable ? listeners : {})}
     >
       <div className="flex-1 p-1">{renderDots(topValue)}</div>
       <div className={cn(

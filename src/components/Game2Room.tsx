@@ -2,13 +2,26 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { toast } from 'sonner';
-import { GameData, PlayerData, ProcessedPlayer, DominoPieceType } from '@/types/game';
+import { GameData, PlayerData, ProcessedPlayer, DominoPieceType, DragEndEvent } from '@/types/game';
 import GameBoard from './GameBoard';
 import OpponentsList from './OpponentsList';
 import PlayerHand from './PlayerHand';
 import GamePlayersHeader from './GamePlayersHeader';
 import PlayerUI from './PlayerUI';
 import { useIsMobile } from '@/hooks/use-mobile';
+import { 
+  DndContext, 
+  DragEndEvent as DndDragEndEvent,
+  DragOverlay,
+  DragStartEvent,
+  closestCorners,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+} from '@dnd-kit/core';
+import { arrayMove, sortableKeyboardCoordinates } from '@dnd-kit/sortable';
+import DominoPiece from './DominoPiece';
 
 interface Game2RoomProps {
   gameData: GameData;
@@ -23,8 +36,20 @@ const Game2Room: React.FC<Game2RoomProps> = ({
   const isMobile = useIsMobile();
   const [gameState, setGameState] = useState(initialGameData);
   const [playersState, setPlayersState] = useState(initialPlayers);
-  const [currentDraggedPiece, setCurrentDraggedPiece] = useState<DominoPieceType | null>(null);
+  const [activeDragItem, setActiveDragItem] = useState<DominoPieceType | null>(null);
   const [isProcessingMove, setIsProcessingMove] = useState(false);
+
+  // Configuração dos sensores para @dnd-kit
+  const sensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: {
+        distance: 8, // Requer movimento de 8px para ativar o drag
+      },
+    }),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    })
+  );
 
   // OTIMIZAÇÃO: Estes useEffects são necessários para sincronizar o estado interno
   // com as props recebidas, mas o React.memo acima vai evitar re-renderizações desnecessárias
@@ -35,6 +60,26 @@ const Game2Room: React.FC<Game2RoomProps> = ({
   useEffect(() => {
     setPlayersState(initialPlayers);
   }, [initialPlayers]);
+
+  // Função de auto-play unificada que chama o backend
+  const handleAutoPlayOnTimeout = useCallback(async () => {
+    if (isProcessingMove) return;
+    setIsProcessingMove(true);
+    try {
+      const { error } = await supabase.rpc('play_piece_periodically', {
+        p_game_id: gameState.id,
+      });
+      if (error) {
+        toast.error(`Erro no auto play: ${error.message}`);
+      } else {
+        toast.success('Jogada automática realizada pelo sistema!');
+      }
+    } catch (e: unknown) {
+      toast.error('Erro inesperado no auto play.');
+    } finally {
+      setIsProcessingMove(false);
+    }
+  }, [gameState.id, isProcessingMove]);
 
   // Lógica de auto-play unificada e eficiente (como discutimos)
   useEffect(() => {
@@ -50,21 +95,21 @@ const Game2Room: React.FC<Game2RoomProps> = ({
         clearTimeout(timerId);
       };
     }
-  }, [gameState.current_player_turn, gameState.status, user?.id]);
-
-
-  // <<< CORREÇÃO >>> A seguir, as implementações que estavam faltando foram restauradas.
-  // Isso corrige os erros TS2554 e TS2322.
+  }, [gameState.current_player_turn, gameState.status, user?.id, handleAutoPlayOnTimeout]);
 
   const processedPlayers: ProcessedPlayer[] = playersState.map((player): ProcessedPlayer => {
     const pieces: DominoPieceType[] = player.hand && Array.isArray(player.hand) 
-      ? player.hand.map((piece: any, index: number): DominoPieceType | null => {
-          if (piece && typeof piece === 'object' && 'l' in piece && 'r' in piece) {
+      ? player.hand.map((piece: unknown, index: number): DominoPieceType | null => {
+          if (piece && typeof piece === 'object' && piece !== null && 'l' in piece && 'r' in piece) {
+            const typedPiece = piece as { l: number; r: number };
             return {
               id: `${player.user_id}-piece-${index}`,
-              top: piece.l,
-              bottom: piece.r,
-              originalFormat: piece
+              top: typedPiece.l,
+              bottom: typedPiece.r,
+              originalFormat: {
+                id: `${player.user_id}-piece-${index}`,
+                values: [typedPiece.l, typedPiece.r] as [number, number]
+              }
             };
           }
           return null;
@@ -86,14 +131,21 @@ const Game2Room: React.FC<Game2RoomProps> = ({
 
   let placedPieces: DominoPieceType[] = [];
   if (gameState.board_state?.pieces && Array.isArray(gameState.board_state.pieces)) {
-    placedPieces = gameState.board_state.pieces.map((boardPiece: any, index: number) => {
+    placedPieces = gameState.board_state.pieces.map((boardPiece: unknown, index: number) => {
       let piece;
-      if (boardPiece.piece && Array.isArray(boardPiece.piece)) {
-        piece = boardPiece.piece;
+      if (boardPiece && typeof boardPiece === 'object' && boardPiece !== null) {
+        const typedBoardPiece = boardPiece as { piece?: number[]; l?: number; r?: number };
+        if (typedBoardPiece.piece && Array.isArray(typedBoardPiece.piece)) {
+          piece = typedBoardPiece.piece;
+        } else if (Array.isArray(boardPiece)) {
+          piece = boardPiece as number[];
+        } else if (typeof typedBoardPiece.l === 'number' && typeof typedBoardPiece.r === 'number') {
+          piece = [typedBoardPiece.l, typedBoardPiece.r];
+        } else {
+          return null;
+        }
       } else if (Array.isArray(boardPiece)) {
-        piece = boardPiece;
-      } else if (boardPiece && typeof boardPiece === 'object' && typeof boardPiece.l === 'number' && typeof boardPiece.r === 'number') {
-        piece = [boardPiece.l, boardPiece.r];
+        piece = boardPiece as number[];
       } else {
         return null;
       }
@@ -108,7 +160,6 @@ const Game2Room: React.FC<Game2RoomProps> = ({
 
   const isFirstMove = placedPieces.length === 0;
 
-  // <<< CORREÇÃO: Implementação restaurada >>>
   const getOpenEnds = useCallback(() => {
     if (isFirstMove) return { left: null, right: null };
     return {
@@ -117,7 +168,6 @@ const Game2Room: React.FC<Game2RoomProps> = ({
     };
   }, [isFirstMove, gameState.board_state]);
 
-  // <<< CORREÇÃO: Implementação restaurada >>>
   const canPiecePlay = useCallback((piece: DominoPieceType): boolean => {
     if (isFirstMove) return true;
     const { left, right } = getOpenEnds();
@@ -125,7 +175,6 @@ const Game2Room: React.FC<Game2RoomProps> = ({
     return piece.top === left || piece.bottom === left || piece.top === right || piece.bottom === right;
   }, [isFirstMove, getOpenEnds]);
 
-  // <<< CORREÇÃO: Implementação restaurada >>>
   const determineSide = useCallback((piece: DominoPieceType): 'left' | 'right' | null => {
     if (isFirstMove) return 'left';
     const { left, right } = getOpenEnds();
@@ -134,42 +183,32 @@ const Game2Room: React.FC<Game2RoomProps> = ({
     return null;
   }, [isFirstMove, getOpenEnds]);
 
-  // Função de auto-play unificada que chama o backend
-  const handleAutoPlayOnTimeout = useCallback(async () => {
-    if (isProcessingMove) return;
-    setIsProcessingMove(true);
-    try {
-      const { error } = await supabase.rpc('play_piece_periodically', {
-        p_game_id: gameState.id,
-      });
-      if (error) {
-        toast.error(`Erro no auto play: ${error.message}`);
-      } else {
-        toast.success('Jogada automática realizada pelo sistema!');
+  // Handlers para @dnd-kit
+  const handleDragStart = (event: DragStartEvent) => {
+    const { active } = event;
+    const draggedPiece = currentUserPlayer?.pieces.find(piece => piece.id === active.id);
+    if (draggedPiece) {
+      setActiveDragItem(draggedPiece);
+    }
+  };
+
+  const handleDragEnd = (event: DndDragEndEvent) => {
+    const { active, over } = event;
+    setActiveDragItem(null);
+
+    if (!over) {
+      // Peça foi solta fora de uma área válida
+      toast.info('Solte a peça no tabuleiro para jogar');
+      return;
+    }
+
+    // Verifica se foi solta no tabuleiro
+    if (over.id === 'game-board') {
+      const draggedPiece = currentUserPlayer?.pieces.find(piece => piece.id === active.id);
+      if (draggedPiece && currentUserPlayer?.isCurrentPlayer && !isProcessingMove) {
+        playPiece(draggedPiece);
       }
-    } catch (e: any) {
-      toast.error('Erro inesperado no auto play.');
-    } finally {
-      setIsProcessingMove(false);
     }
-  }, [gameState.id, isProcessingMove]);
-  
-  // <<< CORREÇÃO: Implementações restauradas >>>
-  const handlePieceDrag = (piece: DominoPieceType) => {
-    setCurrentDraggedPiece(piece);
-  };
-
-  const handleDragOver = (e: React.DragEvent) => {
-    e.preventDefault();
-    e.dataTransfer.dropEffect = 'move';
-  };
-
-  const handleDrop = (e: React.DragEvent) => {
-    e.preventDefault();
-    if (currentDraggedPiece && currentUserPlayer?.isCurrentPlayer && !isProcessingMove) {
-      playPiece(currentDraggedPiece);
-    }
-    setCurrentDraggedPiece(null);
   };
 
   const playPiece = useCallback(async (piece: DominoPieceType) => {
@@ -192,7 +231,9 @@ const Game2Room: React.FC<Game2RoomProps> = ({
     }
     setIsProcessingMove(true);
     try {
-      const pieceForRPC = (piece as any).originalFormat || { l: piece.top, r: piece.bottom };
+      const pieceForRPC = piece.originalFormat ? 
+        { l: piece.originalFormat.values[0], r: piece.originalFormat.values[1] } : 
+        { l: piece.top, r: piece.bottom };
       const { error } = await supabase.rpc('play_move', {
         p_game_id: gameState.id,
         p_piece: pieceForRPC,
@@ -203,7 +244,7 @@ const Game2Room: React.FC<Game2RoomProps> = ({
       } else {
         toast.success('Jogada realizada!');
       }
-    } catch (e: any) {
+    } catch (e: unknown) {
       toast.error('Ocorreu um erro inesperado ao jogar.');
     } finally {
       setIsProcessingMove(false);
@@ -222,7 +263,7 @@ const Game2Room: React.FC<Game2RoomProps> = ({
       } else {
         toast.info('Você passou a vez.');
       }
-    } catch (e: any) {
+    } catch (e: unknown) {
       toast.error('Erro inesperado ao passar a vez.');
     } finally {
       setIsProcessingMove(false);
@@ -237,10 +278,15 @@ const Game2Room: React.FC<Game2RoomProps> = ({
     );
   }
 
-  // O JSX restante permanece como na versão anterior (sem os botões de auto-play).
   return (
-    <div className="min-h-screen bg-gradient-to-br from-purple-900 via-purple-800 to-black overflow-hidden">
-      <GamePlayersHeader gameId={gameState.id} />
+    <DndContext
+      sensors={sensors}
+      collisionDetection={closestCorners}
+      onDragStart={handleDragStart}
+      onDragEnd={handleDragEnd}
+    >
+      <div className="min-h-screen bg-gradient-to-br from-purple-900 via-purple-800 to-black overflow-hidden">
+        <GamePlayersHeader gameId={gameState.id} />
         {isMobile ? (
           <div className="h-screen flex relative">
             {/* ... JSX mobile ... */}
@@ -253,8 +299,7 @@ const Game2Room: React.FC<Game2RoomProps> = ({
             <div className="flex-1 flex items-center justify-center p-4 px-0 py-[56px] my-0">
               <GameBoard 
                 placedPieces={placedPieces} 
-                onDrop={handleDrop} 
-                onDragOver={handleDragOver} 
+                isDropAllowed={currentUserPlayer?.isCurrentPlayer && !isProcessingMove}
                 className="w-full max-w-4xl" 
               />
             </div>
@@ -263,7 +308,6 @@ const Game2Room: React.FC<Game2RoomProps> = ({
                 {currentUserPlayer && (
                   <PlayerHand 
                     playerPieces={currentUserPlayer.pieces}
-                    onPieceDrag={handlePieceDrag}
                     onPiecePlay={playPiece}
                     isCurrentPlayer={currentUserPlayer.isCurrentPlayer}
                     playerName={currentUserPlayer.name}
@@ -275,7 +319,20 @@ const Game2Room: React.FC<Game2RoomProps> = ({
             </div>
           </div>
         )}
-    </div>
+        
+        {/* Overlay que mostra a peça sendo arrastada */}
+        <DragOverlay>
+          {activeDragItem ? (
+            <DominoPiece
+              topValue={activeDragItem.top}
+              bottomValue={activeDragItem.bottom}
+              isDragging={true}
+              className="rotate-6 shadow-2xl"
+            />
+          ) : null}
+        </DragOverlay>
+      </div>
+    </DndContext>
   );
 };
 
