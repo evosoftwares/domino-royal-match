@@ -9,6 +9,7 @@ export const useWallet = () => {
   const [wallet, setWallet] = useState<Wallet | null>(null);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [loading, setLoading] = useState(true);
+  const [processingTransaction, setProcessingTransaction] = useState(false);
 
   const loadWallet = useCallback(async () => {
     if (!user) return;
@@ -81,18 +82,33 @@ export const useWallet = () => {
     }
   }, [user, loadWallet, loadTransactions]);
 
-  const addFunds = async (amount: number, description: string = 'Depósito') => {
-    if (!wallet || amount <= 0) return false;
+  const executeAtomicTransaction = async (
+    type: 'deposit' | 'withdrawal' | 'payment',
+    amount: number,
+    description: string
+  ): Promise<boolean> => {
+    if (!user || !wallet || amount <= 0) {
+      toast.error('Dados inválidos para a transação');
+      return false;
+    }
 
+    if ((type === 'withdrawal' || type === 'payment') && amount > wallet.balance) {
+      toast.error('Saldo insuficiente');
+      return false;
+    }
+
+    setProcessingTransaction(true);
+    
+    let transactionId: string | null = null;
+    let compensationNeeded = false;
+    
     try {
-      setLoading(true);
-      
-      // Create transaction first
+      // Step 1: Create transaction record first (as a lock/audit trail)
       const { data: transaction, error: transactionError } = await supabase
         .from('transactions')
         .insert({
-          user_id: user!.id,
-          type: 'deposit',
+          user_id: user.id,
+          type: type,
           amount: amount,
           description: description
         })
@@ -100,27 +116,45 @@ export const useWallet = () => {
         .single();
 
       if (transactionError) throw transactionError;
+      transactionId = transaction.id.toString();
 
-      // Update profile balance
-      const newBalance = wallet.balance + amount;
-      const { error: profileError } = await supabase
+      // Step 2: Calculate new balance
+      const balanceChange = type === 'deposit' ? amount : -amount;
+      const newBalance = wallet.balance + balanceChange;
+
+      if (newBalance < 0) {
+        throw new Error('Transação resultaria em saldo negativo');
+      }
+
+      // Step 3: Update profile balance with optimistic concurrency control
+      const { data: updatedProfile, error: profileError } = await supabase
         .from('profiles')
         .update({ 
           balance: newBalance, 
           updated_at: new Date().toISOString() 
         })
-        .eq('id', user!.id);
+        .eq('id', user.id)
+        .eq('balance', wallet.balance) // Optimistic concurrency control
+        .select('balance')
+        .single();
 
-      if (profileError) throw profileError;
+      if (profileError) {
+        compensationNeeded = true;
+        throw new Error(`Erro na atualização do saldo: ${profileError.message}`);
+      }
 
-      // Update local state
-      setWallet({ ...wallet, balance: newBalance });
+      if (!updatedProfile) {
+        compensationNeeded = true;
+        throw new Error('Conflito de concorrência detectado. Tente novamente.');
+      }
+
+      // Success: Update local state
+      setWallet(prev => prev ? { ...prev, balance: newBalance } : null);
       
-      // Add transaction to local state
       const newTransaction: Transaction = {
-        id: transaction.id.toString(),
-        wallet_id: user!.id,
-        type: 'deposit',
+        id: transactionId,
+        wallet_id: user.id,
+        type: type,
         amount: amount,
         description: description,
         status: 'completed',
@@ -129,148 +163,82 @@ export const useWallet = () => {
       
       setTransactions(prev => [newTransaction, ...prev]);
       
-      toast.success(`R$ ${amount.toFixed(2)} adicionados à carteira!`);
+      const actionText = type === 'deposit' ? 'adicionados à' : 
+                        type === 'withdrawal' ? 'sacados da' : 'debitados da';
+      toast.success(`R$ ${amount.toFixed(2)} ${actionText} carteira!`);
       return true;
+
     } catch (error: unknown) {
       const errorMessage = error instanceof Error ? error.message : 'Erro desconhecido';
-      toast.error('Erro ao adicionar fundos: ' + errorMessage);
+      
+      // Compensation: Remove transaction record if balance update failed
+      if (compensationNeeded && transactionId) {
+        try {
+          await supabase
+            .from('transactions')
+            .delete()
+            .eq('id', parseInt(transactionId));
+        } catch (compensationError) {
+          console.error('Error in compensation transaction:', compensationError);
+        }
+      }
+      
+      toast.error('Erro na transação: ' + errorMessage);
+      
+      // ✅ ADDED: Reload wallet state on error to ensure consistency
+      await loadWallet();
       return false;
     } finally {
-      setLoading(false);
+      setProcessingTransaction(false);
     }
+  };
+
+  const addFunds = async (amount: number, description: string = 'Depósito') => {
+    if (amount <= 0 || amount > 10000) {
+      toast.error('Valor inválido. Deve ser entre R$ 0,01 e R$ 10.000,00');
+      return false;
+    }
+    
+    return executeAtomicTransaction('deposit', amount, description);
   };
 
   const withdrawFunds = async (amount: number, description: string = 'Saque') => {
-    if (!wallet || amount <= 0 || amount > wallet.balance) {
-      toast.error('Saldo insuficiente');
+    if (amount <= 0 || amount > 10000) {
+      toast.error('Valor inválido. Deve ser entre R$ 0,01 e R$ 10.000,00');
       return false;
     }
-
-    try {
-      setLoading(true);
-      
-      // Create transaction first
-      const { data: transaction, error: transactionError } = await supabase
-        .from('transactions')
-        .insert({
-          user_id: user!.id,
-          type: 'withdrawal',
-          amount: amount,
-          description: description
-        })
-        .select()
-        .single();
-
-      if (transactionError) throw transactionError;
-
-      // Update profile balance
-      const newBalance = wallet.balance - amount;
-      const { error: profileError } = await supabase
-        .from('profiles')
-        .update({ 
-          balance: newBalance, 
-          updated_at: new Date().toISOString() 
-        })
-        .eq('id', user!.id);
-
-      if (profileError) throw profileError;
-
-      // Update local state
-      setWallet({ ...wallet, balance: newBalance });
-      
-      // Add transaction to local state
-      const newTransaction: Transaction = {
-        id: transaction.id.toString(),
-        wallet_id: user!.id,
-        type: 'withdrawal',
-        amount: amount,
-        description: description,
-        status: 'completed',
-        created_at: transaction.created_at || new Date().toISOString()
-      };
-      
-      setTransactions(prev => [newTransaction, ...prev]);
-      
-      toast.success(`R$ ${amount.toFixed(2)} sacados da carteira!`);
-      return true;
-    } catch (error: unknown) {
-      const errorMessage = error instanceof Error ? error.message : 'Erro desconhecido';
-      toast.error('Erro ao sacar fundos: ' + errorMessage);
-      return false;
-    } finally {
-      setLoading(false);
-    }
+    
+    return executeAtomicTransaction('withdrawal', amount, description);
   };
 
   const makePayment = async (amount: number, description: string) => {
-    if (!wallet || amount <= 0 || amount > wallet.balance) {
-      toast.error('Saldo insuficiente');
+    if (amount <= 0 || amount > 10000) {
+      toast.error('Valor inválido. Deve ser entre R$ 0,01 e R$ 10.000,00');
       return false;
     }
-
-    try {
-      setLoading(true);
-      
-      // Create transaction first
-      const { data: transaction, error: transactionError } = await supabase
-        .from('transactions')
-        .insert({
-          user_id: user!.id,
-          type: 'payment',
-          amount: amount,
-          description: description
-        })
-        .select()
-        .single();
-
-      if (transactionError) throw transactionError;
-
-      // Update profile balance
-      const newBalance = wallet.balance - amount;
-      const { error: profileError } = await supabase
-        .from('profiles')
-        .update({ 
-          balance: newBalance, 
-          updated_at: new Date().toISOString() 
-        })
-        .eq('id', user!.id);
-
-      if (profileError) throw profileError;
-
-      // Update local state
-      setWallet({ ...wallet, balance: newBalance });
-      
-      // Add transaction to local state
-      const newTransaction: Transaction = {
-        id: transaction.id.toString(),
-        wallet_id: user!.id,
-        type: 'payment',
-        amount: amount,
-        description: description,
-        status: 'completed',
-        created_at: transaction.created_at || new Date().toISOString()
-      };
-      
-      setTransactions(prev => [newTransaction, ...prev]);
-      
-      toast.success(`Pagamento de R$ ${amount.toFixed(2)} realizado!`);
-      return true;
-    } catch (error: unknown) {
-      const errorMessage = error instanceof Error ? error.message : 'Erro desconhecido';
-      toast.error('Erro ao realizar pagamento: ' + errorMessage);
+    
+    if (!description || description.trim().length < 3) {
+      toast.error('Descrição do pagamento é obrigatória');
       return false;
-    } finally {
-      setLoading(false);
     }
+    
+    return executeAtomicTransaction('payment', amount, description);
+  };
+
+  const refreshWallet = async () => {
+    setLoading(true);
+    await Promise.all([loadWallet(), loadTransactions()]);
   };
 
   return {
     wallet,
     transactions,
-    loading,
+    loading: loading || processingTransaction,
+    processingTransaction,
     addFunds,
     withdrawFunds,
     makePayment,
-    loadTransactions
+    loadTransactions,
+    refreshWallet,
   };
 };

@@ -34,7 +34,7 @@ export const useGameCheck = () => {
       if (activeGame?.game_id) {
         console.log('Usuário já tem jogo ativo:', activeGame.game_id);
         toast.info('Redirecionando para seu jogo ativo...');
-        navigate(`/game2/${activeGame.game_id}`);
+        navigate(`/game/${activeGame.game_id}`);
         return true;
       }
 

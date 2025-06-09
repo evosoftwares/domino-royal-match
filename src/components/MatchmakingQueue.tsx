@@ -138,7 +138,7 @@ const MatchmakingQueue: React.FC = () => {
     if (error) { console.error('Erro ao verificar participação:', error); return; }
     if (data) {
       toast.success('Partida encontrada! Redirecionando...');
-      setTimeout(() => navigate(`/game2/${gameId}`), 1500);
+      setTimeout(() => navigate(`/game/${gameId}`), 1500);
     }
   }, [user, navigate]);
 
@@ -156,7 +156,7 @@ const MatchmakingQueue: React.FC = () => {
 
       if (activeGame) {
         toast.info('Você já está em um jogo ativo! Redirecionando...');
-        navigate(`/game2/${activeGame.game_id}`);
+        navigate(`/game/${activeGame.game_id}`);
         return true;
       }
       return false;
