@@ -8,29 +8,7 @@ import { Loader2, AlertCircle } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { RealtimeChannel } from '@supabase/supabase-js';
-
-interface GameData {
-  id: string;
-  status: string;
-  prize_amount: number;
-  current_player_turn: string | null;
-  board_state: any;
-  created_at: string;
-}
-
-interface PlayerProfile {
-  full_name: string;
-  avatar_url: string;
-}
-
-interface PlayerData {
-  id: string;
-  user_id: string;
-  position: number;
-  hand: any;
-  status: string;
-  profiles?: PlayerProfile;
-}
+import { GameData, PlayerData } from '@/types/game';
 
 const Game: React.FC = () => {
   const { gameId } = useParams<{ gameId: string; }>();
@@ -70,7 +48,7 @@ const Game: React.FC = () => {
       
       const { data: gamePlayers, error: playersError } = await supabase
         .from('game_players')
-        .select(`*, profiles(full_name, avatar_url)`)
+        .select(`id, user_id, game_id, position, hand, profiles(full_name, avatar_url)`)
         .eq('game_id', gameId)
         .order('position');
 
@@ -99,7 +77,6 @@ const Game: React.FC = () => {
       setIsLoading(false);
     }
   }, [gameId, user, navigate]);
-
 
   useEffect(() => {
     fetchInitialData();
@@ -153,7 +130,6 @@ const Game: React.FC = () => {
       supabase.removeChannel(gameChannel);
     };
   }, [gameId]);
-
 
   if (isLoading) {
     return (

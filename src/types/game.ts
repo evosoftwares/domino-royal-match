@@ -7,7 +7,7 @@ export interface PlayerProfile {
 export interface GameData {
   id: string;
   status: string;
-  prize_amount: number;
+  prize_pool: number; // Mudança: era prize_amount, agora prize_pool para corresponder ao banco
   current_player_turn: string | null;
   board_state: any;
   created_at: string;
@@ -18,7 +18,7 @@ export interface PlayerData {
   user_id: string;
   position: number;
   hand: any;
-  status: string;
+  // Removendo status pois não existe na tabela game_players
   profiles?: PlayerProfile;
 }
 
