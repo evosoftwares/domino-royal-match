@@ -34,6 +34,8 @@ const Game2Room: React.FC<Game2RoomProps> = React.memo(({ gameData: initialGameD
   console.log('Game2Room - gameData:', initialGameData);
   console.log('Game2Room - players:', initialPlayers);
   console.log('Game2Room - board_state:', initialGameData.board_state);
+  console.log('Game2Room - board_state.grid:', initialGameData.board_state?.grid);
+  console.log('Game2Room - board_state completo:', JSON.stringify(initialGameData.board_state, null, 2));
 
   useEffect(() => { setGameState(initialGameData); }, [initialGameData]);
   useEffect(() => { setPlayersState(initialPlayers); }, [initialPlayers]);
@@ -175,20 +177,30 @@ const Game2Room: React.FC<Game2RoomProps> = React.memo(({ gameData: initialGameD
     setIsProcessingMove(true);
     toast.info("Processando jogada...");
 
+    const moveData = {
+      gameId: gameState.id,
+      userId: user.id,
+      piece: [piece.top, piece.bottom],
+      placement: placement || 'left'
+    };
+
+    console.log('Enviando para a função play-move:', moveData);
+
     try {
-      const { error } = await supabase.functions.invoke('play-move', {
-        body: {
-          gameId: gameState.id,
-          userId: user.id,
-          piece: [piece.top, piece.bottom],
-          placement: placement || 'left'
-        }
+      const { data, error } = await supabase.functions.invoke('play-move', {
+        body: moveData
       });
 
-      if (error) toast.error(`Erro: ${error.message || 'Jogada inválida.'}`);
-      else toast.success('Jogada realizada!');
+      console.log('Resposta da função play-move:', { data, error });
+
+      if (error) {
+        toast.error(`Erro na jogada: ${error.message || 'Jogada inválida.'}`);
+      } else {
+        toast.success('Jogada enviada com sucesso!');
+      }
     } catch (err: any) {
-      toast.error(`Erro inesperado: ${err.message}`);
+      console.error('Erro ao invocar a função play-move:', err);
+      toast.error(`Erro inesperado ao processar jogada: ${err.message}`);
     }
 
     setIsProcessingMove(false);

@@ -33,7 +33,7 @@ const App = () => (
                 <Dashboard />
               </ProtectedRoute>
             } />
-            <Route path="/game/:gameId" element={
+            <Route path="/game2/:gameId" element={
               <ProtectedRoute>
                 <Game2 />
               </ProtectedRoute>

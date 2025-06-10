@@ -138,7 +138,7 @@ const MatchmakingQueue: React.FC = () => {
     if (error) { console.error('Erro ao verificar participação:', error); return; }
     if (data) {
       toast.success('Partida encontrada! Redirecionando...');
-      setTimeout(() => navigate(`/game/${gameId}`), 1500);
+      setTimeout(() => navigate(`/game2/${gameId}`), 1500);
     }
   }, [user, navigate]);
 
@@ -156,7 +156,7 @@ const MatchmakingQueue: React.FC = () => {
 
       if (activeGame) {
         toast.info('Você já está em um jogo ativo! Redirecionando...');
-        navigate(`/game/${activeGame.game_id}`);
+        navigate(`/game2/${activeGame.game_id}`);
         return true;
       }
       return false;
@@ -180,8 +180,37 @@ const MatchmakingQueue: React.FC = () => {
       .on(
         'postgres_changes',
         { event: 'INSERT', schema: 'public', table: 'games' },
-        (payload) => {
-          checkIfUserIsInNewGame(payload.new.id);
+        async (payload) => {
+          const gameId = payload.new.id;
+          
+          // Verificar se o usuário está no jogo
+          checkIfUserIsInNewGame(gameId);
+          
+          // Se há 4 jogadores na fila e este usuário é o responsável, chamar play_highest_piece
+          if (queueState.players.length >= 4 && user) {
+            const playerIds = queueState.players.map(p => p.id).sort();
+            const isResponsible = user.id === playerIds[0];
+            
+            if (isResponsible) {
+              console.log('Jogo criado, chamando play_highest_piece para gameId:', gameId);
+              
+              try {
+                const { error: playError } = await supabase.functions.invoke('play-highest-piece', {
+                  body: { gameId },
+                });
+
+                if (playError) {
+                  console.error('Erro ao jogar a peça mais alta:', playError);
+                  toast.warning('Jogo criado, mas houve um problema ao jogar a primeira peça.');
+                } else {
+                  console.log('Primeira peça jogada automaticamente!');
+                  toast.success('Primeira peça jogada automaticamente!');
+                }
+              } catch (error: any) {
+                console.error('Erro inesperado ao jogar primeira peça:', error);
+              }
+            }
+          }
         }
       )
       // --- A MUDANÇA ESTÁ AQUI ---
@@ -204,7 +233,7 @@ const MatchmakingQueue: React.FC = () => {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [user, checkIfUserIsInNewGame, navigate]);
+  }, [user, checkIfUserIsInNewGame, navigate, queueState.players]);
 
   
   // --- Funções de Ação do Usuário ---

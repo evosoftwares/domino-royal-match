@@ -102,7 +102,7 @@ export const useMatchmaking = () => {
               toast.success('Partida encontrada! Redirecionando...');
               hasCalledStartGame.current = false;
               gameCreationLock.current = false;
-              navigate(`/game/${payload.new.id}`);
+              navigate(`/game2/${payload.new.id}`);
             }
           }
         }
@@ -127,21 +127,41 @@ export const useMatchmaking = () => {
         const startGame = async () => {
           try {
             toast.info('Fila completa. Criando a partida...');
-            const { error } = await supabase.functions.invoke('start-game', {
+            
+            // Primeiro, criar o jogo
+            const { data: gameData, error: gameError } = await supabase.functions.invoke('start-game', {
               body: { players: playerIds },
             });
 
-            if (error) {
-              toast.error(`Erro ao criar a partida: ${error.message}`);
+            if (gameError) {
+              toast.error(`Erro ao criar a partida: ${gameError.message}`);
               hasCalledStartGame.current = false;
               gameCreationLock.current = false;
+              return;
             }
-            // Se der certo, a subscrição acima vai redirecionar todos
-          } catch (error) {
-            console.error('Unexpected error starting game:', error);
+
+            // Se o jogo foi criado com sucesso, chamar play_highest_piece
+            if (gameData && gameData.gameId) {
+              console.log('Jogo criado com sucesso, chamando play_highest_piece para gameId:', gameData.gameId);
+              
+              const { error: playError } = await supabase.functions.invoke('play-highest-piece', {
+                body: { gameId: gameData.gameId },
+              });
+
+              if (playError) {
+                console.error('Erro ao jogar a peça mais alta:', playError);
+                toast.warning('Jogo criado, mas houve um problema ao jogar a primeira peça.');
+              } else {
+                console.log('Primeira peça jogada automaticamente!');
+                toast.success('Jogo criado e primeira peça jogada!');
+              }
+            }
+            
+          } catch (error: any) {
+            console.error('Erro inesperado ao criar jogo:', error);
+            toast.error(`Erro inesperado: ${error.message}`);
             hasCalledStartGame.current = false;
             gameCreationLock.current = false;
-            toast.error('Erro inesperado ao criar a partida.');
           }
         };
         

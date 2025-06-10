@@ -85,8 +85,8 @@ const Game2: React.FC = () => {
         return;
       }
       
-      setGameData(game);
-      setPlayers(gamePlayers);
+      setGameData(game as unknown as GameData);
+      setPlayers(gamePlayers as unknown as PlayerData[]);
       toast.success(`Bem-vindo ao jogo!`);
 
     } catch (e: any) {
@@ -106,7 +106,7 @@ const Game2: React.FC = () => {
     if (!gameId) return;
 
     // ✅ PERFORMANCE: Single optimized channel for all game updates
-    const gameChannel: RealtimeChannel = supabase.channel(`game:${gameId}`, {
+    const gameChannel: RealtimeChannel = supabase.channel(`game2:${gameId}`, {
       config: {
         broadcast: { self: false },
         presence: { key: user?.id }
@@ -119,6 +119,7 @@ const Game2: React.FC = () => {
         'postgres_changes',
         { event: 'UPDATE', schema: 'public', table: 'games', filter: `id=eq.${gameId}` },
         (payload) => {
+          console.log('Recebida atualização da tabela "games":', payload);
           setGameData(payload.new as GameData);
           toast.info("O estado do jogo foi atualizado.");
         }
@@ -127,6 +128,7 @@ const Game2: React.FC = () => {
         'postgres_changes',
         { event: '*', schema: 'public', table: 'game_players', filter: `game_id=eq.${gameId}` },
         async (payload) => {
+          console.log('Recebida atualização da tabela "game_players":', payload);
           // ✅ PERFORMANCE: Batch player updates to avoid excessive re-renders
           if (payload.eventType === 'INSERT') {
             const newPlayer = payload.new as PlayerData;
