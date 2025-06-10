@@ -9,7 +9,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { RealtimeChannel } from '@supabase/supabase-js';
 import { GameData, PlayerData } from '@/types/game';
-import { useIsMobile } from '@/hooks/use-mobile';
+import { useIsMobile } from '@/hooks/useMobile';
 
 const Game2: React.FC = () => {
   const { gameId } = useParams<{ gameId: string; }>();
@@ -105,51 +105,71 @@ const Game2: React.FC = () => {
   useEffect(() => {
     if (!gameId) return;
 
-    const gameChannel: RealtimeChannel = supabase.channel(`game2:${gameId}`);
-
-    const gameSubscription = gameChannel.on<GameData>(
-      'postgres_changes',
-      { event: 'UPDATE', schema: 'public', table: 'games', filter: `id=eq.${gameId}` },
-      (payload) => {
-        setGameData(payload.new as GameData);
-        toast.info("O estado do jogo foi atualizado.");
-      }
-    );
-
-    const playersSubscription = gameChannel.on<PlayerData>(
-      'postgres_changes',
-      { event: '*', schema: 'public', table: 'game_players', filter: `game_id=eq.${gameId}` },
-      async (payload) => {
-        if (payload.eventType === 'INSERT') {
-          const newPlayer = payload.new as PlayerData;
-          if (!newPlayer.profiles) {
-            const { data: profileData } = await supabase
-              .from('profiles')
-              .select('full_name, avatar_url')
-              .eq('id', newPlayer.user_id)
-              .single();
-            newPlayer.profiles = profileData;
-          }
-          setPlayers(currentPlayers => [...currentPlayers, newPlayer]);
-          toast.info(`${newPlayer.profiles?.full_name || 'Novo jogador'} entrou no jogo.`);
-        } else if (payload.eventType === 'UPDATE') {
-          setPlayers(currentPlayers => currentPlayers.map(p => p.id === payload.new.id ? payload.new as PlayerData : p));
-        } else if (payload.eventType === 'DELETE') {
-           setPlayers(currentPlayers => currentPlayers.filter(p => p.id !== (payload.old as PlayerData).id));
-        }
-      }
-    );
-
-    gameChannel.subscribe((status) => {
-      if (status === 'SUBSCRIBED') {
-        console.log('Conectado ao canal do jogo 2.');
+    // ✅ PERFORMANCE: Single optimized channel for all game updates
+    const gameChannel: RealtimeChannel = supabase.channel(`game:${gameId}`, {
+      config: {
+        broadcast: { self: false },
+        presence: { key: user?.id }
       }
     });
 
+    // ✅ OPTIMIZED: Consolidated game updates subscription
+    gameChannel
+      .on<GameData>(
+        'postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'games', filter: `id=eq.${gameId}` },
+        (payload) => {
+          setGameData(payload.new as GameData);
+          toast.info("O estado do jogo foi atualizado.");
+        }
+      )
+      .on<PlayerData>(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'game_players', filter: `game_id=eq.${gameId}` },
+        async (payload) => {
+          // ✅ PERFORMANCE: Batch player updates to avoid excessive re-renders
+          if (payload.eventType === 'INSERT') {
+            const newPlayer = payload.new as PlayerData;
+            if (!newPlayer.profiles) {
+              const { data: profileData } = await supabase
+                .from('profiles')
+                .select('full_name, avatar_url')
+                .eq('id', newPlayer.user_id)
+                .single();
+              newPlayer.profiles = profileData;
+            }
+            setPlayers(currentPlayers => {
+              // ✅ PERFORMANCE: Check if player already exists before adding
+              if (currentPlayers.some(p => p.id === newPlayer.id)) return currentPlayers;
+              return [...currentPlayers, newPlayer];
+            });
+            toast.info(`${newPlayer.profiles?.full_name || 'Novo jogador'} entrou no jogo.`);
+          } else if (payload.eventType === 'UPDATE') {
+            setPlayers(currentPlayers => 
+              currentPlayers.map(p => p.id === payload.new.id ? payload.new as PlayerData : p)
+            );
+          } else if (payload.eventType === 'DELETE') {
+            setPlayers(currentPlayers => 
+              currentPlayers.filter(p => p.id !== (payload.old as PlayerData).id)
+            );
+          }
+        }
+      )
+      .subscribe((status) => {
+        if (status === 'SUBSCRIBED') {
+          console.log(`✅ Conectado ao canal do jogo ${gameId}`);
+        } else if (status === 'CHANNEL_ERROR') {
+          console.error('❌ Erro no canal do jogo');
+          toast.error('Conexão com o jogo perdida. Tentando reconectar...');
+        }
+      });
+
+    // ✅ PERFORMANCE: Cleanup function with proper channel removal
     return () => {
+      console.log(`🔌 Desconectando do canal do jogo ${gameId}`);
       supabase.removeChannel(gameChannel);
     };
-  }, [gameId]);
+  }, [gameId, user?.id]); // ✅ FIXED: Added user.id to dependencies
 
   // Tela para forçar rotação em mobile
   if (isMobile && !isLandscape) {

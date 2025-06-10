@@ -100,8 +100,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       });
 
       if (profileError) {
-         // Idealmente, a criação do perfil deveria ser uma transação atômica
-         // ou um gatilho no banco, como sugerido anteriormente.
+        console.error('Profile creation error:', profileError);
         throw new Error(`Conta criada, mas houve um erro ao criar o perfil: ${profileError.message}`);
       }
 

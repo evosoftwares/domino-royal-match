@@ -4,7 +4,7 @@ import DominoPiece from './DominoPiece';
 import { DominoPieceType } from '@/utils/dominoUtils';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
-import { useIsMobile } from '@/hooks/use-mobile';
+import { useIsMobile } from '@/hooks/useMobile';
 
 interface PlayerHandProps {
   playerPieces: DominoPieceType[];
