@@ -78,11 +78,15 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const register = async (credentials: RegisterCredentials): Promise<boolean> => {
     setLoading(true);
     try {
-      // Passo 1: Cadastrar o usuário
+      // Configurar a URL de redirecionamento para confirmação de email
+      const redirectUrl = `${window.location.origin}/`;
+      
+      // Cadastrar o usuário - o trigger do banco criará automaticamente o perfil
       const { data: authData, error: authError } = await supabase.auth.signUp({
         email: credentials.email,
         password: credentials.password,
         options: {
+          emailRedirectTo: redirectUrl,
           data: {
             name: credentials.name
           }
@@ -91,19 +95,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
       if (authError) throw authError;
       if (!authData.user) throw new Error("Não foi possível criar o usuário.");
-
-      // Passo 2: Criar o perfil público para o usuário
-      const { error: profileError } = await supabase.from('profiles').insert({
-        id: authData.user.id,
-        full_name: credentials.name,
-        username: credentials.name.split(' ')[0].toLowerCase() + `-${authData.user.id.substring(0, 4)}`
-      });
-
-      if (profileError) {
-         // Idealmente, a criação do perfil deveria ser uma transação atômica
-         // ou um gatilho no banco, como sugerido anteriormente.
-        throw new Error(`Conta criada, mas houve um erro ao criar o perfil: ${profileError.message}`);
-      }
 
       toast.success('Conta criada com sucesso! Verifique seu email para confirmação.');
       return true;

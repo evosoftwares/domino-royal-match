@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -5,7 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useAuth } from '@/hooks/useAuth';
 import { RegisterCredentials } from '@/types/auth';
-import { toast } from 'sonner'; // Importando o toast
+import { toast } from 'sonner';
 
 interface RegisterFormProps {
   onSwitchToLogin: () => void;
@@ -19,7 +20,6 @@ const RegisterForm = ({ onSwitchToLogin }: RegisterFormProps) => {
     password: ''
   });
   const [confirmPassword, setConfirmPassword] = useState('');
-  // Novo estado para verificar se as senhas são diferentes
   const [passwordsDoNotMatch, setPasswordsDoNotMatch] = useState(false);
 
   // Efeito para validar a confirmação de senha em tempo real
@@ -34,9 +34,14 @@ const RegisterForm = ({ onSwitchToLogin }: RegisterFormProps) => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    // Validações com toasts
-    if (credentials.password !== confirmPassword) {
-      toast.error('As senhas não coincidem. Por favor, verifique.');
+    // Validações básicas
+    if (!credentials.name.trim()) {
+      toast.error('Nome é obrigatório.');
+      return;
+    }
+
+    if (!credentials.email.trim()) {
+      toast.error('Email é obrigatório.');
       return;
     }
 
@@ -45,10 +50,20 @@ const RegisterForm = ({ onSwitchToLogin }: RegisterFormProps) => {
       return;
     }
 
+    if (credentials.password !== confirmPassword) {
+      toast.error('As senhas não coincidem. Por favor, verifique.');
+      return;
+    }
+
     const success = await register(credentials);
     if (success) {
-      // O hook 'register' já deve exibir o toast de sucesso/erro
-      onSwitchToLogin();
+      // Limpar o formulário após sucesso
+      setCredentials({ name: '', email: '', password: '' });
+      setConfirmPassword('');
+      // Aguardar um pouco antes de trocar para login para o usuário ver a mensagem de sucesso
+      setTimeout(() => {
+        onSwitchToLogin();
+      }, 2000);
     }
   };
 
@@ -69,22 +84,52 @@ const RegisterForm = ({ onSwitchToLogin }: RegisterFormProps) => {
       </CardHeader>
       <CardContent>
         <form onSubmit={handleSubmit} className="space-y-4">
-          {/* Campo Nome Completo (sem alterações) */}
+          {/* Campo Nome Completo */}
           <div className="space-y-2">
             <Label htmlFor="name">Nome Completo</Label>
-            <Input id="name" name="name" type="text" placeholder="Seu nome completo" value={credentials.name} onChange={handleChange} required />
+            <Input 
+              id="name" 
+              name="name" 
+              type="text" 
+              placeholder="Seu nome completo" 
+              value={credentials.name} 
+              onChange={handleChange} 
+              required 
+              className={!credentials.name.trim() && credentials.name !== '' ? 'border-red-500' : ''}
+            />
           </div>
 
-          {/* Campo Email (sem alterações) */}
+          {/* Campo Email */}
           <div className="space-y-2">
             <Label htmlFor="email">Email</Label>
-            <Input id="email" name="email" type="email" placeholder="seu@email.com" value={credentials.email} onChange={handleChange} required />
+            <Input 
+              id="email" 
+              name="email" 
+              type="email" 
+              placeholder="seu@email.com" 
+              value={credentials.email} 
+              onChange={handleChange} 
+              required 
+            />
           </div>
           
           {/* Campo Senha */}
           <div className="space-y-2">
             <Label htmlFor="password">Senha</Label>
-            <Input id="password" name="password" type="password" placeholder="••••••••" value={credentials.password} onChange={handleChange} required minLength={6} />
+            <Input 
+              id="password" 
+              name="password" 
+              type="password" 
+              placeholder="••••••••" 
+              value={credentials.password} 
+              onChange={handleChange} 
+              required 
+              minLength={6}
+              className={credentials.password.length > 0 && credentials.password.length < 6 ? 'border-red-500' : ''}
+            />
+            {credentials.password.length > 0 && credentials.password.length < 6 && (
+              <p className="text-xs text-red-600">A senha deve ter pelo menos 6 caracteres.</p>
+            )}
           </div>
 
           {/* Campo Confirmar Senha com feedback visual */}
@@ -99,7 +144,6 @@ const RegisterForm = ({ onSwitchToLogin }: RegisterFormProps) => {
               onChange={(e) => setConfirmPassword(e.target.value)}
               required
               minLength={6}
-              // Adiciona uma borda vermelha se as senhas não baterem
               className={passwordsDoNotMatch ? 'border-red-500 focus-visible:ring-red-500' : ''}
             />
             {passwordsDoNotMatch && (
@@ -107,7 +151,11 @@ const RegisterForm = ({ onSwitchToLogin }: RegisterFormProps) => {
             )}
           </div>
 
-          <Button type="submit" className="w-full" disabled={loading || passwordsDoNotMatch}>
+          <Button 
+            type="submit" 
+            className="w-full" 
+            disabled={loading || passwordsDoNotMatch || credentials.password.length < 6}
+          >
             {loading ? 'Criando conta...' : 'Criar Conta'}
           </Button>
         </form>
@@ -118,6 +166,7 @@ const RegisterForm = ({ onSwitchToLogin }: RegisterFormProps) => {
             <button
               onClick={onSwitchToLogin}
               className="text-primary hover:underline"
+              disabled={loading}
             >
               Faça login
             </button>

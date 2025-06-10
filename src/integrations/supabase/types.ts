@@ -11,37 +11,34 @@ export type Database = {
     Tables: {
       game_players: {
         Row: {
-          game_id: string
+          game_id: string | null
           hand: Json | null
           id: string
-          player_order: number | null
-          points_in_hand: number | null
+          is_ready: boolean | null
+          joined_at: string | null
           position: number
-          status: string
-          timeout_count: number | null
-          user_id: string
+          score: number | null
+          user_id: string | null
         }
         Insert: {
-          game_id: string
+          game_id?: string | null
           hand?: Json | null
           id?: string
-          player_order?: number | null
-          points_in_hand?: number | null
+          is_ready?: boolean | null
+          joined_at?: string | null
           position: number
-          status?: string
-          timeout_count?: number | null
-          user_id: string
+          score?: number | null
+          user_id?: string | null
         }
         Update: {
-          game_id?: string
+          game_id?: string | null
           hand?: Json | null
           id?: string
-          player_order?: number | null
-          points_in_hand?: number | null
+          is_ready?: boolean | null
+          joined_at?: string | null
           position?: number
-          status?: string
-          timeout_count?: number | null
-          user_id?: string
+          score?: number | null
+          user_id?: string | null
         }
         Relationships: [
           {
@@ -62,43 +59,16 @@ export type Database = {
       }
       game_rooms: {
         Row: {
-          created_at: string | null
-          current_players: number | null
-          id: string
-          max_players: number | null
-          prize_amount: number | null
-          status: string | null
-          updated_at: string | null
-        }
-        Insert: {
-          created_at?: string | null
-          current_players?: number | null
-          id?: string
-          max_players?: number | null
-          prize_amount?: number | null
-          status?: string | null
-          updated_at?: string | null
-        }
-        Update: {
-          created_at?: string | null
-          current_players?: number | null
-          id?: string
-          max_players?: number | null
-          prize_amount?: number | null
-          status?: string | null
-          updated_at?: string | null
-        }
-        Relationships: []
-      }
-      games: {
-        Row: {
           board_state: Json | null
           created_at: string | null
-          current_player_turn: string | null
+          current_players: number | null
+          current_turn: string | null
+          entry_fee: number | null
           id: string
-          prize_amount: number
-          sleeping_pieces: Json | null
-          status: string
+          max_players: number | null
+          name: string
+          prize_pool: number | null
+          status: string | null
           turn_start_time: string | null
           updated_at: string | null
           winner_id: string | null
@@ -106,11 +76,14 @@ export type Database = {
         Insert: {
           board_state?: Json | null
           created_at?: string | null
-          current_player_turn?: string | null
+          current_players?: number | null
+          current_turn?: string | null
+          entry_fee?: number | null
           id?: string
-          prize_amount?: number
-          sleeping_pieces?: Json | null
-          status?: string
+          max_players?: number | null
+          name: string
+          prize_pool?: number | null
+          status?: string | null
           turn_start_time?: string | null
           updated_at?: string | null
           winner_id?: string | null
@@ -118,31 +91,61 @@ export type Database = {
         Update: {
           board_state?: Json | null
           created_at?: string | null
-          current_player_turn?: string | null
+          current_players?: number | null
+          current_turn?: string | null
+          entry_fee?: number | null
           id?: string
-          prize_amount?: number
-          sleeping_pieces?: Json | null
-          status?: string
+          max_players?: number | null
+          name?: string
+          prize_pool?: number | null
+          status?: string | null
           turn_start_time?: string | null
           updated_at?: string | null
           winner_id?: string | null
         }
-        Relationships: [
-          {
-            foreignKeyName: "games_current_player_turn_fkey"
-            columns: ["current_player_turn"]
-            isOneToOne: false
-            referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "games_winner_id_fkey"
-            columns: ["winner_id"]
-            isOneToOne: false
-            referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
-        ]
+        Relationships: []
+      }
+      games: {
+        Row: {
+          board_state: Json | null
+          consecutive_passes: number | null
+          created_at: string | null
+          current_player_turn: string | null
+          entry_fee: number | null
+          id: string
+          prize_pool: number | null
+          status: string | null
+          turn_start_time: string | null
+          updated_at: string | null
+          winner_id: string | null
+        }
+        Insert: {
+          board_state?: Json | null
+          consecutive_passes?: number | null
+          created_at?: string | null
+          current_player_turn?: string | null
+          entry_fee?: number | null
+          id?: string
+          prize_pool?: number | null
+          status?: string | null
+          turn_start_time?: string | null
+          updated_at?: string | null
+          winner_id?: string | null
+        }
+        Update: {
+          board_state?: Json | null
+          consecutive_passes?: number | null
+          created_at?: string | null
+          current_player_turn?: string | null
+          entry_fee?: number | null
+          id?: string
+          prize_pool?: number | null
+          status?: string | null
+          turn_start_time?: string | null
+          updated_at?: string | null
+          winner_id?: string | null
+        }
+        Relationships: []
       }
       matchmaking_queue: {
         Row: {
@@ -150,23 +153,31 @@ export type Database = {
           id: string
           status: string | null
           updated_at: string | null
-          user_id: string
+          user_id: string | null
         }
         Insert: {
           created_at?: string | null
           id?: string
           status?: string | null
           updated_at?: string | null
-          user_id: string
+          user_id?: string | null
         }
         Update: {
           created_at?: string | null
           id?: string
           status?: string | null
           updated_at?: string | null
-          user_id?: string
+          user_id?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "matchmaking_queue_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: true
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       player_presence: {
         Row: {
@@ -187,12 +198,20 @@ export type Database = {
           updated_at?: string | null
           user_id?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "player_presence_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: true
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       profiles: {
         Row: {
           avatar_url: string | null
-          balance: number
+          balance: number | null
           created_at: string | null
           full_name: string | null
           id: string
@@ -201,7 +220,7 @@ export type Database = {
         }
         Insert: {
           avatar_url?: string | null
-          balance?: number
+          balance?: number | null
           created_at?: string | null
           full_name?: string | null
           id: string
@@ -210,7 +229,7 @@ export type Database = {
         }
         Update: {
           avatar_url?: string | null
-          balance?: number
+          balance?: number | null
           created_at?: string | null
           full_name?: string | null
           id?: string
@@ -225,27 +244,27 @@ export type Database = {
           created_at: string | null
           description: string | null
           game_id: string | null
-          id: number
+          id: string
           type: string
-          user_id: string
+          user_id: string | null
         }
         Insert: {
           amount: number
           created_at?: string | null
           description?: string | null
           game_id?: string | null
-          id?: number
+          id?: string
           type: string
-          user_id: string
+          user_id?: string | null
         }
         Update: {
           amount?: number
           created_at?: string | null
           description?: string | null
           game_id?: string | null
-          id?: number
+          id?: string
           type?: string
-          user_id?: string
+          user_id?: string | null
         }
         Relationships: [
           {
@@ -269,108 +288,9 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      cleanup_empty_rooms: {
-        Args: Record<PropertyKey, never>
-        Returns: undefined
-      }
-      cleanup_matchmaking: {
-        Args: Record<PropertyKey, never>
-        Returns: undefined
-      }
-      cleanup_old_queue_entries: {
-        Args: Record<PropertyKey, never>
-        Returns: undefined
-      }
-      create_domino_pieces: {
-        Args: Record<PropertyKey, never>
-        Returns: Json
-      }
-      create_game_from_matchmaking: {
-        Args: { matchmaking_id: number }
-        Returns: undefined
-      }
-      create_game_from_queue: {
-        Args: Record<PropertyKey, never>
-        Returns: string
-      }
-      create_game_from_queue_debug: {
-        Args: Record<PropertyKey, never>
-        Returns: {
-          selected_player_ids: string[]
-          message: string
-        }[]
-      }
-      create_game_when_ready: {
-        Args: Record<PropertyKey, never>
-        Returns: Json
-      }
-      distribute_pieces_to_room: {
-        Args: { room_uuid: string }
-        Returns: boolean
-      }
-      finish_game: {
-        Args:
-          | Record<PropertyKey, never>
-          | { p_game_id: string; p_winner_id: string }
-        Returns: undefined
-      }
-      get_users_by_ids: {
-        Args: { user_ids: string[] }
-        Returns: {
-          id: string
-          email: string
-          user_metadata: Json
-          created_at: string
-        }[]
-      }
-      join_game_queue: {
-        Args: Record<PropertyKey, never>
-        Returns: string
-      }
-      join_matchmaking_queue: {
-        Args: Record<PropertyKey, never>
-        Returns: Json
-      }
-      leave_matchmaking_queue: {
-        Args: Record<PropertyKey, never>
-        Returns: Json
-      }
-      pass_turn: {
-        Args: { p_game_id: string }
-        Returns: string
-      }
-      play_move: {
-        Args: { p_game_id: string; p_piece: Json; p_side: string }
-        Returns: string
-      }
-      play_piece_periodically: {
+      play_highest_piece: {
         Args: { p_game_id: string }
         Returns: undefined
-      }
-      run_matchmaker: {
-        Args: Record<PropertyKey, never>
-        Returns: {
-          game_id: string
-          players_matched: number
-          success: boolean
-          message: string
-        }[]
-      }
-      select_first_player: {
-        Args: Record<PropertyKey, never> | { p_game_id: string }
-        Returns: {
-          player_id: number
-          piece_id: number
-          piece_value: number
-        }[]
-      }
-      set_current_player_turn: {
-        Args: { p_game_id: string }
-        Returns: undefined
-      }
-      shuffle_json_array: {
-        Args: { arr: Json }
-        Returns: Json
       }
     }
     Enums: {
