@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
@@ -8,7 +9,7 @@ import { Loader2, AlertCircle } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { RealtimeChannel } from '@supabase/supabase-js';
-import { GameData, PlayerData } from '@/types/game';
+import { GameData, PlayerData, PlayerProfile } from '@/types/game';
 
 const Game: React.FC = () => {
   const { gameId } = useParams<{ gameId: string; }>();

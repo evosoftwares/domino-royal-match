@@ -288,7 +288,31 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      create_game_when_ready: {
+        Args: Record<PropertyKey, never>
+        Returns: Json
+      }
+      join_matchmaking_queue: {
+        Args: Record<PropertyKey, never>
+        Returns: Json
+      }
+      leave_matchmaking_queue: {
+        Args: Record<PropertyKey, never>
+        Returns: Json
+      }
+      pass_turn: {
+        Args: { p_game_id: string }
+        Returns: undefined
+      }
       play_highest_piece: {
+        Args: { p_game_id: string }
+        Returns: undefined
+      }
+      play_move: {
+        Args: { p_game_id: string; p_piece: Json; p_side: string }
+        Returns: undefined
+      }
+      play_piece_periodically: {
         Args: { p_game_id: string }
         Returns: undefined
       }
