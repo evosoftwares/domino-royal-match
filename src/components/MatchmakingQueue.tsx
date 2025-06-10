@@ -186,31 +186,9 @@ const MatchmakingQueue: React.FC = () => {
           // Verificar se o usuário está no jogo
           checkIfUserIsInNewGame(gameId);
           
-          // Se há 4 jogadores na fila e este usuário é o responsável, chamar play_highest_piece
-          if (queueState.players.length >= 4 && user) {
-            const playerIds = queueState.players.map(p => p.id).sort();
-            const isResponsible = user.id === playerIds[0];
-            
-            if (isResponsible) {
-              console.log('Jogo criado, chamando play_highest_piece para gameId:', gameId);
-              
-              try {
-                const { error: playError } = await supabase.functions.invoke('play-highest-piece', {
-                  body: { gameId },
-                });
-
-                if (playError) {
-                  console.error('Erro ao jogar a peça mais alta:', playError);
-                  toast.warning('Jogo criado, mas houve um problema ao jogar a primeira peça.');
-                } else {
-                  console.log('Primeira peça jogada automaticamente!');
-                  toast.success('Primeira peça jogada automaticamente!');
-                }
-              } catch (error: any) {
-                console.error('Erro inesperado ao jogar primeira peça:', error);
-              }
-            }
-          }
+          // A primeira peça será jogada automaticamente pelo trigger do banco
+          console.log('Jogo criado, ID:', gameId);
+          console.log('A primeira peça será jogada automaticamente pelo trigger do banco.');
         }
       )
       // --- A MUDANÇA ESTÁ AQUI ---

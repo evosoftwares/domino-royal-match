@@ -140,21 +140,12 @@ export const useMatchmaking = () => {
               return;
             }
 
-            // Se o jogo foi criado com sucesso, chamar play_highest_piece
+            // O jogo foi criado com sucesso
+            // A primeira peça será jogada automaticamente pelo trigger do banco
             if (gameData && gameData.gameId) {
-              console.log('Jogo criado com sucesso, chamando play_highest_piece para gameId:', gameData.gameId);
-              
-              const { error: playError } = await supabase.functions.invoke('play-highest-piece', {
-                body: { gameId: gameData.gameId },
-              });
-
-              if (playError) {
-                console.error('Erro ao jogar a peça mais alta:', playError);
-                toast.warning('Jogo criado, mas houve um problema ao jogar a primeira peça.');
-              } else {
-                console.log('Primeira peça jogada automaticamente!');
-                toast.success('Jogo criado e primeira peça jogada!');
-              }
+              console.log('Jogo criado com sucesso! ID:', gameData.gameId);
+              console.log('A primeira peça será jogada automaticamente pelo trigger do banco.');
+              toast.success('Jogo criado! A primeira peça será jogada automaticamente.');
             }
             
           } catch (error: any) {

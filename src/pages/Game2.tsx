@@ -85,8 +85,8 @@ const Game2: React.FC = () => {
         return;
       }
       
-      setGameData(game as unknown as GameData);
-      setPlayers(gamePlayers as unknown as PlayerData[]);
+      setGameData(game as GameData);
+      setPlayers(gamePlayers as PlayerData[]);
       toast.success(`Bem-vindo ao jogo!`);
 
     } catch (e: any) {
