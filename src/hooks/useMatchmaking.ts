@@ -16,6 +16,7 @@ interface MatchmakingResponse {
   message?: string;
   queue_count?: number;
   game_id?: string;
+  idJogoPleiteado?: number;
 }
 
 export const useMatchmaking = () => {
@@ -64,10 +65,12 @@ export const useMatchmaking = () => {
 
   const updateQueueCount = async () => {
     try {
+      // Contar apenas jogadores procurando pelo mesmo jogo (idJogoPleiteado = 1)
       const { count } = await supabase
         .from('matchmaking_queue')
         .select('*', { count: 'exact' })
-        .eq('status', 'searching');
+        .eq('status', 'searching')
+        .eq('idJogoPleiteado', 1);
       
       setState(prev => ({ ...prev, queueCount: count || 0 }));
     } catch (error) {
@@ -118,7 +121,7 @@ export const useMatchmaking = () => {
         }));
         toast.success(response.message || 'Adicionado à fila');
         
-        // Tentar criar jogo a cada nova entrada na fila
+        // Tentar criar jogo após entrar na fila
         await tryCreateGame();
       } else {
         toast.error(response.error || 'Erro ao entrar na fila');
@@ -165,9 +168,11 @@ export const useMatchmaking = () => {
       
       const response = data as unknown as MatchmakingResponse;
       
-      if (response.success) {
-        console.log('Jogo criado:', response.game_id);
+      if (response.success && response.game_id) {
+        console.log('Jogo criado com sucesso:', response.game_id);
         // O realtime vai detectar a criação e redirecionar o usuário
+      } else {
+        console.log('Aguardando mais jogadores...');
       }
     } catch (error) {
       console.error('Erro ao tentar criar jogo:', error);
