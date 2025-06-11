@@ -3,11 +3,19 @@ import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 
+export interface QueuePlayer {
+  id: string;
+  displayName: string;
+  avatarUrl: string;
+  position: number;
+}
+
 export interface MatchmakingState {
   isInQueue: boolean;
   queueCount: number;
   isLoading: boolean;
   gameId: string | null;
+  queuePlayers: QueuePlayer[];
 }
 
 interface MatchmakingResponse {
@@ -24,20 +32,66 @@ export const useMatchmaking = () => {
     isInQueue: false,
     queueCount: 0,
     isLoading: false,
-    gameId: null
+    gameId: null,
+    queuePlayers: []
   });
 
-  const updateQueueCount = async () => {
+  const fetchQueuePlayers = async () => {
     try {
-      const { count } = await supabase
+      const { data: queueData, error: queueError } = await supabase
         .from('matchmaking_queue')
-        .select('*', { count: 'exact' })
+        .select('user_id, created_at')
         .eq('status', 'searching')
-        .eq('idjogopleiteado', 1);
-      
-      setState(prev => ({ ...prev, queueCount: count || 0 }));
+        .eq('idjogopleiteado', 1)
+        .order('created_at', { ascending: true });
+
+      if (queueError) {
+        console.error('Erro ao buscar fila:', queueError);
+        return;
+      }
+
+      if (!queueData || queueData.length === 0) {
+        setState(prev => ({ ...prev, queuePlayers: [], queueCount: 0 }));
+        return;
+      }
+
+      const userIds = queueData.map(item => item.user_id);
+      const { data: profilesData, error: profilesError } = await supabase
+        .from('profiles')
+        .select('id, full_name, avatar_url')
+        .in('id', userIds);
+
+      if (profilesError) {
+        console.error('Erro ao buscar perfis:', profilesError);
+        return;
+      }
+
+      const profilesMap = new Map(profilesData.map(p => [p.id, p]));
+      const players = queueData.map((queueItem, index): QueuePlayer => {
+        const profile = profilesMap.get(queueItem.user_id);
+        return {
+          id: queueItem.user_id,
+          displayName: profile?.full_name || 'Anônimo',
+          avatarUrl: profile?.avatar_url || '',
+          position: index + 1
+        };
+      });
+
+      setState(prev => ({ 
+        ...prev, 
+        queuePlayers: players,
+        queueCount: players.length
+      }));
+
+      // Verificar se o usuário atual está na fila
+      const { data: user } = await supabase.auth.getUser();
+      if (user.user) {
+        const isUserInQueue = players.some(player => player.id === user.user.id);
+        setState(prev => ({ ...prev, isInQueue: isUserInQueue }));
+      }
+
     } catch (error) {
-      console.error('Erro ao atualizar contador da fila:', error);
+      console.error('Erro ao buscar participantes da fila:', error);
     }
   };
 
@@ -84,6 +138,8 @@ export const useMatchmaking = () => {
         }));
         toast.success(response.message || 'Adicionado à fila');
         
+        // Atualizar lista de participantes imediatamente
+        await fetchQueuePlayers();
         await tryCreateGame();
       } else {
         toast.error(response.error || 'Erro ao entrar na fila');
@@ -109,9 +165,13 @@ export const useMatchmaking = () => {
         setState(prev => ({ 
           ...prev, 
           isInQueue: false, 
-          queueCount: 0 
+          queueCount: 0,
+          queuePlayers: []
         }));
         toast.success(response.message || 'Removido da fila');
+        
+        // Atualizar lista de participantes imediatamente
+        await fetchQueuePlayers();
       } else {
         toast.error(response.error || 'Erro ao sair da fila');
       }
@@ -140,36 +200,49 @@ export const useMatchmaking = () => {
     }
   };
 
-  // Verificar status inicial ao carregar
+  // Polling automático para atualizar participantes da fila
   useEffect(() => {
     const checkInitialStatus = async () => {
       try {
         const { data: user } = await supabase.auth.getUser();
         if (!user.user) return;
 
-        const { data: queueEntry } = await supabase
-          .from('matchmaking_queue')
-          .select('*')
-          .eq('user_id', user.user.id)
-          .eq('status', 'searching')
-          .maybeSingle();
-
-        if (queueEntry) {
-          setState(prev => ({ ...prev, isInQueue: true }));
-        }
-
-        await updateQueueCount();
+        await fetchQueuePlayers();
       } catch (error) {
         console.error('Erro ao verificar status inicial:', error);
       }
     };
 
     checkInitialStatus();
+
+    // Polling a cada 3 segundos para manter a fila atualizada
+    const interval = setInterval(() => {
+      fetchQueuePlayers();
+    }, 3000);
+
+    // Canal de tempo real para detectar criação de jogos
+    const channel = supabase
+      .channel('game-creation')
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'games' },
+        (payload) => {
+          console.log('Novo jogo detectado:', payload.new.id);
+          checkIfUserInGame(payload.new.id);
+        }
+      )
+      .subscribe();
+
+    return () => {
+      clearInterval(interval);
+      supabase.removeChannel(channel);
+    };
   }, []);
 
   return {
     ...state,
     joinQueue,
-    leaveQueue
+    leaveQueue,
+    refreshQueue: fetchQueuePlayers
   };
 };
