@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
@@ -24,9 +25,8 @@ interface QueueState {
   error: string | null;
 }
 
-// --- Sub-componentes para a UI (incluídos para ser um arquivo completo) ---
+// --- Sub-componentes para a UI ---
 
-// Componente para um jogador que está na fila
 const PlayerSlot: React.FC<{ player: QueuePlayer; isCurrentUser: boolean }> = ({ player, isCurrentUser }) => (
   <div className="animate-fade-in flex flex-col items-center p-4 bg-slate-800/90 rounded-xl border border-slate-700/50 transition-all duration-300 hover:border-blue-500/50 hover:bg-slate-700/90">
     <Avatar className="w-16 h-16 mb-3 border-2 border-blue-400">
@@ -45,7 +45,6 @@ const PlayerSlot: React.FC<{ player: QueuePlayer; isCurrentUser: boolean }> = ({
   </div>
 );
 
-// Componente para um slot vazio na fila
 const EmptySlot: React.FC = () => (
   <div className="flex flex-col items-center p-4 bg-slate-900/50 rounded-xl border border-slate-800/50 transition-all duration-300">
     <div className="w-16 h-16 mb-3 rounded-full border-2 border-dashed border-slate-600 flex items-center justify-center">
@@ -59,7 +58,6 @@ const EmptySlot: React.FC = () => (
   </div>
 );
 
-// Componente para o esqueleto de carregamento
 const LoadingSkeleton: React.FC = () => (
   <div className="flex flex-col items-center p-4 bg-slate-800/50 rounded-xl border border-slate-700/30">
     <Skeleton className="w-16 h-16 rounded-full mb-3 bg-slate-700" />
@@ -68,10 +66,8 @@ const LoadingSkeleton: React.FC = () => (
   </div>
 );
 
-
 // --- Componente Principal ---
 const MatchmakingQueue: React.FC = () => {
-  // --- Hooks e Estados ---
   const { user } = useAuth();
   const navigate = useNavigate();
 
@@ -82,12 +78,15 @@ const MatchmakingQueue: React.FC = () => {
   });
   const [isUserInQueue, setIsUserInQueue] = useState(false);
   const [actionLoading, setActionLoading] = useState(false);
+  const [connectionStatus, setConnectionStatus] = useState<'connecting' | 'connected' | 'disconnected'>('connecting');
   
   const fetchQueueStateRef = useRef<() => void>();
+  const channelRef = useRef<any>(null);
 
-  // --- Funções de Lógica ---
   const fetchQueueState = useCallback(async () => {
     try {
+      setQueueState(prev => ({ ...prev, error: null }));
+      
       const { data: queueData, error: queueError } = await supabase
         .from('matchmaking_queue')
         .select('user_id')
@@ -95,7 +94,11 @@ const MatchmakingQueue: React.FC = () => {
         .order('created_at', { ascending: true })
         .limit(4);
 
-      if (queueError) throw queueError;
+      if (queueError) {
+        console.error('Erro ao buscar fila:', queueError);
+        throw queueError;
+      }
+      
       if (!queueData || queueData.length === 0) {
         setQueueState({ players: [], isLoading: false, error: null });
         setIsUserInQueue(false);
@@ -108,7 +111,10 @@ const MatchmakingQueue: React.FC = () => {
         .select('id, full_name, avatar_url')
         .in('id', userIds);
         
-      if (profilesError) throw profilesError;
+      if (profilesError) {
+        console.error('Erro ao buscar perfis:', profilesError);
+        throw profilesError;
+      }
 
       const profilesMap = new Map(profilesData.map(p => [p.id, p]));
       const players = queueData.map((queueItem): QueuePlayer => {
@@ -124,7 +130,11 @@ const MatchmakingQueue: React.FC = () => {
       setIsUserInQueue(user ? players.some(player => player.id === user.id) : false);
     } catch (error: any) {
       console.error('Erro ao buscar fila:', error);
-      setQueueState(prev => ({ ...prev, isLoading: false, error: 'Falha ao buscar dados da fila.' }));
+      setQueueState(prev => ({ 
+        ...prev, 
+        isLoading: false, 
+        error: 'Falha ao buscar dados da fila. Tentando reconectar...' 
+      }));
     }
   }, [user]);
 
@@ -134,46 +144,42 @@ const MatchmakingQueue: React.FC = () => {
 
   const checkIfUserIsInNewGame = useCallback(async (gameId: string) => {
     if (!user) return;
-    const { data, error } = await supabase.from('game_players').select('game_id').eq('game_id', gameId).eq('user_id', user.id).maybeSingle();
-    if (error) { console.error('Erro ao verificar participação:', error); return; }
-    if (data) {
-      toast.success('Partida encontrada! Redirecionando...');
-      setTimeout(() => navigate(`/game2/${gameId}`), 1500);
+    
+    try {
+      const { data, error } = await supabase
+        .from('game_players')
+        .select('game_id')
+        .eq('game_id', gameId)
+        .eq('user_id', user.id)
+        .maybeSingle();
+        
+      if (error) { 
+        console.error('Erro ao verificar participação:', error); 
+        return; 
+      }
+      
+      if (data) {
+        toast.success('Partida encontrada! Redirecionando...');
+        setTimeout(() => navigate(`/game2/${gameId}`), 1500);
+      }
+    } catch (error) {
+      console.error('Erro inesperado ao verificar jogo:', error);
     }
   }, [user, navigate]);
 
-
-  // --- Efeito Principal (Tempo Real e Carga Inicial) ---
-  useEffect(() => {
-    const checkUserInActiveGame = async () => {
-      if (!user) return;
-      const { data: activeGame } = await supabase
-        .from('game_players')
-        .select('game_id, games!inner(status)')
-        .eq('user_id', user.id)
-        .eq('games.status', 'active')
-        .maybeSingle();
-
-      if (activeGame) {
-        toast.info('Você já está em um jogo ativo! Redirecionando...');
-        navigate(`/game2/${activeGame.game_id}`);
-        return true;
-      }
-      return false;
-    };
-    
-    checkUserInActiveGame().then(isInGame => {
-      if (!isInGame) {
-        fetchQueueStateRef.current?.();
-      }
-    });
+  // Função para configurar o canal de tempo real
+  const setupRealtimeChannel = useCallback(() => {
+    if (channelRef.current) {
+      supabase.removeChannel(channelRef.current);
+    }
 
     const channel = supabase
-      .channel('matchmaking-updates')
+      .channel('matchmaking-updates-v2')
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'matchmaking_queue' },
         () => {
+          console.log('Mudança detectada na fila de matchmaking');
           fetchQueueStateRef.current?.();
         }
       )
@@ -181,68 +187,128 @@ const MatchmakingQueue: React.FC = () => {
         'postgres_changes',
         { event: 'INSERT', schema: 'public', table: 'games' },
         (payload) => {
+          console.log('Novo jogo criado:', payload.new.id);
           checkIfUserIsInNewGame(payload.new.id);
         }
       )
-      // --- A MUDANÇA ESTÁ AQUI ---
       .subscribe((status) => {
-        // Esta função será chamada sempre que o status da conexão mudar.
-        console.log(`[Realtime] Status do canal 'matchmaking-updates': ${status}`);
-
+        console.log(`[Realtime] Status do canal: ${status}`);
+        
         if (status === 'SUBSCRIBED') {
-          // Se aparecer isso, significa que a conexão foi um sucesso!
-          console.log('[Realtime] Conectado e ouvindo por mudanças!');
-        }
-
-        if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
-          // Se aparecer isso, há um problema na conexão.
-          console.error('[Realtime] Falha ao conectar no canal de tempo real!');
-          toast.error("Erro de conexão com o tempo real.");
+          setConnectionStatus('connected');
+          console.log('[Realtime] Conectado com sucesso!');
+        } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
+          setConnectionStatus('disconnected');
+          console.error('[Realtime] Erro de conexão!');
+          
+          // Tentar reconectar após 3 segundos
+          setTimeout(() => {
+            console.log('[Realtime] Tentando reconectar...');
+            setupRealtimeChannel();
+          }, 3000);
+        } else if (status === 'CLOSED') {
+          setConnectionStatus('disconnected');
+          console.log('[Realtime] Canal fechado');
         }
       });
 
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [user, checkIfUserIsInNewGame, navigate]);
+    channelRef.current = channel;
+  }, [checkIfUserIsInNewGame]);
 
-  
-  // --- Funções de Ação do Usuário ---
+  // Efeito principal
+  useEffect(() => {
+    if (!user) return;
+
+    const checkUserInActiveGame = async () => {
+      try {
+        const { data: activeGame, error } = await supabase
+          .from('game_players')
+          .select('game_id, games!inner(status)')
+          .eq('user_id', user.id)
+          .eq('games.status', 'active')
+          .maybeSingle();
+
+        if (error && error.code !== 'PGRST116') {
+          console.error('Erro ao verificar jogo ativo:', error);
+          return false;
+        }
+
+        if (activeGame) {
+          toast.info('Você já está em um jogo ativo! Redirecionando...');
+          navigate(`/game2/${activeGame.game_id}`);
+          return true;
+        }
+        return false;
+      } catch (error) {
+        console.error('Erro inesperado ao verificar jogo ativo:', error);
+        return false;
+      }
+    };
+    
+    checkUserInActiveGame().then(isInGame => {
+      if (!isInGame) {
+        fetchQueueStateRef.current?.();
+        setupRealtimeChannel();
+      }
+    });
+
+    return () => {
+      if (channelRef.current) {
+        supabase.removeChannel(channelRef.current);
+      }
+    };
+  }, [user, navigate, setupRealtimeChannel]);
+
   const joinQueue = async () => {
     if (!user || actionLoading) return;
     setActionLoading(true);
 
-    const { error } = await supabase
-      .from('matchmaking_queue')
-      .upsert({ user_id: user.id, status: 'searching' });
+    try {
+      const { error } = await supabase
+        .from('matchmaking_queue')
+        .upsert({ user_id: user.id, status: 'searching' });
 
-    if (error) {
-      toast.error('Erro ao entrar na fila.');
+      if (error) {
+        toast.error('Erro ao entrar na fila.');
+        console.error(error);
+      } else {
+        toast.success('Você entrou na fila!');
+        await fetchQueueState();
+      }
+    } catch (error) {
+      toast.error('Erro inesperado ao entrar na fila.');
       console.error(error);
-    } else {
-      toast.success('Você entrou na fila!');
-      await fetchQueueState();
+    } finally {
+      setActionLoading(false);
     }
-    setActionLoading(false);
   };
 
   const leaveQueue = async () => {
     if (!user || actionLoading) return;
     setActionLoading(true);
 
-    const { error } = await supabase.from('matchmaking_queue').delete().eq('user_id', user.id);
+    try {
+      const { error } = await supabase
+        .from('matchmaking_queue')
+        .delete()
+        .eq('user_id', user.id);
 
-    if (error) {
-      toast.error('Erro ao sair da fila.');
+      if (error) {
+        toast.error('Erro ao sair da fila.');
+        console.error(error);
+      } else {
+        toast.info('Você saiu da fila.');
+        await fetchQueueState();
+      }
+    } catch (error) {
+      toast.error('Erro inesperado ao sair da fila.');
       console.error(error);
-    } else {
-      toast.info('Você saiu da fila.');
-      await fetchQueueState();
+    } finally {
+      setActionLoading(false);
     }
-    setActionLoading(false);
   };
   
-  // --- Renderização da UI (JSX) ---
+  // --- Renderização da UI ---
   const { players, isLoading, error } = queueState;
 
   if (isLoading) {
@@ -280,6 +346,12 @@ const MatchmakingQueue: React.FC = () => {
         <CardTitle className="text-slate-100 flex items-center justify-center gap-2 text-xl font-bold">
           <Users className="w-6 h-6 text-blue-400" />
           Procurando Partida
+          {connectionStatus === 'connected' && (
+            <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse ml-2" />
+          )}
+          {connectionStatus === 'disconnected' && (
+            <div className="w-2 h-2 bg-red-400 rounded-full ml-2" />
+          )}
         </CardTitle>
         <p className="text-slate-300 text-sm font-medium">{players.length}/4 jogadores na fila</p>
       </CardHeader>
