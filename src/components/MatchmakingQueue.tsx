@@ -79,7 +79,7 @@ const MatchmakingQueue: React.FC = () => {
   const [isUserInQueue, setIsUserInQueue] = useState(false);
   const [actionLoading, setActionLoading] = useState(false);
   
-  const fetchQueueStateRef = useRef<() => void>();
+  const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const channelRef = useRef<any>(null);
 
   const fetchQueueState = useCallback(async () => {
@@ -90,7 +90,7 @@ const MatchmakingQueue: React.FC = () => {
         .from('matchmaking_queue')
         .select('user_id')
         .eq('status', 'searching')
-        .eq('idJogoPleiteado', 1)
+        .eq('idjogopleiteado', 1)
         .order('created_at', { ascending: true })
         .limit(4);
 
@@ -128,6 +128,17 @@ const MatchmakingQueue: React.FC = () => {
 
       setQueueState({ players, isLoading: false, error: null });
       setIsUserInQueue(user ? players.some(player => player.id === user.id) : false);
+      
+      // Se chegamos a 4 jogadores, tentar criar o jogo
+      if (players.length === 4) {
+        console.log('4 jogadores na fila, tentando criar jogo...');
+        try {
+          const { data: gameResult } = await supabase.rpc('create_game_when_ready');
+          console.log('Resultado da criação do jogo:', gameResult);
+        } catch (error) {
+          console.error('Erro ao tentar criar jogo:', error);
+        }
+      }
     } catch (error: any) {
       console.error('Erro ao buscar fila:', error);
       setQueueState(prev => ({ 
@@ -137,10 +148,6 @@ const MatchmakingQueue: React.FC = () => {
       }));
     }
   }, [user]);
-
-  useEffect(() => {
-    fetchQueueStateRef.current = fetchQueueState;
-  });
 
   const checkIfUserIsInNewGame = useCallback(async (gameId: string) => {
     if (!user) return;
@@ -167,7 +174,7 @@ const MatchmakingQueue: React.FC = () => {
     }
   }, [user, navigate]);
 
-  // Configuração de tempo real mais simples
+  // Sistema de polling a cada 5 segundos
   useEffect(() => {
     if (!user) return;
 
@@ -198,22 +205,22 @@ const MatchmakingQueue: React.FC = () => {
     
     checkUserInActiveGame().then(isInGame => {
       if (!isInGame) {
-        fetchQueueStateRef.current?.();
+        // Buscar estado inicial
+        fetchQueueState();
         
-        // Canal de tempo real simples
+        // Configurar polling a cada 5 segundos
+        pollingIntervalRef.current = setInterval(() => {
+          fetchQueueState();
+        }, 5000);
+        
+        // Canal de tempo real apenas para detectar novos jogos criados
         const channel = supabase
-          .channel('simple-matchmaking')
-          .on(
-            'postgres_changes',
-            { event: '*', schema: 'public', table: 'matchmaking_queue' },
-            () => {
-              fetchQueueStateRef.current?.();
-            }
-          )
+          .channel('game-creation')
           .on(
             'postgres_changes',
             { event: 'INSERT', schema: 'public', table: 'games' },
             (payload) => {
+              console.log('Novo jogo detectado:', payload.new.id);
               checkIfUserIsInNewGame(payload.new.id);
             }
           )
@@ -224,11 +231,14 @@ const MatchmakingQueue: React.FC = () => {
     });
 
     return () => {
+      if (pollingIntervalRef.current) {
+        clearInterval(pollingIntervalRef.current);
+      }
       if (channelRef.current) {
         supabase.removeChannel(channelRef.current);
       }
     };
-  }, [user, navigate, checkIfUserIsInNewGame]);
+  }, [user, navigate, checkIfUserIsInNewGame, fetchQueueState]);
 
   const joinQueue = async () => {
     if (!user || actionLoading) return;
@@ -242,16 +252,8 @@ const MatchmakingQueue: React.FC = () => {
         console.error(error);
       } else {
         toast.success('Você entrou na fila!');
+        // Buscar estado atualizado imediatamente
         await fetchQueueState();
-        
-        // Tentar criar jogo após entrar na fila
-        setTimeout(async () => {
-          try {
-            await supabase.rpc('create_game_when_ready');
-          } catch (error) {
-            console.error('Erro ao tentar criar jogo:', error);
-          }
-        }, 1000);
       }
     } catch (error) {
       toast.error('Erro inesperado ao entrar na fila.');
@@ -273,6 +275,7 @@ const MatchmakingQueue: React.FC = () => {
         console.error(error);
       } else {
         toast.info('Você saiu da fila.');
+        // Buscar estado atualizado imediatamente
         await fetchQueueState();
       }
     } catch (error) {

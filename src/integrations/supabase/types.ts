@@ -151,7 +151,7 @@ export type Database = {
         Row: {
           created_at: string | null
           id: string
-          idJogoPleiteado: number
+          idjogopleiteado: number
           status: string | null
           updated_at: string | null
           user_id: string | null
@@ -159,7 +159,7 @@ export type Database = {
         Insert: {
           created_at?: string | null
           id?: string
-          idJogoPleiteado?: number
+          idjogopleiteado: number
           status?: string | null
           updated_at?: string | null
           user_id?: string | null
@@ -167,7 +167,7 @@ export type Database = {
         Update: {
           created_at?: string | null
           id?: string
-          idJogoPleiteado?: number
+          idjogopleiteado?: number
           status?: string | null
           updated_at?: string | null
           user_id?: string | null
