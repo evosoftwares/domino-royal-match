@@ -16,7 +16,7 @@ interface MatchmakingResponse {
   message?: string;
   queue_count?: number;
   game_id?: string;
-  idJogoPleiteado?: number;
+  idjogopleiteado?: number;
 }
 
 export const useMatchmaking = () => {
@@ -51,7 +51,7 @@ export const useMatchmaking = () => {
         .select('*')
         .eq('game_id', gameId)
         .eq('user_id', user.user.id)
-        .single();
+        .maybeSingle();
 
       if (data) {
         setState(prev => ({ 
@@ -65,40 +65,6 @@ export const useMatchmaking = () => {
       console.error('Erro ao verificar se usuário está no jogo:', error);
     }
   };
-
-  // Subscrição em tempo real para monitorar a fila
-  useEffect(() => {
-    const channel = supabase
-      .channel('matchmaking-updates')
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'matchmaking_queue'
-        },
-        () => {
-          updateQueueCount();
-        }
-      )
-      .on(
-        'postgres_changes',
-        {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'games'
-        },
-        (payload) => {
-          console.log('Novo jogo criado:', payload);
-          checkIfUserInGame(payload.new.id);
-        }
-      )
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, []);
 
   const joinQueue = async () => {
     setState(prev => ({ ...prev, isLoading: true }));
@@ -118,7 +84,6 @@ export const useMatchmaking = () => {
         }));
         toast.success(response.message || 'Adicionado à fila');
         
-        // Tentar criar jogo após entrar na fila
         await tryCreateGame();
       } else {
         toast.error(response.error || 'Erro ao entrar na fila');
@@ -187,7 +152,7 @@ export const useMatchmaking = () => {
           .select('*')
           .eq('user_id', user.user.id)
           .eq('status', 'searching')
-          .single();
+          .maybeSingle();
 
         if (queueEntry) {
           setState(prev => ({ ...prev, isInQueue: true }));
