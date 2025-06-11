@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
@@ -38,9 +37,18 @@ export const useMatchmaking = () => {
 
   const fetchQueuePlayers = async () => {
     try {
+      // Busca todos os usuários na fila de matchmaking
       const { data: queueData, error: queueError } = await supabase
         .from('matchmaking_queue')
-        .select('user_id, created_at')
+        .select(`
+          user_id,
+          created_at,
+          profiles!inner(
+            id,
+            full_name,
+            avatar_url
+          )
+        `)
         .eq('status', 'searching')
         .eq('idjogopleiteado', 1)
         .order('created_at', { ascending: true });
@@ -55,27 +63,13 @@ export const useMatchmaking = () => {
         return;
       }
 
-      const userIds = queueData.map(item => item.user_id);
-      const { data: profilesData, error: profilesError } = await supabase
-        .from('profiles')
-        .select('id, full_name, avatar_url')
-        .in('id', userIds);
-
-      if (profilesError) {
-        console.error('Erro ao buscar perfis:', profilesError);
-        return;
-      }
-
-      const profilesMap = new Map(profilesData.map(p => [p.id, p]));
-      const players = queueData.map((queueItem, index): QueuePlayer => {
-        const profile = profilesMap.get(queueItem.user_id);
-        return {
-          id: queueItem.user_id,
-          displayName: profile?.full_name || 'Anônimo',
-          avatarUrl: profile?.avatar_url || '',
-          position: index + 1
-        };
-      });
+      // Mapeia os dados para o formato QueuePlayer
+      const players = queueData.map((queueItem, index): QueuePlayer => ({
+        id: queueItem.user_id,
+        displayName: queueItem.profiles?.full_name || 'Anônimo',
+        avatarUrl: queueItem.profiles?.avatar_url || '',
+        position: index + 1
+      }));
 
       setState(prev => ({ 
         ...prev, 
@@ -208,23 +202,10 @@ export const useMatchmaking = () => {
 
     checkInitialStatus();
 
-    // Canal de tempo real para mudanças na fila
-    const queueChannel = supabase
-      .channel('matchmaking-queue-changes')
-      .on(
-        'postgres_changes',
-        { 
-          event: '*', 
-          schema: 'public', 
-          table: 'matchmaking_queue',
-          filter: 'idjogopleiteado=eq.1'
-        },
-        async (payload) => {
-          console.log('Mudança na fila detectada:', payload);
-          await fetchQueuePlayers();
-        }
-      )
-      .subscribe();
+    // Polling a cada 3 segundos para manter a fila atualizada
+    const interval = setInterval(() => {
+      fetchQueuePlayers();
+    }, 3000);
 
     // Canal de tempo real para detectar criação de jogos
     const gameChannel = supabase
@@ -240,7 +221,7 @@ export const useMatchmaking = () => {
       .subscribe();
 
     return () => {
-      supabase.removeChannel(queueChannel);
+      clearInterval(interval);
       supabase.removeChannel(gameChannel);
     };
   }, []);
