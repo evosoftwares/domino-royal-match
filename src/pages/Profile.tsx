@@ -1,251 +1,188 @@
 
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { useAuth } from '@/hooks/useAuth';
+import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { useAuth } from '@/hooks/useAuth';
-import { supabase } from '@/integrations/supabase/client';
-import { useNavigate } from 'react-router-dom';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { LogOut, ArrowLeft, Save } from 'lucide-react';
 import { toast } from 'sonner';
-import { ArrowLeft, User, Save } from 'lucide-react';
-
-interface Profile {
-  id: string;
-  username: string;
-  full_name: string;
-  avatar_url: string;
-  bio: string;
-  phone: string;
-}
+import UserBalance from '@/components/UserBalance';
 
 const Profile = () => {
-  const { user } = useAuth();
+  const { user, signOut } = useAuth();
   const navigate = useNavigate();
-  const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
-  const [profile, setProfile] = useState<Profile>({
-    id: '',
-    username: '',
+  const [profile, setProfile] = useState({
     full_name: '',
     avatar_url: '',
-    bio: '',
-    phone: ''
   });
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
 
   useEffect(() => {
-    if (user) {
-      fetchProfile();
-    }
-  }, [user]);
+    const fetchProfile = async () => {
+      if (!user) return;
 
-  const fetchProfile = async () => {
-    try {
-      const { data, error } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('id', user?.id)
-        .single();
-
-      if (error && error.code !== 'PGRST116') {
-        throw error;
-      }
-
-      if (data) {
-        // Map the database fields to the Profile interface, providing defaults for missing fields
-        setProfile({
-          id: data.id,
-          username: data.username || '',
-          full_name: data.full_name || '',
-          avatar_url: data.avatar_url || '',
-          bio: '', // Default empty since this field doesn't exist in the profiles table
-          phone: '' // Default empty since this field doesn't exist in the profiles table
-        });
-      } else {
-        // Criar perfil se não existir
-        const { data: newProfile, error: createError } = await supabase
+      try {
+        const { data, error } = await supabase
           .from('profiles')
-          .insert({
-            id: user?.id,
-            username: user?.name || '',
-            full_name: user?.name || ''
-          })
-          .select()
+          .select('full_name, avatar_url')
+          .eq('id', user.id)
           .single();
 
-        if (createError) throw createError;
-        if (newProfile) {
-          setProfile({
-            id: newProfile.id,
-            username: newProfile.username || '',
-            full_name: newProfile.full_name || '',
-            avatar_url: newProfile.avatar_url || '',
-            bio: '',
-            phone: ''
-          });
-        }
+        if (error) throw error;
+
+        setProfile({
+          full_name: data?.full_name || '',
+          avatar_url: data?.avatar_url || '',
+        });
+      } catch (error) {
+        console.error('Erro ao carregar perfil:', error);
+        toast.error('Erro ao carregar perfil');
+      } finally {
+        setLoading(false);
       }
-    } catch (error: any) {
-      toast.error('Erro ao carregar perfil: ' + error.message);
-    } finally {
-      setLoading(false);
-    }
-  };
+    };
+
+    fetchProfile();
+  }, [user]);
 
   const handleSave = async () => {
     if (!user) return;
-    
+
     setSaving(true);
     try {
       const { error } = await supabase
         .from('profiles')
-        .upsert({
-          id: user.id,
-          username: profile.username,
+        .update({
           full_name: profile.full_name,
-          avatar_url: profile.avatar_url
-          // Note: bio and phone are not saved since they don't exist in the profiles table
-        });
+          avatar_url: profile.avatar_url,
+        })
+        .eq('id', user.id);
 
       if (error) throw error;
 
       toast.success('Perfil atualizado com sucesso!');
-    } catch (error: any) {
-      toast.error('Erro ao salvar perfil: ' + error.message);
+    } catch (error) {
+      console.error('Erro ao salvar perfil:', error);
+      toast.error('Erro ao salvar perfil');
     } finally {
       setSaving(false);
     }
   };
 
-  const handleInputChange = (field: keyof Profile, value: string) => {
-    setProfile(prev => ({ ...prev, [field]: value }));
+  const handleLogout = async () => {
+    await signOut();
+    navigate('/auth');
   };
 
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-purple-900 via-purple-800 to-black flex items-center justify-center">
-        <div className="text-white">Carregando perfil...</div>
-      </div>
-    );
+  if (!user) {
+    navigate('/auth');
+    return null;
   }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-purple-900 via-purple-800 to-black">
-      <div className="container mx-auto px-4 py-6">
-        {/* Header */}
-        <div className="flex items-center gap-4 mb-8">
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={() => navigate('/')}
-            className="text-white hover:bg-purple-500/20"
-          >
-            <ArrowLeft className="h-5 w-5" />
-          </Button>
-          <h1 className="text-2xl font-bold text-white">Editar Perfil</h1>
+      <div className="container mx-auto px-4 py-8">
+        {/* Header com Logo */}
+        <div className="flex items-center justify-between mb-8">
+          <div className="flex items-center gap-4">
+            <Button
+              onClick={() => navigate('/dashboard')}
+              variant="ghost"
+              size="sm"
+              className="text-purple-200 hover:text-white"
+            >
+              <ArrowLeft className="w-4 h-4 mr-2" />
+              Voltar
+            </Button>
+            <img 
+              src="/lovable-uploads/cd2d3373-317b-49d5-bd6f-880dd6f2fa12.png" 
+              alt="Dominó Money" 
+              className="h-16 w-16 object-contain"
+            />
+          </div>
+          
+          <div className="flex items-center gap-4">
+            <UserBalance />
+            <Button
+              onClick={handleLogout}
+              variant="outline"
+              size="sm"
+              className="bg-purple-900/50 border-purple-600/30 text-purple-200 hover:bg-purple-800/50"
+            >
+              <LogOut className="w-4 h-4 mr-2" />
+              Sair
+            </Button>
+          </div>
         </div>
 
-        {/* Profile Form */}
+        {/* Profile Content */}
         <div className="max-w-2xl mx-auto">
-          <Card className="bg-white/5 backdrop-blur-lg border border-white/10">
+          <Card className="bg-slate-900/50 border-slate-700/50">
             <CardHeader>
-              <CardTitle className="text-white flex items-center gap-2">
-                <User className="h-5 w-5" />
-                Informações do Perfil
-              </CardTitle>
-              <CardDescription className="text-purple-200">
-                Atualize suas informações pessoais
-              </CardDescription>
+              <CardTitle className="text-purple-200 text-center">Meu Perfil</CardTitle>
             </CardHeader>
             <CardContent className="space-y-6">
-              {/* Username */}
-              <div className="space-y-2">
-                <Label htmlFor="username" className="text-white">
-                  Nome de usuário
-                </Label>
-                <Input
-                  id="username"
-                  type="text"
-                  value={profile.username}
-                  onChange={(e) => handleInputChange('username', e.target.value)}
-                  className="bg-white/10 border-white/20 text-white placeholder:text-white/60"
-                  placeholder="Seu nome de usuário"
-                />
-              </div>
+              {loading ? (
+                <div className="text-center text-purple-200">Carregando...</div>
+              ) : (
+                <>
+                  <div className="flex justify-center">
+                    <Avatar className="w-24 h-24">
+                      <AvatarImage src={profile.avatar_url} alt="Avatar" />
+                      <AvatarFallback className="bg-purple-600 text-white text-2xl">
+                        {profile.full_name ? profile.full_name.charAt(0).toUpperCase() : 'U'}
+                      </AvatarFallback>
+                    </Avatar>
+                  </div>
 
-              {/* Full Name */}
-              <div className="space-y-2">
-                <Label htmlFor="full_name" className="text-white">
-                  Nome completo
-                </Label>
-                <Input
-                  id="full_name"
-                  type="text"
-                  value={profile.full_name}
-                  onChange={(e) => handleInputChange('full_name', e.target.value)}
-                  className="bg-white/10 border-white/20 text-white placeholder:text-white/60"
-                  placeholder="Seu nome completo"
-                />
-              </div>
+                  <div className="space-y-4">
+                    <div>
+                      <Label htmlFor="full_name" className="text-purple-200">Nome Completo</Label>
+                      <Input
+                        id="full_name"
+                        value={profile.full_name}
+                        onChange={(e) => setProfile(prev => ({ ...prev, full_name: e.target.value }))}
+                        className="bg-slate-800/50 border-slate-600/50 text-white"
+                        placeholder="Seu nome completo"
+                      />
+                    </div>
 
-              {/* Phone */}
-              <div className="space-y-2">
-                <Label htmlFor="phone" className="text-white">
-                  Telefone
-                </Label>
-                <Input
-                  id="phone"
-                  type="tel"
-                  value={profile.phone}
-                  onChange={(e) => handleInputChange('phone', e.target.value)}
-                  className="bg-white/10 border-white/20 text-white placeholder:text-white/60"
-                  placeholder="(11) 99999-9999"
-                  disabled
-                />
-                <p className="text-xs text-gray-400">Campo desabilitado - não disponível no banco de dados</p>
-              </div>
+                    <div>
+                      <Label htmlFor="avatar_url" className="text-purple-200">URL do Avatar</Label>
+                      <Input
+                        id="avatar_url"
+                        value={profile.avatar_url}
+                        onChange={(e) => setProfile(prev => ({ ...prev, avatar_url: e.target.value }))}
+                        className="bg-slate-800/50 border-slate-600/50 text-white"
+                        placeholder="https://exemplo.com/avatar.jpg"
+                      />
+                    </div>
 
-              {/* Avatar URL */}
-              <div className="space-y-2">
-                <Label htmlFor="avatar_url" className="text-white">
-                  URL do Avatar
-                </Label>
-                <Input
-                  id="avatar_url"
-                  type="url"
-                  value={profile.avatar_url}
-                  onChange={(e) => handleInputChange('avatar_url', e.target.value)}
-                  className="bg-white/10 border-white/20 text-white placeholder:text-white/60"
-                  placeholder="https://exemplo.com/avatar.jpg"
-                />
-              </div>
+                    <div>
+                      <Label className="text-purple-200">Email</Label>
+                      <Input
+                        value={user.email || ''}
+                        disabled
+                        className="bg-slate-700/50 border-slate-600/50 text-slate-300"
+                      />
+                    </div>
+                  </div>
 
-              {/* Bio */}
-              <div className="space-y-2">
-                <Label htmlFor="bio" className="text-white">
-                  Biografia
-                </Label>
-                <Textarea
-                  id="bio"
-                  value={profile.bio}
-                  onChange={(e) => handleInputChange('bio', e.target.value)}
-                  className="bg-white/10 border-white/20 text-white placeholder:text-white/60 min-h-[100px]"
-                  placeholder="Conte um pouco sobre você..."
-                  disabled
-                />
-                <p className="text-xs text-gray-400">Campo desabilitado - não disponível no banco de dados</p>
-              </div>
-
-              {/* Save Button */}
-              <Button
-                onClick={handleSave}
-                disabled={saving}
-                className="w-full bg-purple-600 hover:bg-purple-700 text-white"
-              >
-                <Save className="h-4 w-4 mr-2" />
-                {saving ? 'Salvando...' : 'Salvar Alterações'}
-              </Button>
+                  <Button
+                    onClick={handleSave}
+                    disabled={saving}
+                    className="w-full bg-purple-600 hover:bg-purple-700 text-white"
+                  >
+                    <Save className="w-4 h-4 mr-2" />
+                    {saving ? 'Salvando...' : 'Salvar Alterações'}
+                  </Button>
+                </>
+              )}
             </CardContent>
           </Card>
         </div>
