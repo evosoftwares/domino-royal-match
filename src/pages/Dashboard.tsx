@@ -8,11 +8,11 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import UserBalance from '@/components/UserBalance';
 
 const Dashboard = () => {
-  const { user, signOut } = useAuth();
+  const { user, logout } = useAuth();
   const navigate = useNavigate();
 
   const handleLogout = async () => {
-    await signOut();
+    await logout();
     navigate('/auth');
   };
 

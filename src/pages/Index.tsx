@@ -8,11 +8,11 @@ import { LogOut } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
 const Index = () => {
-  const { user, signOut } = useAuth();
+  const { user, logout } = useAuth();
   const navigate = useNavigate();
 
   const handleLogout = async () => {
-    await signOut();
+    await logout();
     navigate('/auth');
   };
 

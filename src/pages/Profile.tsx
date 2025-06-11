@@ -13,7 +13,7 @@ import { toast } from 'sonner';
 import UserBalance from '@/components/UserBalance';
 
 const Profile = () => {
-  const { user, signOut } = useAuth();
+  const { user, logout } = useAuth();
   const navigate = useNavigate();
   const [profile, setProfile] = useState({
     full_name: '',
@@ -75,7 +75,7 @@ const Profile = () => {
   };
 
   const handleLogout = async () => {
-    await signOut();
+    await logout();
     navigate('/auth');
   };
 
