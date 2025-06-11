@@ -20,6 +20,13 @@ const LoginForm = ({ onSwitchToRegister }: LoginFormProps) => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    // Valida se os campos estão preenchidos
+    if (!credentials.email.trim() || !credentials.password.trim()) {
+      return;
+    }
+
+    console.log('Tentando fazer login com:', credentials.email);
     await login(credentials);
   };
 
@@ -29,6 +36,8 @@ const LoginForm = ({ onSwitchToRegister }: LoginFormProps) => {
       [e.target.name]: e.target.value
     }));
   };
+
+  const isFormValid = credentials.email.trim() && credentials.password.trim();
 
   return (
     <Card className="w-full max-w-md mx-auto">
@@ -50,6 +59,7 @@ const LoginForm = ({ onSwitchToRegister }: LoginFormProps) => {
               value={credentials.email}
               onChange={handleChange}
               required
+              disabled={loading}
             />
           </div>
           
@@ -63,13 +73,14 @@ const LoginForm = ({ onSwitchToRegister }: LoginFormProps) => {
               value={credentials.password}
               onChange={handleChange}
               required
+              disabled={loading}
             />
           </div>
 
           <Button 
             type="submit" 
             className="w-full" 
-            disabled={loading}
+            disabled={loading || !isFormValid}
           >
             {loading ? 'Entrando...' : 'Entrar'}
           </Button>
@@ -81,6 +92,7 @@ const LoginForm = ({ onSwitchToRegister }: LoginFormProps) => {
             <button
               onClick={onSwitchToRegister}
               className="text-primary hover:underline"
+              disabled={loading}
             >
               Cadastre-se
             </button>
