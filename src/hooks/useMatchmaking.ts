@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
@@ -89,6 +90,37 @@ export const useMatchmaking = () => {
     }
   };
 
+  const checkUserBalance = async (): Promise<boolean> => {
+    try {
+      const { data: user } = await supabase.auth.getUser();
+      if (!user.user) return false;
+
+      const { data: profile, error } = await supabase
+        .from('profiles')
+        .select('balance')
+        .eq('id', user.user.id)
+        .single();
+
+      if (error) {
+        console.error('Erro ao verificar saldo:', error);
+        return false;
+      }
+
+      const balance = profile?.balance || 0;
+      const minimumBalance = 2.20; // Taxa de entrada mínima
+
+      if (balance < minimumBalance) {
+        toast.error(`Saldo insuficiente. Você precisa de pelo menos R$ ${minimumBalance.toFixed(2)} para entrar na fila.`);
+        return false;
+      }
+
+      return true;
+    } catch (error) {
+      console.error('Erro ao verificar saldo:', error);
+      return false;
+    }
+  };
+
   const checkIfUserInGame = async (gameId: string) => {
     try {
       const { data: user } = await supabase.auth.getUser();
@@ -118,6 +150,13 @@ export const useMatchmaking = () => {
     setState(prev => ({ ...prev, isLoading: true }));
     
     try {
+      // Verifica o saldo antes de entrar na fila
+      const hasMinimumBalance = await checkUserBalance();
+      if (!hasMinimumBalance) {
+        setState(prev => ({ ...prev, isLoading: false }));
+        return;
+      }
+
       const { data, error } = await supabase.rpc('join_matchmaking_queue');
       
       if (error) throw error;
