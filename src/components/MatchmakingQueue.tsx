@@ -78,7 +78,6 @@ const MatchmakingQueue: React.FC = () => {
   });
   const [isUserInQueue, setIsUserInQueue] = useState(false);
   const [actionLoading, setActionLoading] = useState(false);
-  const [connectionStatus, setConnectionStatus] = useState<'connecting' | 'connected' | 'disconnected'>('connecting');
   
   const fetchQueueStateRef = useRef<() => void>();
   const channelRef = useRef<any>(null);
@@ -91,6 +90,7 @@ const MatchmakingQueue: React.FC = () => {
         .from('matchmaking_queue')
         .select('user_id')
         .eq('status', 'searching')
+        .eq('idJogoPleiteado', 1)
         .order('created_at', { ascending: true })
         .limit(4);
 
@@ -133,7 +133,7 @@ const MatchmakingQueue: React.FC = () => {
       setQueueState(prev => ({ 
         ...prev, 
         isLoading: false, 
-        error: 'Falha ao buscar dados da fila. Tentando reconectar...' 
+        error: 'Falha ao carregar dados da fila.' 
       }));
     }
   }, [user]);
@@ -167,55 +167,7 @@ const MatchmakingQueue: React.FC = () => {
     }
   }, [user, navigate]);
 
-  // Função para configurar o canal de tempo real
-  const setupRealtimeChannel = useCallback(() => {
-    if (channelRef.current) {
-      supabase.removeChannel(channelRef.current);
-    }
-
-    const channel = supabase
-      .channel('matchmaking-updates-v2')
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'matchmaking_queue' },
-        () => {
-          console.log('Mudança detectada na fila de matchmaking');
-          fetchQueueStateRef.current?.();
-        }
-      )
-      .on(
-        'postgres_changes',
-        { event: 'INSERT', schema: 'public', table: 'games' },
-        (payload) => {
-          console.log('Novo jogo criado:', payload.new.id);
-          checkIfUserIsInNewGame(payload.new.id);
-        }
-      )
-      .subscribe((status) => {
-        console.log(`[Realtime] Status do canal: ${status}`);
-        
-        if (status === 'SUBSCRIBED') {
-          setConnectionStatus('connected');
-          console.log('[Realtime] Conectado com sucesso!');
-        } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
-          setConnectionStatus('disconnected');
-          console.error('[Realtime] Erro de conexão!');
-          
-          // Tentar reconectar após 3 segundos
-          setTimeout(() => {
-            console.log('[Realtime] Tentando reconectar...');
-            setupRealtimeChannel();
-          }, 3000);
-        } else if (status === 'CLOSED') {
-          setConnectionStatus('disconnected');
-          console.log('[Realtime] Canal fechado');
-        }
-      });
-
-    channelRef.current = channel;
-  }, [checkIfUserIsInNewGame]);
-
-  // Efeito principal
+  // Configuração de tempo real mais simples
   useEffect(() => {
     if (!user) return;
 
@@ -223,9 +175,8 @@ const MatchmakingQueue: React.FC = () => {
       try {
         const { data: activeGame, error } = await supabase
           .from('game_players')
-          .select('game_id, games!inner(status)')
+          .select('game_id')
           .eq('user_id', user.id)
-          .eq('games.status', 'active')
           .maybeSingle();
 
         if (error && error.code !== 'PGRST116') {
@@ -248,7 +199,27 @@ const MatchmakingQueue: React.FC = () => {
     checkUserInActiveGame().then(isInGame => {
       if (!isInGame) {
         fetchQueueStateRef.current?.();
-        setupRealtimeChannel();
+        
+        // Canal de tempo real simples
+        const channel = supabase
+          .channel('simple-matchmaking')
+          .on(
+            'postgres_changes',
+            { event: '*', schema: 'public', table: 'matchmaking_queue' },
+            () => {
+              fetchQueueStateRef.current?.();
+            }
+          )
+          .on(
+            'postgres_changes',
+            { event: 'INSERT', schema: 'public', table: 'games' },
+            (payload) => {
+              checkIfUserIsInNewGame(payload.new.id);
+            }
+          )
+          .subscribe();
+        
+        channelRef.current = channel;
       }
     });
 
@@ -257,16 +228,14 @@ const MatchmakingQueue: React.FC = () => {
         supabase.removeChannel(channelRef.current);
       }
     };
-  }, [user, navigate, setupRealtimeChannel]);
+  }, [user, navigate, checkIfUserIsInNewGame]);
 
   const joinQueue = async () => {
     if (!user || actionLoading) return;
     setActionLoading(true);
 
     try {
-      const { error } = await supabase
-        .from('matchmaking_queue')
-        .upsert({ user_id: user.id, status: 'searching' });
+      const { data, error } = await supabase.rpc('join_matchmaking_queue');
 
       if (error) {
         toast.error('Erro ao entrar na fila.');
@@ -274,6 +243,15 @@ const MatchmakingQueue: React.FC = () => {
       } else {
         toast.success('Você entrou na fila!');
         await fetchQueueState();
+        
+        // Tentar criar jogo após entrar na fila
+        setTimeout(async () => {
+          try {
+            await supabase.rpc('create_game_when_ready');
+          } catch (error) {
+            console.error('Erro ao tentar criar jogo:', error);
+          }
+        }, 1000);
       }
     } catch (error) {
       toast.error('Erro inesperado ao entrar na fila.');
@@ -288,10 +266,7 @@ const MatchmakingQueue: React.FC = () => {
     setActionLoading(true);
 
     try {
-      const { error } = await supabase
-        .from('matchmaking_queue')
-        .delete()
-        .eq('user_id', user.id);
+      const { error } = await supabase.rpc('leave_matchmaking_queue');
 
       if (error) {
         toast.error('Erro ao sair da fila.');
@@ -346,12 +321,6 @@ const MatchmakingQueue: React.FC = () => {
         <CardTitle className="text-slate-100 flex items-center justify-center gap-2 text-xl font-bold">
           <Users className="w-6 h-6 text-blue-400" />
           Procurando Partida
-          {connectionStatus === 'connected' && (
-            <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse ml-2" />
-          )}
-          {connectionStatus === 'disconnected' && (
-            <div className="w-2 h-2 bg-red-400 rounded-full ml-2" />
-          )}
         </CardTitle>
         <p className="text-slate-300 text-sm font-medium">{players.length}/4 jogadores na fila</p>
       </CardHeader>
