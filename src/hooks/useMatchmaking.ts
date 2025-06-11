@@ -137,9 +137,6 @@ export const useMatchmaking = () => {
           queueCount: response.queue_count || 0
         }));
         toast.success(response.message || 'Adicionado à fila');
-        
-        // Atualizar lista de participantes imediatamente
-        await fetchQueuePlayers();
         await tryCreateGame();
       } else {
         toast.error(response.error || 'Erro ao entrar na fila');
@@ -169,9 +166,6 @@ export const useMatchmaking = () => {
           queuePlayers: []
         }));
         toast.success(response.message || 'Removido da fila');
-        
-        // Atualizar lista de participantes imediatamente
-        await fetchQueuePlayers();
       } else {
         toast.error(response.error || 'Erro ao sair da fila');
       }
@@ -200,7 +194,6 @@ export const useMatchmaking = () => {
     }
   };
 
-  // Polling automático para atualizar participantes da fila
   useEffect(() => {
     const checkInitialStatus = async () => {
       try {
@@ -215,13 +208,26 @@ export const useMatchmaking = () => {
 
     checkInitialStatus();
 
-    // Polling a cada 3 segundos para manter a fila atualizada
-    const interval = setInterval(() => {
-      fetchQueuePlayers();
-    }, 3000);
+    // Canal de tempo real para mudanças na fila
+    const queueChannel = supabase
+      .channel('matchmaking-queue-changes')
+      .on(
+        'postgres_changes',
+        { 
+          event: '*', 
+          schema: 'public', 
+          table: 'matchmaking_queue',
+          filter: 'idjogopleiteado=eq.1'
+        },
+        async (payload) => {
+          console.log('Mudança na fila detectada:', payload);
+          await fetchQueuePlayers();
+        }
+      )
+      .subscribe();
 
     // Canal de tempo real para detectar criação de jogos
-    const channel = supabase
+    const gameChannel = supabase
       .channel('game-creation')
       .on(
         'postgres_changes',
@@ -234,8 +240,8 @@ export const useMatchmaking = () => {
       .subscribe();
 
     return () => {
-      clearInterval(interval);
-      supabase.removeChannel(channel);
+      supabase.removeChannel(queueChannel);
+      supabase.removeChannel(gameChannel);
     };
   }, []);
 
