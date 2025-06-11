@@ -27,50 +27,13 @@ export const useMatchmaking = () => {
     gameId: null
   });
 
-  // Subscrição em tempo real para monitorar a fila
-  useEffect(() => {
-    const channel = supabase
-      .channel('matchmaking-updates')
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'matchmaking_queue'
-        },
-        async () => {
-          // Atualizar contador da fila quando houver mudanças
-          await updateQueueCount();
-        }
-      )
-      .on(
-        'postgres_changes',
-        {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'games'
-        },
-        (payload) => {
-          console.log('Novo jogo criado:', payload);
-          // Verificar se o usuário foi incluído neste jogo
-          checkIfUserInGame(payload.new.id);
-        }
-      )
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, []);
-
   const updateQueueCount = async () => {
     try {
-      // Contar apenas jogadores procurando pelo mesmo jogo (idJogoPleiteado = 1)
       const { count } = await supabase
         .from('matchmaking_queue')
         .select('*', { count: 'exact' })
         .eq('status', 'searching')
-        .eq('idJogoPleiteado', 1);
+        .eq('idjogopleiteado', 1);
       
       setState(prev => ({ ...prev, queueCount: count || 0 }));
     } catch (error) {
@@ -102,6 +65,40 @@ export const useMatchmaking = () => {
       console.error('Erro ao verificar se usuário está no jogo:', error);
     }
   };
+
+  // Subscrição em tempo real para monitorar a fila
+  useEffect(() => {
+    const channel = supabase
+      .channel('matchmaking-updates')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'matchmaking_queue'
+        },
+        () => {
+          updateQueueCount();
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'games'
+        },
+        (payload) => {
+          console.log('Novo jogo criado:', payload);
+          checkIfUserInGame(payload.new.id);
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, []);
 
   const joinQueue = async () => {
     setState(prev => ({ ...prev, isLoading: true }));
@@ -170,7 +167,6 @@ export const useMatchmaking = () => {
       
       if (response.success && response.game_id) {
         console.log('Jogo criado com sucesso:', response.game_id);
-        // O realtime vai detectar a criação e redirecionar o usuário
       } else {
         console.log('Aguardando mais jogadores...');
       }
@@ -186,7 +182,6 @@ export const useMatchmaking = () => {
         const { data: user } = await supabase.auth.getUser();
         if (!user.user) return;
 
-        // Verificar se está na fila
         const { data: queueEntry } = await supabase
           .from('matchmaking_queue')
           .select('*')
@@ -198,7 +193,6 @@ export const useMatchmaking = () => {
           setState(prev => ({ ...prev, isInQueue: true }));
         }
 
-        // Atualizar contador inicial
         await updateQueueCount();
       } catch (error) {
         console.error('Erro ao verificar status inicial:', error);
