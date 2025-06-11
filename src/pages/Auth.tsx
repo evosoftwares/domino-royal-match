@@ -14,7 +14,7 @@ const Auth = () => {
           <img 
             src="/lovable-uploads/cd2d3373-317b-49d5-bd6f-880dd6f2fa12.png" 
             alt="Dominó Money" 
-            className="h-20 w-20 object-contain"
+            className="h-40 w-40 object-contain"
           />
         </div>
         
