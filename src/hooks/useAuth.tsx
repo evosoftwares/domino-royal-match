@@ -1,4 +1,3 @@
-
 import { useState, useEffect, createContext, useContext, ReactNode } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { User, LoginCredentials, RegisterCredentials } from '@/types/auth';
@@ -21,6 +20,8 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
+
+  console.log('AuthProvider iniciado - user:', user, 'loading:', loading);
 
   useEffect(() => {
     const initializeAuth = async () => {
@@ -46,6 +47,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       } catch (error) {
         console.error('Erro fatal na inicialização da auth:', error);
       } finally {
+        console.log('Finalizando inicialização da auth');
         setLoading(false);
       }
     };
@@ -72,6 +74,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     );
 
     return () => {
+      console.log('Limpando listener de auth');
       authListener.subscription.unsubscribe();
     };
   }, []);
@@ -215,6 +218,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     isAuthenticated: !!user
   };
 
+  console.log('AuthProvider value:', value);
+
   return (
     <AuthContext.Provider value={value}>
       {children}
@@ -225,7 +230,11 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 // Hook customizado para consumir o contexto de autenticação
 export const useAuth = (): AuthContextType => {
   const context = useContext(AuthContext);
+  
+  console.log('useAuth chamado - context:', context);
+  
   if (context === undefined) {
+    console.error('useAuth deve ser usado dentro de um AuthProvider');
     throw new Error('useAuth deve ser usado dentro de um AuthProvider');
   }
   return context;
