@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
@@ -232,7 +233,11 @@ const Game2Room: React.FC<Game2RoomProps> = ({
   if (gameState.status !== 'active') {
     return (
       <div className="min-h-screen bg-gradient-to-br from-purple-900 via-purple-800 to-black flex items-center justify-center">
-        {/* ... JSX ... */}
+        <div className="text-center p-8 text-white">
+          <h2 className="text-2xl font-bold mb-4">Aguardando início do jogo...</h2>
+          <p className="text-purple-200">Status: {gameState.status}</p>
+          <p className="text-purple-200 mt-2">Jogadores conectados: {playersState.length}</p>
+        </div>
       </div>
     );
   }

@@ -1,3 +1,4 @@
+
 import { useState, useEffect, createContext, useContext, ReactNode } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { User, LoginCredentials, RegisterCredentials } from '@/types/auth';
@@ -21,7 +22,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
 
-  console.log('AuthProvider iniciado - user:', user, 'loading:', loading);
+  console.log('AuthProvider iniciado - usuário:', user, 'carregando:', loading);
 
   useEffect(() => {
     const initializeAuth = async () => {
@@ -45,9 +46,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           console.log('Nenhuma sessão ativa encontrada');
         }
       } catch (error) {
-        console.error('Erro fatal na inicialização da auth:', error);
+        console.error('Erro fatal na inicialização da autenticação:', error);
       } finally {
-        console.log('Finalizando inicialização da auth');
+        console.log('Finalizando inicialização da autenticação');
         setLoading(false);
       }
     };
@@ -57,7 +58,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     // Listener para mudanças de estado de autenticação
     const { data: authListener } = supabase.auth.onAuthStateChange(
       async (event, session) => {
-        console.log('Mudança de estado de auth:', event, session?.user?.email);
+        console.log('Mudança de estado de autenticação:', event, session?.user?.email);
         
         if (session?.user) {
           setUser({
@@ -74,7 +75,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     );
 
     return () => {
-      console.log('Limpando listener de auth');
+      console.log('Limpando listener de autenticação');
       authListener.subscription.unsubscribe();
     };
   }, []);
@@ -98,7 +99,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           details: error
         });
         
-        // Mensagens de erro mais específicas
+        // Mensagens de erro mais específicas em português
         let errorMessage = 'Erro ao fazer login';
         if (error.message.includes('Invalid login credentials')) {
           errorMessage = 'Email ou senha incorretos';
@@ -115,7 +116,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       }
 
       if (data.user) {
-        console.log('Login bem-sucedido:', data.user.email);
+        console.log('Login realizado com sucesso:', data.user.email);
         toast.success('Login realizado com sucesso!');
         return true;
       }
@@ -169,7 +170,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       }
 
       if (data.user) {
-        console.log('Registro bem-sucedido:', data.user.email);
+        console.log('Registro realizado com sucesso:', data.user.email);
         toast.success('Conta criada com sucesso! Verifique seu email para confirmação.');
         return true;
       }
@@ -196,7 +197,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         console.error('Erro ao fazer logout:', error);
         toast.error('Erro ao fazer logout');
       } else {
-        console.log('Logout bem-sucedido');
+        console.log('Logout realizado com sucesso');
         toast.success('Logout realizado com sucesso!');
         setUser(null);
       }
@@ -218,7 +219,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     isAuthenticated: !!user
   };
 
-  console.log('AuthProvider value:', value);
+  console.log('Valor do AuthProvider:', value);
 
   return (
     <AuthContext.Provider value={value}>
@@ -231,7 +232,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 export const useAuth = (): AuthContextType => {
   const context = useContext(AuthContext);
   
-  console.log('useAuth chamado - context:', context);
+  console.log('useAuth chamado - contexto:', context);
   
   if (context === undefined) {
     console.error('useAuth deve ser usado dentro de um AuthProvider');
