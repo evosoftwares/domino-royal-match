@@ -26,8 +26,13 @@ const LoginForm = ({ onSwitchToRegister }: LoginFormProps) => {
       return;
     }
 
-    console.log('Tentando fazer login com:', credentials.email);
-    await login(credentials);
+    console.log('Formulário de login submetido para:', credentials.email);
+    const success = await login(credentials);
+    
+    if (success) {
+      // Redirecionar para a página principal
+      window.location.href = '/';
+    }
   };
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
