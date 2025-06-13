@@ -296,7 +296,7 @@ export type Database = {
         Returns: Json
       }
       join_matchmaking_queue: {
-        Args: Record<PropertyKey, never>
+        Args: Record<PropertyKey, never> | { p_id_jogo_pleiteado: number }
         Returns: Json
       }
       leave_matchmaking_queue: {
