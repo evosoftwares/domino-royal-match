@@ -143,6 +143,40 @@ const MatchmakingQueue: React.FC = () => {
   }, [user, navigate]);
 
 
+  // Função para criar jogo quando há 4 jogadores
+  const createGameWhenReady = useCallback(async (players: QueuePlayer[]) => {
+    if (players.length !== 4 || !user) return;
+    
+    // Verificar se o usuário atual está na fila
+    const isUserInQueue = players.some(p => p.id === user.id);
+    if (!isUserInQueue) return;
+
+    try {
+      console.log('4 jogadores na fila, criando jogo...');
+      toast.info('Fila completa! Criando partida...');
+
+      const { data, error } = await supabase.functions.invoke('create-game', {
+        body: { user_id: user.id }
+      });
+
+      if (error) {
+        console.error('Erro ao criar jogo:', error);
+        toast.error(`Erro ao criar jogo: ${error.message}`);
+        return;
+      }
+
+      if (data?.success && data?.game_id) {
+        toast.success('Partida criada! Redirecionando...');
+        setTimeout(() => {
+          navigate(`/game2/${data.game_id}`);
+        }, 1500);
+      }
+    } catch (error: any) {
+      console.error('Erro inesperado ao criar jogo:', error);
+      toast.error(`Erro inesperado: ${error.message}`);
+    }
+  }, [user, navigate]);
+
   // --- Efeito Principal (Tempo Real e Carga Inicial) ---
   useEffect(() => {
     const checkUserInActiveGame = async () => {
@@ -173,8 +207,22 @@ const MatchmakingQueue: React.FC = () => {
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'matchmaking_queue' },
-        () => {
+        async () => {
           fetchQueueStateRef.current?.();
+          
+          // Após atualizar a fila, verificar se há 4 jogadores
+          setTimeout(async () => {
+            const { data: currentQueue } = await supabase
+              .from('matchmaking_queue')
+              .select('user_id')
+              .eq('status', 'searching')
+              .limit(4);
+            
+            if (currentQueue && currentQueue.length === 4) {
+              const players = currentQueue.map(q => ({ id: q.user_id, displayName: '', avatarUrl: '' }));
+              await createGameWhenReady(players);
+            }
+          }, 500);
         }
       )
       .on(
@@ -186,23 +234,17 @@ const MatchmakingQueue: React.FC = () => {
           // Verificar se o usuário está no jogo
           checkIfUserIsInNewGame(gameId);
           
-          // A primeira peça será jogada automaticamente pelo trigger do banco
           console.log('Jogo criado, ID:', gameId);
-          console.log('A primeira peça será jogada automaticamente pelo trigger do banco.');
         }
       )
-      // --- A MUDANÇA ESTÁ AQUI ---
       .subscribe((status) => {
-        // Esta função será chamada sempre que o status da conexão mudar.
         console.log(`[Realtime] Status do canal 'matchmaking-updates': ${status}`);
 
         if (status === 'SUBSCRIBED') {
-          // Se aparecer isso, significa que a conexão foi um sucesso!
           console.log('[Realtime] Conectado e ouvindo por mudanças!');
         }
 
         if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
-          // Se aparecer isso, há um problema na conexão.
           console.error('[Realtime] Falha ao conectar no canal de tempo real!');
           toast.error("Erro de conexão com o tempo real.");
         }
@@ -211,7 +253,7 @@ const MatchmakingQueue: React.FC = () => {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [user, checkIfUserIsInNewGame, navigate, queueState.players]);
+  }, [user, checkIfUserIsInNewGame, navigate, createGameWhenReady]);
 
   
   // --- Funções de Ação do Usuário ---
