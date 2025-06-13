@@ -140,6 +140,8 @@ export const useMatchmaking = () => {
           gameId: gameId 
         }));
         toast.success('Partida encontrada! Redirecionando...');
+        // Redirecionar para o jogo
+        window.location.href = `/game2/${gameId}`;
       }
     } catch (error) {
       console.error('Erro ao verificar se usuário está no jogo:', error);
@@ -170,7 +172,11 @@ export const useMatchmaking = () => {
           queueCount: response.queue_count || 0
         }));
         toast.success(response.message || 'Adicionado à fila');
-        await tryCreateGame();
+        
+        // O trigger do banco agora faz isso automaticamente, mas mantemos para redundância
+        setTimeout(() => {
+          tryCreateGame();
+        }, 1000);
       } else {
         toast.error(response.error || 'Erro ao entrar na fila');
       }
@@ -219,6 +225,7 @@ export const useMatchmaking = () => {
       
       if (response.success && response.game_id) {
         console.log('Jogo criado com sucesso:', response.game_id);
+        // O trigger automático já cuida disso
       } else {
         console.log('Aguardando mais jogadores...');
       }
@@ -241,10 +248,26 @@ export const useMatchmaking = () => {
 
     checkInitialStatus();
 
-    // Polling a cada 3 segundos para manter a fila atualizada
+    // Polling mais frequente para detectar mudanças mais rapidamente
     const interval = setInterval(() => {
       fetchQueuePlayers();
-    }, 3000);
+    }, 2000);
+
+    // Canal de tempo real para detectar mudanças na fila de matchmaking
+    const queueChannel = supabase
+      .channel('matchmaking-queue-changes')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'matchmaking_queue' },
+        (payload) => {
+          console.log('Mudança na fila detectada:', payload);
+          // Atualizar a fila quando houver mudanças
+          setTimeout(() => {
+            fetchQueuePlayers();
+          }, 100);
+        }
+      )
+      .subscribe();
 
     // Canal de tempo real para detectar criação de jogos
     const gameChannel = supabase
@@ -261,6 +284,7 @@ export const useMatchmaking = () => {
 
     return () => {
       clearInterval(interval);
+      supabase.removeChannel(queueChannel);
       supabase.removeChannel(gameChannel);
     };
   }, []);
