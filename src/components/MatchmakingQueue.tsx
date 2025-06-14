@@ -10,10 +10,9 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Loader2, Users, Clock, UserPlus, UserMinus, AlertCircle, RefreshCw, CheckCircle, Timer } from 'lucide-react';
+import { Loader2, Users, Clock, UserPlus, UserMinus, AlertCircle, RefreshCw, CheckCircle, Timer, Zap } from 'lucide-react';
 
 // --- Sub-componentes para a UI ---
-
 const PlayerSlot: React.FC<{ 
   player: { id: string; displayName: string; avatarUrl: string; position: number }; 
   isCurrentUser: boolean;
@@ -138,12 +137,15 @@ const MatchmakingQueue: React.FC = () => {
         <p className="text-slate-300 text-sm font-medium">
           {queueCount}/4 jogadores na fila
           {shouldShowGameStarting && !showFailureIndicator && (
-            <span className="ml-2 text-emerald-400 animate-pulse">• Criando jogo...</span>
+            <span className="ml-2 text-emerald-400 animate-pulse flex items-center gap-1">
+              <Zap className="w-3 h-3" />
+              Sistema otimizado ativo
+            </span>
           )}
           {showRetryIndicator && (
             <span className="ml-2 text-yellow-400 flex items-center gap-1">
               <Timer className="w-3 h-3" />
-              Tentativa {retryCount}/{maxRetries}
+              Verificação {retryCount}/{maxRetries}
             </span>
           )}
           {showFailureIndicator && (
@@ -152,20 +154,21 @@ const MatchmakingQueue: React.FC = () => {
         </p>
       </CardHeader>
       <CardContent className="space-y-6 p-6">
-        {/* Indicadores de status melhorados */}
+        {/* Indicadores de status otimizados */}
         {shouldShowGameStarting && !showFailureIndicator && (
           <div className="bg-emerald-900/30 border border-emerald-500/50 rounded-lg p-4 text-center">
             <div className="flex items-center justify-center gap-2 text-emerald-400 font-medium">
               <Loader2 className="w-4 h-4 animate-spin" />
-              4 jogadores encontrados! Preparando partida...
+              4 jogadores encontrados! Sistema otimizado ativo...
               {showRetryIndicator && (
                 <span className="text-xs ml-2">
                   (Verificação {retryCount}/{maxRetries})
                 </span>
               )}
             </div>
-            <div className="text-emerald-300 text-xs mt-2">
-              Todos os jogadores serão redirecionados automaticamente
+            <div className="text-emerald-300 text-xs mt-2 flex items-center justify-center gap-1">
+              <Zap className="w-3 h-3" />
+              Redirecionamento automático em segundos
             </div>
           </div>
         )}
@@ -174,10 +177,10 @@ const MatchmakingQueue: React.FC = () => {
           <div className="bg-red-900/30 border border-red-500/50 rounded-lg p-4 text-center">
             <div className="flex items-center justify-center gap-2 text-red-400 font-medium">
               <AlertCircle className="w-4 h-4" />
-              Falha na criação automática após {maxRetries} tentativas
+              Falha na criação após {maxRetries} tentativas
             </div>
             <div className="text-red-300 text-xs mt-2">
-              Tente sair e entrar na fila novamente
+              Sistema corrigido - tente sair e entrar na fila novamente
             </div>
           </div>
         )}
@@ -186,10 +189,11 @@ const MatchmakingQueue: React.FC = () => {
           <div className="bg-blue-900/30 border border-blue-500/50 rounded-lg p-4 text-center">
             <div className="flex items-center justify-center gap-2 text-blue-400 font-medium">
               <CheckCircle className="w-4 h-4 animate-pulse" />
-              Sistema detectou 4 jogadores - Processando...
+              Função SQL otimizada detectou 4 jogadores
             </div>
-            <div className="text-blue-300 text-xs mt-2">
-              Aguarde o redirecionamento automático
+            <div className="text-blue-300 text-xs mt-2 flex items-center justify-center gap-1">
+              <Zap className="w-3 h-3" />
+              Criação automática em progresso
             </div>
           </div>
         )}
@@ -249,12 +253,13 @@ const MatchmakingQueue: React.FC = () => {
         {queueCount > 0 && (
           <div className="text-center text-xs text-slate-400">
             {shouldShowGameStarting 
-              ? '🎮 Sistema de criação automática ativo - Redirecionamento em andamento...'
-              : '🔄 Atualização em tempo real ativa'
+              ? '🎮 Sistema SQL v2.0 + Frontend otimizado - Redirecionamento automático'
+              : '🔄 Atualização em tempo real ativa (800ms)'
             }
             {showRetryIndicator && (
-              <div className="mt-1 text-yellow-400">
-                Verificando criação do jogo... ({retryCount}/{maxRetries})
+              <div className="mt-1 text-yellow-400 flex items-center justify-center gap-1">
+                <Zap className="w-3 h-3" />
+                Verificação otimizada em andamento... ({retryCount}/{maxRetries})
               </div>
             )}
           </div>

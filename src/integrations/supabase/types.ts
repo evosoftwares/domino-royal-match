@@ -300,6 +300,10 @@ export type Database = {
           game_id: string
         }[]
       }
+      cleanup_malformed_games: {
+        Args: Record<PropertyKey, never>
+        Returns: Json
+      }
       create_game_when_ready: {
         Args: Record<PropertyKey, never>
         Returns: Json

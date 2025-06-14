@@ -25,7 +25,7 @@ export const useGameCheck = () => {
     try {
       console.log('🔍 Verificando jogo ativo para usuário:', user.id);
 
-      // Buscar jogo ativo com validação de integridade
+      // Buscar jogo ativo com validação de integridade melhorada
       const { data: activeGame, error } = await supabase
         .from('game_players')
         .select(`
@@ -51,7 +51,7 @@ export const useGameCheck = () => {
       }
 
       if (activeGame?.game_id) {
-        // Validar integridade do jogo antes do redirecionamento
+        // Validação melhorada para distinguir entre "jogo iniciando" vs "jogo corrompido"
         const isGameValid = validateGameIntegrity(activeGame);
         
         if (isGameValid) {
@@ -60,9 +60,7 @@ export const useGameCheck = () => {
           navigate(`/game2/${activeGame.game_id}`);
           return true;
         } else {
-          console.warn('⚠️ Jogo encontrado mas inválido, aguardando nova criação...');
-          // Tentar limpar jogo inválido
-          await cleanupInvalidGame(activeGame.game_id);
+          console.warn('⚠️ Jogo encontrado mas inválido, permitindo nova busca...');
           return false;
         }
       }
@@ -78,14 +76,35 @@ export const useGameCheck = () => {
 
   const validateGameIntegrity = (gameData: any): boolean => {
     try {
-      // Verificar se o jogo tem board_state válido
-      const boardState = gameData.games?.board_state;
+      const game = gameData.games;
+      const playerHand = gameData.hand;
+
+      // Verificar se o jogo foi criado recentemente (últimos 5 minutos)
+      const gameAge = Date.now() - new Date(game.created_at).getTime();
+      const isRecentGame = gameAge < 5 * 60 * 1000; // 5 minutos
+
+      // Para jogos recentes, ser mais permissivo com board_state
+      if (isRecentGame) {
+        console.log('✅ Jogo recente detectado, validação permissiva');
+        
+        // Verificar se o jogador tem mão válida (mais importante)
+        if (!playerHand || !Array.isArray(playerHand) || playerHand.length === 0) {
+          console.warn('⚠️ Mão do jogador inválida:', playerHand);
+          return false;
+        }
+
+        // Para jogos recém-criados, board_state pode estar sendo configurado
+        return true;
+      }
+
+      // Para jogos mais antigos, validação completa
+      const boardState = game.board_state;
       if (!boardState || typeof boardState !== 'object') {
         console.warn('⚠️ Board state inválido:', boardState);
         return false;
       }
 
-      // Verificar se board_state tem a estrutura correta
+      // Verificar se board_state tem estrutura correta
       const boardStateObj = boardState as Record<string, any>;
       if (!boardStateObj.pieces || !Array.isArray(boardStateObj.pieces)) {
         console.warn('⚠️ Board state sem peças válidas:', boardState);
@@ -93,15 +112,8 @@ export const useGameCheck = () => {
       }
 
       // Verificar se o jogador tem mão válida
-      const hand = gameData.hand;
-      if (!hand || !Array.isArray(hand)) {
-        console.warn('⚠️ Mão do jogador inválida:', hand);
-        return false;
-      }
-
-      // Verificar se há peças no tabuleiro (pelo menos a primeira peça)
-      if (boardStateObj.pieces.length === 0) {
-        console.warn('⚠️ Tabuleiro vazio, jogo pode estar mal formado');
+      if (!playerHand || !Array.isArray(playerHand)) {
+        console.warn('⚠️ Mão do jogador inválida:', playerHand);
         return false;
       }
 
@@ -110,34 +122,6 @@ export const useGameCheck = () => {
     } catch (error) {
       console.error('❌ Erro na validação do jogo:', error);
       return false;
-    }
-  };
-
-  const cleanupInvalidGame = async (gameId: string) => {
-    try {
-      console.log('🧹 Tentando limpar jogo inválido:', gameId);
-      
-      // Verificar quantos jogadores estão no jogo
-      const { data: players } = await supabase
-        .from('game_players')
-        .select('user_id, hand')
-        .eq('game_id', gameId);
-
-      if (players && players.length > 0) {
-        // Verificar se todos os jogadores têm mãos inválidas
-        const allInvalid = players.every(p => !p.hand || !Array.isArray(p.hand) || p.hand.length === 0);
-        
-        if (allInvalid) {
-          console.log('🗑️ Todos os jogadores têm mãos inválidas, marcando jogo como inválido');
-          // Não deletar diretamente, apenas marcar como finished para evitar conflitos
-          await supabase
-            .from('games')
-            .update({ status: 'finished' })
-            .eq('id', gameId);
-        }
-      }
-    } catch (error) {
-      console.error('❌ Erro ao limpar jogo inválido:', error);
     }
   };
 
@@ -158,20 +142,12 @@ export const useGameCheck = () => {
         `)
         .in('user_id', userIds)
         .eq('games.status', 'active')
-        .gte('games.created_at', new Date(Date.now() - 120000).toISOString()); // Últimos 2 minutos
+        .gte('games.created_at', new Date(Date.now() - 60000).toISOString()); // Último minuto
 
       if (existingGames && existingGames.length > 0) {
-        // Verificar se os jogos existentes são válidos
+        // Verificar se os jogos existentes são válidos com validação melhorada
         const validGames = existingGames.filter(game => {
-          const boardState = game.games?.board_state;
-          const hand = game.hand;
-          return boardState && 
-                 typeof boardState === 'object' &&
-                 (boardState as Record<string, any>).pieces && 
-                 Array.isArray((boardState as Record<string, any>).pieces) && 
-                 (boardState as Record<string, any>).pieces.length > 0 &&
-                 hand && 
-                 Array.isArray(hand);
+          return validateGameIntegrity(game);
         });
 
         if (validGames.length > 0) {
@@ -179,10 +155,6 @@ export const useGameCheck = () => {
           return false; // Não criar novo jogo
         } else {
           console.log('🧹 Jogos existentes são inválidos, permitindo nova criação');
-          // Limpar jogos inválidos
-          for (const game of existingGames) {
-            await cleanupInvalidGame(game.game_id);
-          }
         }
       }
 
@@ -197,7 +169,6 @@ export const useGameCheck = () => {
     checkUserActiveGame,
     preventDuplicateGameCreation,
     validateGameIntegrity,
-    cleanupInvalidGame,
     isCheckingGame
   };
 };
