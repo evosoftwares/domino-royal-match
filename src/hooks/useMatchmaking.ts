@@ -1,7 +1,7 @@
-
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
+import { useNavigate } from 'react-router-dom';
 
 export interface QueuePlayer {
   id: string;
@@ -28,6 +28,7 @@ interface MatchmakingResponse {
 }
 
 export const useMatchmaking = () => {
+  const navigate = useNavigate();
   const [state, setState] = useState<MatchmakingState>({
     isInQueue: false,
     queueCount: 0,
@@ -87,6 +88,42 @@ export const useMatchmaking = () => {
 
     } catch (error) {
       console.error('Erro ao buscar participantes da fila:', error);
+    }
+  };
+
+  const checkUserInActiveGame = async () => {
+    try {
+      const { data: user } = await supabase.auth.getUser();
+      if (!user.user) return;
+
+      // Verificar se o usuário está em algum jogo ativo
+      const { data: activeGame, error } = await supabase
+        .from('game_players')
+        .select(`
+          game_id,
+          games!inner(
+            id,
+            status
+          )
+        `)
+        .eq('user_id', user.user.id)
+        .eq('games.status', 'active')
+        .order('games.created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (error) {
+        console.error('Erro ao verificar jogo ativo:', error);
+        return;
+      }
+
+      if (activeGame?.game_id) {
+        console.log('Usuário encontrado em jogo ativo:', activeGame.game_id);
+        toast.success('Partida encontrada! Redirecionando...');
+        navigate(`/game2/${activeGame.game_id}`);
+      }
+    } catch (error) {
+      console.error('Erro ao verificar se usuário está no jogo:', error);
     }
   };
 
@@ -248,10 +285,15 @@ export const useMatchmaking = () => {
 
     checkInitialStatus();
 
-    // Polling mais frequente para detectar mudanças mais rapidamente
-    const interval = setInterval(() => {
+    // Polling para atualizar a fila
+    const queueInterval = setInterval(() => {
       fetchQueuePlayers();
     }, 2000);
+
+    // Verificação a cada 3 segundos se o usuário foi inserido em um jogo ativo
+    const gameCheckInterval = setInterval(() => {
+      checkUserInActiveGame();
+    }, 3000);
 
     // Canal de tempo real para detectar mudanças na fila de matchmaking
     const queueChannel = supabase
@@ -283,11 +325,12 @@ export const useMatchmaking = () => {
       .subscribe();
 
     return () => {
-      clearInterval(interval);
+      clearInterval(queueInterval);
+      clearInterval(gameCheckInterval);
       supabase.removeChannel(queueChannel);
       supabase.removeChannel(gameChannel);
     };
-  }, []);
+  }, [navigate]);
 
   return {
     ...state,
