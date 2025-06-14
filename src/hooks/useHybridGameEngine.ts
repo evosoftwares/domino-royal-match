@@ -1,8 +1,7 @@
-
 import { useState, useCallback, useEffect, useMemo, useRef } from 'react';
 import { GameData, PlayerData, DominoPieceType } from '@/types/game';
 import { supabase } from '@/integrations/supabase/client';
-import { validateMove, standardizePiece, toBackendFormat, extractBoardEnds } from '@/utils/pieceValidation';
+import { validateMove, standardizePiece, toBackendFormat, extractBoardEnds, canPlayerPass } from '@/utils/pieceValidation';
 import { toast } from 'sonner';
 import { RealtimeChannel } from '@supabase/supabase-js';
 
@@ -382,6 +381,18 @@ export const useHybridGameEngine = ({
       return false;
     }
 
+    // Validação unificada (Fase 4)
+    const currentUserPlayer = playersState.find(p => p.user_id === userId);
+    if (!currentUserPlayer) {
+        toast.error("Erro ao verificar permissão para passar: jogador não encontrado.");
+        return false;
+    }
+
+    if (!canPlayerPass(currentUserPlayer.hand, gameState.board_state)) {
+        toast.error("Você tem peças jogáveis e não pode passar a vez.");
+        return false;
+    }
+
     setIsProcessingMove(true);
     setCurrentAction('passing');
 
@@ -408,7 +419,7 @@ export const useHybridGameEngine = ({
       setIsProcessingMove(false);
       setCurrentAction(null);
     }
-  }, [isProcessingMove, userId, gameState.current_player_turn, applyLocalPass]);
+  }, [isProcessingMove, userId, gameState.current_player_turn, applyLocalPass, playersState, gameState.board_state]);
 
   const playAutomatic = useCallback(async () => {
     if (isProcessingMove) return false;
