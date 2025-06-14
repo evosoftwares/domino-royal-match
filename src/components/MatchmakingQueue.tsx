@@ -76,6 +76,8 @@ const MatchmakingQueue: React.FC = () => {
       toast.error('Você precisa estar logado para entrar na fila');
       return;
     }
+    
+    console.log('🎯 Usuário tentando entrar na fila...');
     await joinQueue();
   };
 
@@ -84,13 +86,19 @@ const MatchmakingQueue: React.FC = () => {
       toast.error('Você precisa estar logado');
       return;
     }
+    
+    console.log('🚪 Usuário saindo da fila...');
     await leaveQueue();
   };
 
   const handleRefresh = async () => {
+    console.log('🔄 Atualizando fila manualmente...');
     await refreshQueue();
     toast.success('Fila atualizada!');
   };
+
+  // Indicador visual quando há 4 jogadores
+  const shouldShowGameStarting = queueCount >= 4;
 
   // Se está carregando inicialmente
   if (isLoading && queuePlayers.length === 0) {
@@ -111,7 +119,7 @@ const MatchmakingQueue: React.FC = () => {
       <CardHeader className="text-center p-4 border-b border-slate-700/50">
         <CardTitle className="text-slate-100 flex items-center justify-center gap-2 text-xl font-bold">
           <Users className="w-6 h-6 text-blue-400" />
-          Procurando Partida
+          {shouldShowGameStarting ? 'Iniciando Partida...' : 'Procurando Partida'}
           <Button
             onClick={handleRefresh}
             variant="ghost"
@@ -121,9 +129,23 @@ const MatchmakingQueue: React.FC = () => {
             <RefreshCw className="w-4 h-4" />
           </Button>
         </CardTitle>
-        <p className="text-slate-300 text-sm font-medium">{queueCount}/4 jogadores na fila</p>
+        <p className="text-slate-300 text-sm font-medium">
+          {queueCount}/4 jogadores na fila
+          {shouldShowGameStarting && (
+            <span className="ml-2 text-emerald-400 animate-pulse">• Criando jogo...</span>
+          )}
+        </p>
       </CardHeader>
       <CardContent className="space-y-6 p-6">
+        {shouldShowGameStarting && (
+          <div className="bg-emerald-900/30 border border-emerald-500/50 rounded-lg p-4 text-center">
+            <div className="flex items-center justify-center gap-2 text-emerald-400 font-medium">
+              <Loader2 className="w-4 h-4 animate-spin" />
+              Jogo será criado automaticamente em instantes...
+            </div>
+          </div>
+        )}
+        
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           {Array.from({ length: 4 }).map((_, index) => {
             const player = queuePlayers[index];
@@ -159,6 +181,8 @@ const MatchmakingQueue: React.FC = () => {
           className={`w-full transition-all duration-300 font-semibold text-base py-3 ${
             isInQueue 
               ? 'bg-red-600 hover:bg-red-700 text-white shadow-lg' 
+              : shouldShowGameStarting && !isInQueue
+              ? 'bg-slate-600 text-slate-400 cursor-not-allowed'
               : 'bg-blue-600 hover:bg-blue-700 text-white shadow-lg'
           }`}
         >
@@ -169,12 +193,17 @@ const MatchmakingQueue: React.FC = () => {
           ) : (
             <UserPlus className="w-5 h-5 mr-2" />
           )}
-          {isLoading ? (isInQueue ? 'Saindo...' : 'Entrando...') : (isInQueue ? 'Sair da Fila' : 'Entrar na Fila')}
+          {isLoading ? (isInQueue ? 'Saindo...' : 'Entrando...') : 
+           isInQueue ? 'Sair da Fila' : 
+           shouldShowGameStarting && !isInQueue ? 'Aguarde...' : 'Entrar na Fila'}
         </Button>
 
         {queueCount > 0 && (
           <div className="text-center text-xs text-slate-400">
-            Atualização automática a cada 3 segundos
+            {shouldShowGameStarting 
+              ? '🎮 Trigger automático ativo - Aguarde a criação do jogo...'
+              : 'Atualização automática a cada segundo'
+            }
           </div>
         )}
       </CardContent>

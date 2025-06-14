@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
@@ -73,6 +74,8 @@ export const useMatchmaking = () => {
         position: index + 1
       }));
 
+      console.log('Jogadores na fila:', players.length);
+
       setState(prev => ({ 
         ...prev, 
         queuePlayers: players,
@@ -96,19 +99,20 @@ export const useMatchmaking = () => {
       const { data: user } = await supabase.auth.getUser();
       if (!user.user) return;
 
-      // Verificar se o usuário está em algum jogo ativo
+      // Verificar se o usuário está em algum jogo ativo - CORRIGIDO SQL
       const { data: activeGame, error } = await supabase
         .from('game_players')
         .select(`
           game_id,
           games!inner(
             id,
-            status
+            status,
+            created_at
           )
         `)
         .eq('user_id', user.user.id)
         .eq('games.status', 'active')
-        .order('games.created_at', { ascending: false })
+        .order('created_at', { ascending: false, referencedTable: 'games' })
         .limit(1)
         .maybeSingle();
 
@@ -118,7 +122,7 @@ export const useMatchmaking = () => {
       }
 
       if (activeGame?.game_id) {
-        console.log('Usuário encontrado em jogo ativo:', activeGame.game_id);
+        console.log('🎮 Usuário encontrado em jogo ativo:', activeGame.game_id);
         toast.success('Partida encontrada! Redirecionando...');
         navigate(`/game2/${activeGame.game_id}`);
       }
@@ -158,33 +162,6 @@ export const useMatchmaking = () => {
     }
   };
 
-  const checkIfUserInGame = async (gameId: string) => {
-    try {
-      const { data: user } = await supabase.auth.getUser();
-      if (!user.user) return;
-
-      const { data } = await supabase
-        .from('game_players')
-        .select('*')
-        .eq('game_id', gameId)
-        .eq('user_id', user.user.id)
-        .maybeSingle();
-
-      if (data) {
-        setState(prev => ({ 
-          ...prev, 
-          isInQueue: false, 
-          gameId: gameId 
-        }));
-        toast.success('Partida encontrada! Redirecionando...');
-        // Redirecionar para o jogo
-        window.location.href = `/game2/${gameId}`;
-      }
-    } catch (error) {
-      console.error('Erro ao verificar se usuário está no jogo:', error);
-    }
-  };
-
   const joinQueue = async () => {
     setState(prev => ({ ...prev, isLoading: true }));
     
@@ -196,6 +173,7 @@ export const useMatchmaking = () => {
         return;
       }
 
+      console.log('💰 Tentando entrar na fila...');
       const { data, error } = await supabase.rpc('join_matchmaking_queue');
       
       if (error) throw error;
@@ -209,15 +187,15 @@ export const useMatchmaking = () => {
           queueCount: response.queue_count || 0
         }));
         toast.success(response.message || 'Adicionado à fila');
+        console.log('✅ Entrou na fila com sucesso. Total de jogadores:', response.queue_count);
         
-        // O trigger do banco agora faz isso automaticamente, mas mantemos para redundância
-        setTimeout(() => {
-          tryCreateGame();
-        }, 1000);
+        // Atualizar a lista de jogadores imediatamente
+        await fetchQueuePlayers();
       } else {
         toast.error(response.error || 'Erro ao entrar na fila');
       }
     } catch (error: any) {
+      console.error('❌ Erro ao entrar na fila:', error);
       toast.error(error.message || 'Erro ao entrar na fila');
     } finally {
       setState(prev => ({ ...prev, isLoading: false }));
@@ -242,32 +220,15 @@ export const useMatchmaking = () => {
           queuePlayers: []
         }));
         toast.success(response.message || 'Removido da fila');
+        console.log('🚪 Saiu da fila com sucesso');
       } else {
         toast.error(response.error || 'Erro ao sair da fila');
       }
     } catch (error: any) {
+      console.error('❌ Erro ao sair da fila:', error);
       toast.error(error.message || 'Erro ao sair da fila');
     } finally {
       setState(prev => ({ ...prev, isLoading: false }));
-    }
-  };
-
-  const tryCreateGame = async () => {
-    try {
-      const { data, error } = await supabase.rpc('create_game_when_ready');
-      
-      if (error) throw error;
-      
-      const response = data as unknown as MatchmakingResponse;
-      
-      if (response.success && response.game_id) {
-        console.log('Jogo criado com sucesso:', response.game_id);
-        // O trigger automático já cuida disso
-      } else {
-        console.log('Aguardando mais jogadores...');
-      }
-    } catch (error) {
-      console.error('Erro ao tentar criar jogo:', error);
     }
   };
 
@@ -277,6 +238,7 @@ export const useMatchmaking = () => {
         const { data: user } = await supabase.auth.getUser();
         if (!user.user) return;
 
+        console.log('🔍 Verificando status inicial...');
         await fetchQueuePlayers();
       } catch (error) {
         console.error('Erro ao verificar status inicial:', error);
@@ -285,25 +247,25 @@ export const useMatchmaking = () => {
 
     checkInitialStatus();
 
-    // Polling para atualizar a fila
+    // Polling mais agressivo para atualizar a fila quando há muitos jogadores
     const queueInterval = setInterval(() => {
       fetchQueuePlayers();
-    }, 2000);
+    }, 1000); // Reduzido para 1 segundo
 
-    // Verificação a cada 3 segundos se o usuário foi inserido em um jogo ativo
+    // Verificação mais frequente se o usuário foi inserido em um jogo ativo
     const gameCheckInterval = setInterval(() => {
       checkUserInActiveGame();
-    }, 3000);
+    }, 2000); // Reduzido para 2 segundos
 
     // Canal de tempo real para detectar mudanças na fila de matchmaking
     const queueChannel = supabase
-      .channel('matchmaking-queue-changes')
+      .channel('enhanced-matchmaking-queue')
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'matchmaking_queue' },
         (payload) => {
-          console.log('Mudança na fila detectada:', payload);
-          // Atualizar a fila quando houver mudanças
+          console.log('🔄 Mudança na fila detectada:', payload.eventType, payload.new || payload.old);
+          // Atualizar a fila imediatamente quando houver mudanças
           setTimeout(() => {
             fetchQueuePlayers();
           }, 100);
@@ -313,22 +275,45 @@ export const useMatchmaking = () => {
 
     // Canal de tempo real para detectar criação de jogos
     const gameChannel = supabase
-      .channel('game-creation')
+      .channel('enhanced-game-creation')
       .on(
         'postgres_changes',
         { event: 'INSERT', schema: 'public', table: 'games' },
         (payload) => {
-          console.log('Novo jogo detectado:', payload.new.id);
-          checkIfUserInGame(payload.new.id);
+          console.log('🎯 Novo jogo detectado:', payload.new);
+          // Verificar imediatamente se o usuário está neste jogo
+          setTimeout(() => {
+            checkUserInActiveGame();
+          }, 200);
         }
       )
       .subscribe();
+
+    // Canal para detectar mudanças nos jogadores do jogo
+    const gamePlayersChannel = supabase
+      .channel('enhanced-game-players')
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'game_players' },
+        (payload) => {
+          console.log('👤 Jogador adicionado ao jogo:', payload.new);
+          // Verificar se é o usuário atual
+          setTimeout(() => {
+            checkUserInActiveGame();
+          }, 300);
+        }
+      )
+      .subscribe();
+
+    console.log('📡 Canais de realtime configurados');
 
     return () => {
       clearInterval(queueInterval);
       clearInterval(gameCheckInterval);
       supabase.removeChannel(queueChannel);
       supabase.removeChannel(gameChannel);
+      supabase.removeChannel(gamePlayersChannel);
+      console.log('🧹 Cleanup do matchmaking concluído');
     };
   }, [navigate]);
 

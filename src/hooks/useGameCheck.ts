@@ -23,6 +23,7 @@ export const useGameCheck = () => {
     setIsCheckingGame(true);
 
     try {
+      // CORRIGIDO: Remover referência a games.created_at na ordenação
       const { data: activeGame } = await supabase
         .from('game_players')
         .select(`
@@ -35,12 +36,12 @@ export const useGameCheck = () => {
         `)
         .eq('user_id', user.id)
         .eq('games.status', 'active')
-        .order('games.created_at', { ascending: false })
+        .order('created_at', { ascending: false, referencedTable: 'games' })
         .limit(1)
         .maybeSingle();
 
       if (activeGame?.game_id) {
-        console.log('Usuário já tem jogo ativo:', activeGame.game_id);
+        console.log('🎮 Usuário já tem jogo ativo:', activeGame.game_id);
         toast.info('Redirecionando para seu jogo ativo...');
         navigate(`/game2/${activeGame.game_id}`);
         return true;
@@ -70,7 +71,7 @@ export const useGameCheck = () => {
         .gte('games.created_at', new Date(Date.now() - 120000).toISOString()); // Últimos 2 minutos
 
       if (existingGames && existingGames.length > 0) {
-        console.log('Jogadores já estão em jogos ativos:', existingGames);
+        console.log('⚠️ Jogadores já estão em jogos ativos:', existingGames);
         return false; // Não criar novo jogo
       }
 
