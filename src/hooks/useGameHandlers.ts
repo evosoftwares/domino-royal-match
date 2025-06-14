@@ -42,6 +42,19 @@ export const useGameHandlers = ({
     }
   }, [gameState.board_state]);
 
+  const handlePassClick = useCallback(() => {
+    if (!isMyTurn || isProcessingMove || !currentUserPlayer) return;
+    
+    const hasPlayablePiece = currentUserPlayer.pieces.some(canPiecePlay);
+
+    if (hasPlayablePiece) {
+      toast.error("Você tem peças jogáveis e não pode passar a vez.");
+      return;
+    }
+    
+    passTurn();
+  }, [isMyTurn, isProcessingMove, currentUserPlayer, canPiecePlay, passTurn]);
+
   const handleAutoPlay = useCallback(() => {
     if (!currentUserPlayer || !isMyTurn || isProcessingMove) return;
 
@@ -85,6 +98,7 @@ export const useGameHandlers = ({
     handleAutoPlay,
     handlePieceDrag,
     handleDragOver,
-    handleDrop
+    handleDrop,
+    handlePassClick, // Exporta o novo manipulador para a UI
   };
 };

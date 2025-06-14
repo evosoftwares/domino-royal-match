@@ -1,4 +1,3 @@
-
 import { DominoPieceType } from '@/types/game';
 
 export interface StandardPieceFormat {
@@ -135,30 +134,3 @@ export const validateMove = (
     };
   }
 };
-
-export const canPlayerPass = (hand: any[], boardState: any): boolean => {
-  if (!hand || hand.length === 0) {
-    return true; // Sem peças, deve passar.
-  }
-  
-  const boardEnds = extractBoardEnds(boardState);
-
-  // Se o tabuleiro está vazio, o primeiro jogador deve jogar, não pode passar.
-  if (boardEnds.left === null && boardEnds.right === null) {
-      return false;
-  }
-
-  // Verifica se alguma peça na mão pode ser jogada.
-  const hasPlayablePiece = hand.some(piece => {
-    try {
-      const standardPiece = standardizePiece(piece);
-      return canPieceConnect(standardPiece, boardEnds);
-    } catch(e) {
-      console.error("Erro ao padronizar peça em canPlayerPass:", e);
-      return false;
-    }
-  });
-
-  return !hasPlayablePiece; // Pode passar se não tiver peças jogáveis.
-};
-

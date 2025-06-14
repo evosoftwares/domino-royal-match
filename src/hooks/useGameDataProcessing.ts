@@ -1,6 +1,6 @@
-
 import { useMemo } from 'react';
 import { GameData, PlayerData, ProcessedPlayer, DominoPieceType } from '@/types/game';
+import { standardizePiece, toBackendFormat } from '@/utils/pieceValidation';
 
 interface UseGameDataProcessingProps {
   gameState: GameData;
@@ -17,15 +17,18 @@ export const useGameDataProcessing = ({
     return playersState.map((player): ProcessedPlayer => {
       const pieces: DominoPieceType[] = player.hand && Array.isArray(player.hand) 
         ? player.hand.map((piece: any, index: number): DominoPieceType | null => {
-            if (piece && typeof piece === 'object' && 'l' in piece && 'r' in piece) {
+            try {
+              const standard = standardizePiece(piece);
               return {
                 id: `${player.user_id}-piece-${index}`,
-                top: piece.l,
-                bottom: piece.r,
-                originalFormat: piece
+                top: standard.left,
+                bottom: standard.right,
+                originalFormat: toBackendFormat(standard)
               };
+            } catch (e) {
+              console.error(`Falha ao processar peça para o jogador ${player.user_id}:`, piece, e);
+              return null;
             }
-            return null;
           }).filter((p): p is DominoPieceType => p !== null)
         : [];
 
