@@ -3,7 +3,7 @@ import { useCallback } from 'react';
 import { DominoPieceType, GameData, PlayerData } from '@/types/game';
 import { standardizePieceFormat, validateMove, toBackendFormat } from '@/utils/standardPieceValidation';
 import { useTwoPhaseCommit } from './useTwoPhaseCommit';
-import { useServerSync } from './useServerSync';
+import { useCircuitBreakerSync } from './useCircuitBreakerSync';
 import { toast } from 'sonner';
 
 interface UseOptimisticGameActionsProps {
@@ -33,10 +33,16 @@ export const useOptimisticGameActions = ({
     onStateUpdate
   });
 
-  // Server sync hook
-  const { syncPlayMove, syncPassTurn } = useServerSync({
-    gameId: gameState.id,
-    boardState: gameState.board_state
+  // Sistema de sincronização com circuit breaker e fallback
+  const {
+    robustPlayMove,
+    robustPassTurn,
+    executeWithProtection,
+    processPendingOperations,
+    getSystemStats,
+    fallbackQueueSize
+  } = useCircuitBreakerSync({
+    gameId: gameState.id
   });
 
   // Helper: obter próximo jogador
@@ -109,7 +115,7 @@ export const useOptimisticGameActions = ({
     return { gameState: newGameState, playersState };
   }, [playersState, getNextPlayerId]);
 
-  // AÇÃO PRINCIPAL: Jogar peça com Two-Phase Commit
+  // AÇÃO PRINCIPAL: Jogar peça com Two-Phase Commit + Circuit Breaker
   const playPiece = useCallback(async (piece: DominoPieceType): Promise<boolean> => {
     if (gameState.current_player_turn !== userId) {
       toast.error("Não é sua vez de jogar");
@@ -137,16 +143,19 @@ export const useOptimisticGameActions = ({
       onStateUpdate(localUpdate.gameState, localUpdate.playersState);
       toast.success("Peça jogada! (sincronizando...)");
 
-      // FASE 2: Sincronizar com servidor em background
+      // FASE 2: Sincronizar com servidor usando circuit breaker
       try {
-        const success = await syncPlayMove(piece);
+        const success = await executeWithProtection(
+          () => robustPlayMove(piece),
+          { action: 'play_move', data: { piece } }
+        );
         
         if (success) {
           commitOperation(operationId);
           console.log('✅ Jogada confirmada pelo servidor');
         } else {
           rollbackOperation(operationId, 'rejected');
-          toast.error("Jogada rejeitada pelo servidor");
+          toast.error("Jogada rejeitada ou conexão instável");
           return false;
         }
       } catch (syncError) {
@@ -162,9 +171,9 @@ export const useOptimisticGameActions = ({
       toast.error(error.message || "Erro ao jogar peça");
       return false;
     }
-  }, [gameState, playersState, userId, hasPendingOperations, applyMoveLocally, applyOptimisticUpdate, onStateUpdate, syncPlayMove, commitOperation, rollbackOperation]);
+  }, [gameState, playersState, userId, hasPendingOperations, applyMoveLocally, applyOptimisticUpdate, onStateUpdate, executeWithProtection, robustPlayMove, commitOperation, rollbackOperation]);
 
-  // AÇÃO PRINCIPAL: Passar turno com Two-Phase Commit
+  // AÇÃO PRINCIPAL: Passar turno com Two-Phase Commit + Circuit Breaker
   const passTurn = useCallback(async (): Promise<boolean> => {
     if (gameState.current_player_turn !== userId) {
       toast.error("Não é sua vez de passar");
@@ -191,16 +200,19 @@ export const useOptimisticGameActions = ({
       onStateUpdate(localUpdate.gameState, localUpdate.playersState);
       toast.info("Você passou a vez! (sincronizando...)");
 
-      // FASE 2: Sincronizar com servidor
+      // FASE 2: Sincronizar com servidor usando circuit breaker
       try {
-        const success = await syncPassTurn();
+        const success = await executeWithProtection(
+          () => robustPassTurn(),
+          { action: 'pass_turn', data: {} }
+        );
         
         if (success) {
           commitOperation(operationId);
           console.log('✅ Passe confirmado pelo servidor');
         } else {
           rollbackOperation(operationId, 'rejected');
-          toast.error("Passe rejeitado pelo servidor");
+          toast.error("Passe rejeitado ou conexão instável");
           return false;
         }
       } catch (syncError) {
@@ -216,18 +228,32 @@ export const useOptimisticGameActions = ({
       toast.error("Erro ao passar turno");
       return false;
     }
-  }, [gameState, playersState, userId, hasPendingOperations, applyPassLocally, applyOptimisticUpdate, onStateUpdate, syncPassTurn, commitOperation, rollbackOperation]);
+  }, [gameState, playersState, userId, hasPendingOperations, applyPassLocally, applyOptimisticUpdate, onStateUpdate, executeWithProtection, robustPassTurn, commitOperation, rollbackOperation]);
+
+  // Processar operações pendentes quando conexão voltar
+  const syncPendingOperations = useCallback(async () => {
+    try {
+      await processPendingOperations();
+      toast.success("Operações pendentes sincronizadas");
+    } catch (error) {
+      console.error('❌ Erro ao processar operações pendentes:', error);
+      toast.error("Erro ao sincronizar operações pendentes");
+    }
+  }, [processPendingOperations]);
 
   return {
     // Ações principais
     playPiece,
     passTurn,
+    syncPendingOperations,
     
     // Estado
     isProcessingMove: hasPendingOperations,
     pendingOperationsCount: pendingCount,
+    fallbackQueueSize,
     
     // Métricas para debug
-    stats: getStats()
+    stats: getStats(),
+    systemStats: getSystemStats()
   };
 };
