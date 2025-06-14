@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
@@ -10,7 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Loader2, Users, Clock, UserPlus, UserMinus, AlertCircle, RefreshCw } from 'lucide-react';
+import { Loader2, Users, Clock, UserPlus, UserMinus, AlertCircle, RefreshCw, CheckCircle } from 'lucide-react';
 
 // --- Sub-componentes para a UI ---
 
@@ -68,7 +67,10 @@ const MatchmakingQueue: React.FC = () => {
     isLoading, 
     joinQueue, 
     leaveQueue,
-    refreshQueue 
+    refreshQueue,
+    isGameCreating,
+    retryCount,
+    maxRetries
   } = useMatchmaking();
 
   const handleJoinQueue = async () => {
@@ -97,8 +99,10 @@ const MatchmakingQueue: React.FC = () => {
     toast.success('Fila atualizada!');
   };
 
-  // Indicador visual quando há 4 jogadores
+  // Indicadores visuais melhorados
   const shouldShowGameStarting = queueCount >= 4;
+  const showRetryIndicator = retryCount > 0 && retryCount < maxRetries;
+  const showFailureIndicator = retryCount >= maxRetries;
 
   // Se está carregando inicialmente
   if (isLoading && queuePlayers.length === 0) {
@@ -134,14 +138,40 @@ const MatchmakingQueue: React.FC = () => {
           {shouldShowGameStarting && (
             <span className="ml-2 text-emerald-400 animate-pulse">• Criando jogo...</span>
           )}
+          {showRetryIndicator && (
+            <span className="ml-2 text-yellow-400">• Tentativa {retryCount}/{maxRetries}</span>
+          )}
+          {showFailureIndicator && (
+            <span className="ml-2 text-red-400">• Falha na criação</span>
+          )}
         </p>
       </CardHeader>
       <CardContent className="space-y-6 p-6">
-        {shouldShowGameStarting && (
+        {/* Indicadores de status melhorados */}
+        {shouldShowGameStarting && !showFailureIndicator && (
           <div className="bg-emerald-900/30 border border-emerald-500/50 rounded-lg p-4 text-center">
             <div className="flex items-center justify-center gap-2 text-emerald-400 font-medium">
               <Loader2 className="w-4 h-4 animate-spin" />
               Jogo será criado automaticamente em instantes...
+              {showRetryIndicator && <span className="text-xs">(Tentativa {retryCount})</span>}
+            </div>
+          </div>
+        )}
+        
+        {showFailureIndicator && (
+          <div className="bg-red-900/30 border border-red-500/50 rounded-lg p-4 text-center">
+            <div className="flex items-center justify-center gap-2 text-red-400 font-medium">
+              <AlertCircle className="w-4 h-4" />
+              Falha na criação automática. Tente sair e entrar na fila novamente.
+            </div>
+          </div>
+        )}
+
+        {isGameCreating && !showFailureIndicator && (
+          <div className="bg-blue-900/30 border border-blue-500/50 rounded-lg p-4 text-center">
+            <div className="flex items-center justify-center gap-2 text-blue-400 font-medium">
+              <CheckCircle className="w-4 h-4" />
+              4 jogadores encontrados! Preparando partida...
             </div>
           </div>
         )}
@@ -177,11 +207,11 @@ const MatchmakingQueue: React.FC = () => {
 
         <Button
           onClick={isInQueue ? handleLeaveQueue : handleJoinQueue}
-          disabled={!user || isLoading || (queueCount >= 4 && !isInQueue)}
+          disabled={!user || isLoading || (queueCount >= 4 && !isInQueue && !showFailureIndicator)}
           className={`w-full transition-all duration-300 font-semibold text-base py-3 ${
             isInQueue 
               ? 'bg-red-600 hover:bg-red-700 text-white shadow-lg' 
-              : shouldShowGameStarting && !isInQueue
+              : shouldShowGameStarting && !isInQueue && !showFailureIndicator
               ? 'bg-slate-600 text-slate-400 cursor-not-allowed'
               : 'bg-blue-600 hover:bg-blue-700 text-white shadow-lg'
           }`}
@@ -195,15 +225,20 @@ const MatchmakingQueue: React.FC = () => {
           )}
           {isLoading ? (isInQueue ? 'Saindo...' : 'Entrando...') : 
            isInQueue ? 'Sair da Fila' : 
-           shouldShowGameStarting && !isInQueue ? 'Aguarde...' : 'Entrar na Fila'}
+           shouldShowGameStarting && !isInQueue && !showFailureIndicator ? 'Aguarde...' : 'Entrar na Fila'}
         </Button>
 
         {queueCount > 0 && (
           <div className="text-center text-xs text-slate-400">
             {shouldShowGameStarting 
-              ? '🎮 Trigger automático ativo - Aguarde a criação do jogo...'
+              ? '🎮 Sistema automático ativo - Aguarde a criação do jogo...'
               : 'Atualização automática a cada segundo'
             }
+            {showRetryIndicator && (
+              <div className="mt-1 text-yellow-400">
+                Tentando novamente... ({retryCount}/{maxRetries})
+              </div>
+            )}
           </div>
         )}
       </CardContent>
