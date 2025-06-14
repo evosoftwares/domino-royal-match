@@ -80,8 +80,15 @@ export const useGameCheck = () => {
     try {
       // Verificar se o jogo tem board_state válido
       const boardState = gameData.games?.board_state;
-      if (!boardState || !boardState.pieces || !Array.isArray(boardState.pieces)) {
+      if (!boardState || typeof boardState !== 'object') {
         console.warn('⚠️ Board state inválido:', boardState);
+        return false;
+      }
+
+      // Verificar se board_state tem a estrutura correta
+      const boardStateObj = boardState as Record<string, any>;
+      if (!boardStateObj.pieces || !Array.isArray(boardStateObj.pieces)) {
+        console.warn('⚠️ Board state sem peças válidas:', boardState);
         return false;
       }
 
@@ -93,7 +100,7 @@ export const useGameCheck = () => {
       }
 
       // Verificar se há peças no tabuleiro (pelo menos a primeira peça)
-      if (boardState.pieces.length === 0) {
+      if (boardStateObj.pieces.length === 0) {
         console.warn('⚠️ Tabuleiro vazio, jogo pode estar mal formado');
         return false;
       }
@@ -159,9 +166,10 @@ export const useGameCheck = () => {
           const boardState = game.games?.board_state;
           const hand = game.hand;
           return boardState && 
-                 boardState.pieces && 
-                 Array.isArray(boardState.pieces) && 
-                 boardState.pieces.length > 0 &&
+                 typeof boardState === 'object' &&
+                 (boardState as Record<string, any>).pieces && 
+                 Array.isArray((boardState as Record<string, any>).pieces) && 
+                 (boardState as Record<string, any>).pieces.length > 0 &&
                  hand && 
                  Array.isArray(hand);
         });

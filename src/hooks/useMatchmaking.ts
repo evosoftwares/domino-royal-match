@@ -18,7 +18,7 @@ export interface MatchmakingState {
   isLoading: boolean;
   gameId: string | null;
   queuePlayers: QueuePlayer[];
-  isGameCreating: boolean; // Novo estado para indicar criação de jogo
+  isGameCreating: boolean;
 }
 
 interface MatchmakingResponse {
@@ -43,7 +43,8 @@ export const useMatchmaking = () => {
   });
 
   const [retryCount, setRetryCount] = useState(0);
-  const maxRetries = 3;
+  const [lastQueueCount, setLastQueueCount] = useState(0);
+  const maxRetries = 5;
 
   const fetchQueuePlayers = async () => {
     try {
@@ -74,6 +75,7 @@ export const useMatchmaking = () => {
           queueCount: 0,
           isGameCreating: false 
         }));
+        setLastQueueCount(0);
         return;
       }
 
@@ -86,11 +88,15 @@ export const useMatchmaking = () => {
 
       console.log(`📊 Jogadores na fila: ${players.length}`);
 
+      // Detectar quando chegamos a 4 jogadores pela primeira vez
+      const wasLessThan4 = lastQueueCount < 4;
+      const isNow4OrMore = players.length >= 4;
+      
       setState(prev => ({ 
         ...prev, 
         queuePlayers: players,
         queueCount: players.length,
-        isGameCreating: players.length >= 4 // Indicar que jogo está sendo criado
+        isGameCreating: isNow4OrMore
       }));
 
       // Verificar se o usuário atual está na fila
@@ -99,38 +105,47 @@ export const useMatchmaking = () => {
         const isUserInQueue = players.some(player => player.id === user.user.id);
         setState(prev => ({ ...prev, isInQueue: isUserInQueue }));
         
-        // Se temos 4+ jogadores e o usuário está na fila, verificar criação de jogo
-        if (players.length >= 4 && isUserInQueue) {
-          console.log('🎯 4 jogadores detectados, aguardando criação automática...');
+        // Se acabamos de chegar a 4 jogadores e o usuário está na fila
+        if (wasLessThan4 && isNow4OrMore && isUserInQueue) {
+          console.log('🎯 4 jogadores detectados pela primeira vez! Aguardando criação automática...');
+          setRetryCount(0);
           // Aguardar um pouco e verificar se jogo foi criado
-          setTimeout(checkForGameCreation, 2000);
+          setTimeout(() => checkForGameCreation(true), 3000);
         }
       }
+
+      setLastQueueCount(players.length);
 
     } catch (error) {
       console.error('❌ Erro ao buscar participantes da fila:', error);
     }
   };
 
-  const checkForGameCreation = useCallback(async () => {
-    console.log('🔍 Verificando se jogo foi criado automaticamente...');
+  const checkForGameCreation = useCallback(async (isInitialCheck = false) => {
+    console.log(`🔍 Verificando criação de jogo... (tentativa ${retryCount + 1}/${maxRetries})`);
     
     // Verificar se usuário foi redirecionado para jogo
     const gameFound = await checkUserActiveGame();
     
-    if (!gameFound && retryCount < maxRetries) {
+    if (gameFound) {
+      console.log('✅ Jogo encontrado e usuário redirecionado!');
+      setRetryCount(0);
+      setState(prev => ({ ...prev, isGameCreating: false }));
+      return;
+    }
+    
+    // Se não encontrou jogo, tentar novamente
+    if (retryCount < maxRetries) {
       console.log(`⏳ Jogo não encontrado, tentativa ${retryCount + 1}/${maxRetries}`);
       setRetryCount(prev => prev + 1);
       
-      // Aguardar mais um pouco e tentar novamente
-      setTimeout(checkForGameCreation, 3000);
-    } else if (!gameFound && retryCount >= maxRetries) {
+      // Aguardar progressivamente mais tempo entre tentativas
+      const delay = isInitialCheck ? 4000 : Math.min(5000 + (retryCount * 2000), 15000);
+      setTimeout(() => checkForGameCreation(false), delay);
+    } else {
       console.warn('⚠️ Jogo não foi criado após várias tentativas');
       toast.warning('Houve um problema na criação automática do jogo. Tente sair e entrar na fila novamente.');
       setState(prev => ({ ...prev, isGameCreating: false }));
-      setRetryCount(0);
-    } else if (gameFound) {
-      console.log('✅ Jogo encontrado e usuário redirecionado!');
       setRetryCount(0);
     }
   }, [checkUserActiveGame, retryCount]);
@@ -192,7 +207,7 @@ export const useMatchmaking = () => {
         toast.success(response.message || 'Adicionado à fila');
         console.log(`✅ Entrou na fila com sucesso. Total de jogadores: ${response.queue_count}`);
         
-        setRetryCount(0); // Reset retry count on successful join
+        setRetryCount(0);
         await fetchQueuePlayers();
       } else {
         toast.error(response.error || 'Erro ao entrar na fila');
@@ -225,7 +240,8 @@ export const useMatchmaking = () => {
         }));
         toast.success(response.message || 'Removido da fila');
         console.log('🚪 Saiu da fila com sucesso');
-        setRetryCount(0); // Reset retry count
+        setRetryCount(0);
+        setLastQueueCount(0);
       } else {
         toast.error(response.error || 'Erro ao sair da fila');
       }
@@ -255,73 +271,65 @@ export const useMatchmaking = () => {
     // Polling mais agressivo para detectar mudanças
     const queueInterval = setInterval(fetchQueuePlayers, 1000);
 
-    // Verificação periódica se usuário foi inserido em jogo
-    const gameCheckInterval = setInterval(async () => {
-      if (state.isGameCreating) {
-        await checkUserActiveGame();
-      }
-    }, 2000);
-
     // Canais de realtime otimizados
     const queueChannel = supabase
-      .channel('enhanced-matchmaking-queue-v2')
+      .channel('enhanced-matchmaking-queue-v3')
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'matchmaking_queue' },
         (payload) => {
           console.log('🔄 Mudança na fila detectada:', payload.eventType);
-          setTimeout(fetchQueuePlayers, 100);
+          setTimeout(fetchQueuePlayers, 200);
         }
       )
       .subscribe();
 
-    // Canal específico para criação de jogos com validação
+    // Canal específico para criação de jogos
     const gameChannel = supabase
-      .channel('enhanced-game-creation-v2')
+      .channel('enhanced-game-creation-v3')
       .on(
         'postgres_changes',
         { event: 'INSERT', schema: 'public', table: 'games' },
         async (payload) => {
-          console.log('🎯 Novo jogo detectado:', payload.new);
+          console.log('🎯 Novo jogo detectado via realtime:', payload.new);
           // Aguardar um pouco para que o jogo seja totalmente criado
           setTimeout(async () => {
             const gameFound = await checkUserActiveGame();
             if (gameFound) {
               console.log('✅ Redirecionamento via realtime bem-sucedido!');
             }
-          }, 1000);
+          }, 1500);
         }
       )
       .subscribe();
 
     // Canal para detectar adição de jogadores ao jogo
     const gamePlayersChannel = supabase
-      .channel('enhanced-game-players-v2')
+      .channel('enhanced-game-players-v3')
       .on(
         'postgres_changes',
         { event: 'INSERT', schema: 'public', table: 'game_players' },
         async (payload) => {
-          console.log('👤 Jogador adicionado ao jogo:', payload.new);
+          console.log('👤 Jogador adicionado ao jogo via realtime:', payload.new);
           const { data: user } = await supabase.auth.getUser();
           if (user.user && payload.new.user_id === user.user.id) {
-            console.log('🎮 Usuário atual foi adicionado ao jogo!');
-            setTimeout(checkUserActiveGame, 500);
+            console.log('🎮 Usuário atual foi adicionado ao jogo via realtime!');
+            setTimeout(checkUserActiveGame, 800);
           }
         }
       )
       .subscribe();
 
-    console.log('📡 Canais de realtime v2 configurados com validação');
+    console.log('📡 Canais de realtime v3 configurados');
 
     return () => {
       clearInterval(queueInterval);
-      clearInterval(gameCheckInterval);
       supabase.removeChannel(queueChannel);
       supabase.removeChannel(gameChannel);
       supabase.removeChannel(gamePlayersChannel);
-      console.log('🧹 Cleanup do matchmaking v2 concluído');
+      console.log('🧹 Cleanup do matchmaking v3 concluído');
     };
-  }, [navigate, state.isGameCreating]);
+  }, [navigate]);
 
   return {
     ...state,

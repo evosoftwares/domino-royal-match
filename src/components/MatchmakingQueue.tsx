@@ -1,3 +1,4 @@
+
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
@@ -9,7 +10,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Loader2, Users, Clock, UserPlus, UserMinus, AlertCircle, RefreshCw, CheckCircle } from 'lucide-react';
+import { Loader2, Users, Clock, UserPlus, UserMinus, AlertCircle, RefreshCw, CheckCircle, Timer } from 'lucide-react';
 
 // --- Sub-componentes para a UI ---
 
@@ -129,17 +130,21 @@ const MatchmakingQueue: React.FC = () => {
             variant="ghost"
             size="sm"
             className="ml-2 text-slate-400 hover:text-white"
+            disabled={isGameCreating}
           >
-            <RefreshCw className="w-4 h-4" />
+            <RefreshCw className={`w-4 h-4 ${isGameCreating ? 'animate-spin' : ''}`} />
           </Button>
         </CardTitle>
         <p className="text-slate-300 text-sm font-medium">
           {queueCount}/4 jogadores na fila
-          {shouldShowGameStarting && (
+          {shouldShowGameStarting && !showFailureIndicator && (
             <span className="ml-2 text-emerald-400 animate-pulse">• Criando jogo...</span>
           )}
           {showRetryIndicator && (
-            <span className="ml-2 text-yellow-400">• Tentativa {retryCount}/{maxRetries}</span>
+            <span className="ml-2 text-yellow-400 flex items-center gap-1">
+              <Timer className="w-3 h-3" />
+              Tentativa {retryCount}/{maxRetries}
+            </span>
           )}
           {showFailureIndicator && (
             <span className="ml-2 text-red-400">• Falha na criação</span>
@@ -152,8 +157,15 @@ const MatchmakingQueue: React.FC = () => {
           <div className="bg-emerald-900/30 border border-emerald-500/50 rounded-lg p-4 text-center">
             <div className="flex items-center justify-center gap-2 text-emerald-400 font-medium">
               <Loader2 className="w-4 h-4 animate-spin" />
-              Jogo será criado automaticamente em instantes...
-              {showRetryIndicator && <span className="text-xs">(Tentativa {retryCount})</span>}
+              4 jogadores encontrados! Preparando partida...
+              {showRetryIndicator && (
+                <span className="text-xs ml-2">
+                  (Verificação {retryCount}/{maxRetries})
+                </span>
+              )}
+            </div>
+            <div className="text-emerald-300 text-xs mt-2">
+              Todos os jogadores serão redirecionados automaticamente
             </div>
           </div>
         )}
@@ -162,7 +174,10 @@ const MatchmakingQueue: React.FC = () => {
           <div className="bg-red-900/30 border border-red-500/50 rounded-lg p-4 text-center">
             <div className="flex items-center justify-center gap-2 text-red-400 font-medium">
               <AlertCircle className="w-4 h-4" />
-              Falha na criação automática. Tente sair e entrar na fila novamente.
+              Falha na criação automática após {maxRetries} tentativas
+            </div>
+            <div className="text-red-300 text-xs mt-2">
+              Tente sair e entrar na fila novamente
             </div>
           </div>
         )}
@@ -170,8 +185,11 @@ const MatchmakingQueue: React.FC = () => {
         {isGameCreating && !showFailureIndicator && (
           <div className="bg-blue-900/30 border border-blue-500/50 rounded-lg p-4 text-center">
             <div className="flex items-center justify-center gap-2 text-blue-400 font-medium">
-              <CheckCircle className="w-4 h-4" />
-              4 jogadores encontrados! Preparando partida...
+              <CheckCircle className="w-4 h-4 animate-pulse" />
+              Sistema detectou 4 jogadores - Processando...
+            </div>
+            <div className="text-blue-300 text-xs mt-2">
+              Aguarde o redirecionamento automático
             </div>
           </div>
         )}
@@ -231,12 +249,12 @@ const MatchmakingQueue: React.FC = () => {
         {queueCount > 0 && (
           <div className="text-center text-xs text-slate-400">
             {shouldShowGameStarting 
-              ? '🎮 Sistema automático ativo - Aguarde a criação do jogo...'
-              : 'Atualização automática a cada segundo'
+              ? '🎮 Sistema de criação automática ativo - Redirecionamento em andamento...'
+              : '🔄 Atualização em tempo real ativa'
             }
             {showRetryIndicator && (
               <div className="mt-1 text-yellow-400">
-                Tentando novamente... ({retryCount}/{maxRetries})
+                Verificando criação do jogo... ({retryCount}/{maxRetries})
               </div>
             )}
           </div>
