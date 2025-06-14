@@ -1,6 +1,6 @@
 
 import { useCallback, useRef } from 'react';
-import { GameData, PlayerData, DominoPieceType } from '@/types/game';
+import { GameData, PlayerData } from '@/types/game';
 
 export interface ConflictType {
   id: string;

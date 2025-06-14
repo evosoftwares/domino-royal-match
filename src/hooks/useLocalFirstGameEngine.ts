@@ -4,6 +4,7 @@ import { GameData, PlayerData, DominoPieceType } from '@/types/game';
 import { useOptimisticGameActions } from './useOptimisticGameActions';
 import { useRealtimeSync } from './useRealtimeSync';
 import { usePersistentQueue } from './usePersistentQueue';
+import { useGameMetricsIntegration } from './useGameMetricsIntegration';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 
@@ -57,6 +58,14 @@ export const useLocalFirstGameEngine = ({
     onStateUpdate: handleStateUpdate
   });
 
+  // Integração de métricas do jogo
+  const gameMetrics = useGameMetricsIntegration({
+    syncStatus,
+    isProcessingMove,
+    pendingMovesCount: pendingOperationsCount,
+    gameId: gameState.id
+  });
+
   // Sincronização em tempo real
   useRealtimeSync({
     gameId: gameState.id,
@@ -65,6 +74,7 @@ export const useLocalFirstGameEngine = ({
       console.log('📥 Atualização do jogo recebida via realtime');
       setGameState(updatedGame);
       setSyncStatus('synced');
+      gameMetrics.recordGameSuccess('Realtime Game Update');
       
       // Processar operações pendentes quando servidor responder
       if (fallbackQueueSize > 0) {
@@ -79,10 +89,17 @@ export const useLocalFirstGameEngine = ({
           player.user_id === updatedPlayer.user_id ? updatedPlayer : player
         )
       );
+      gameMetrics.recordGameSuccess('Realtime Player Update');
     },
     onConnectionStatusChange: (status) => {
       const newSyncStatus: SyncStatus = status === 'connected' ? 'synced' : 'failed';
       setSyncStatus(newSyncStatus);
+      
+      if (status === 'disconnected') {
+        gameMetrics.recordGameError('Connection Lost', new Error('Realtime connection lost'));
+      } else if (status === 'connected') {
+        gameMetrics.recordGameSuccess('Connection Restored');
+      }
       
       // Quando conexão voltar, processar operações pendentes
       if (status === 'connected' && fallbackQueueSize > 0) {
@@ -104,6 +121,8 @@ export const useLocalFirstGameEngine = ({
     setCurrentAction('playing');
     setSyncStatus('pending');
     
+    const startTime = performance.now();
+    
     // Adicionar à fila persistente como backup
     persistentQueue.addItem({
       type: 'play_move',
@@ -112,19 +131,27 @@ export const useLocalFirstGameEngine = ({
       priority: 1
     });
     
-    const result = await optimisticPlayPiece(piece);
-    
-    // Remover da fila se sucesso
-    if (result) {
-      // Limpar item da fila persistente
-      persistentQueue.cleanupExpired();
+    try {
+      const result = await optimisticPlayPiece(piece);
+      
+      // Remover da fila se sucesso
+      if (result) {
+        persistentQueue.cleanupExpired();
+        gameMetrics.recordGameSuccess('Play Piece', performance.now() - startTime);
+      } else {
+        gameMetrics.recordGameError('Play Piece', new Error('Failed to play piece'), performance.now() - startTime);
+      }
+      
+      setSyncStatus(result ? 'synced' : 'failed');
+      return result;
+    } catch (error) {
+      gameMetrics.recordGameError('Play Piece', error, performance.now() - startTime);
+      setSyncStatus('failed');
+      return false;
+    } finally {
+      setCurrentAction(null);
     }
-    
-    setCurrentAction(null);
-    setSyncStatus(result ? 'synced' : 'failed');
-    
-    return result;
-  }, [isMyTurn, isProcessingMove, optimisticPlayPiece, persistentQueue]);
+  }, [isMyTurn, isProcessingMove, optimisticPlayPiece, persistentQueue, gameMetrics]);
 
   const passTurn = useCallback(async (): Promise<boolean> => {
     if (!isMyTurn || isProcessingMove) {
@@ -134,6 +161,8 @@ export const useLocalFirstGameEngine = ({
     setCurrentAction('passing');
     setSyncStatus('pending');
     
+    const startTime = performance.now();
+    
     // Adicionar à fila persistente como backup
     persistentQueue.addItem({
       type: 'pass_turn',
@@ -142,24 +171,34 @@ export const useLocalFirstGameEngine = ({
       priority: 1
     });
     
-    const result = await optimisticPassTurn();
-    
-    // Remover da fila se sucesso
-    if (result) {
-      persistentQueue.cleanupExpired();
+    try {
+      const result = await optimisticPassTurn();
+      
+      // Remover da fila se sucesso
+      if (result) {
+        persistentQueue.cleanupExpired();
+        gameMetrics.recordGameSuccess('Pass Turn', performance.now() - startTime);
+      } else {
+        gameMetrics.recordGameError('Pass Turn', new Error('Failed to pass turn'), performance.now() - startTime);
+      }
+      
+      setSyncStatus(result ? 'synced' : 'failed');
+      return result;
+    } catch (error) {
+      gameMetrics.recordGameError('Pass Turn', error, performance.now() - startTime);
+      setSyncStatus('failed');
+      return false;
+    } finally {
+      setCurrentAction(null);
     }
-    
-    setCurrentAction(null);
-    setSyncStatus(result ? 'synced' : 'failed');
-    
-    return result;
-  }, [isMyTurn, isProcessingMove, optimisticPassTurn, persistentQueue]);
+  }, [isMyTurn, isProcessingMove, optimisticPassTurn, persistentQueue, gameMetrics]);
 
   // Auto play (mantido do código original)
   const playAutomatic = useCallback(async (): Promise<boolean> => {
     if (isProcessingMove) return false;
 
     setCurrentAction('auto_playing');
+    const startTime = performance.now();
     
     try {
       const { data, error } = await supabase.rpc('play_piece_periodically', {
@@ -168,48 +207,55 @@ export const useLocalFirstGameEngine = ({
       
       if (error) throw error;
       
+      gameMetrics.recordGameSuccess('Auto Play', performance.now() - startTime);
       toast.success('Jogada automática realizada!');
       return true;
     } catch (error) {
       console.error('❌ Erro no auto play:', error);
+      gameMetrics.recordGameError('Auto Play', error, performance.now() - startTime);
       toast.error('Erro no jogo automático');
       return false;
     } finally {
       setCurrentAction(null);
     }
-  }, [isProcessingMove, gameState.id]);
+  }, [isProcessingMove, gameState.id, gameMetrics]);
 
   // Sincronização manual forçada
   const forceSync = useCallback(async () => {
     console.log('🔧 Forçando sincronização...');
     setCurrentAction('syncing');
+    const startTime = performance.now();
     
     try {
       await syncPendingOperations();
+      gameMetrics.recordGameSuccess('Force Sync', performance.now() - startTime);
       toast.success('Sincronização completa');
     } catch (error) {
       console.error('❌ Erro na sincronização forçada:', error);
+      gameMetrics.recordGameError('Force Sync', error, performance.now() - startTime);
       toast.error('Erro na sincronização');
     } finally {
       setCurrentAction(null);
     }
-  }, [syncPendingOperations]);
+  }, [syncPendingOperations, gameMetrics]);
 
   // Funções de utilidade
   const getStateHealth = useCallback(() => {
     const queueStats = persistentQueue.getStats();
+    const healthStatus = gameMetrics.getHealthStatus();
     
     return {
       syncStatus,
       pendingOperations: pendingOperationsCount,
       fallbackQueue: fallbackQueueSize,
       persistentQueue: queueStats.total,
-      isHealthy: syncStatus === 'synced' && pendingOperationsCount === 0 && fallbackQueueSize === 0,
+      isHealthy: syncStatus === 'synced' && pendingOperationsCount === 0 && fallbackQueueSize === 0 && healthStatus.status === 'healthy',
       lastSyncAttempt: Date.now(),
       stats,
-      systemStats
+      systemStats,
+      healthMetrics: healthStatus
     };
-  }, [syncStatus, pendingOperationsCount, fallbackQueueSize, persistentQueue, stats, systemStats]);
+  }, [syncStatus, pendingOperationsCount, fallbackQueueSize, persistentQueue, stats, systemStats, gameMetrics]);
 
   // Sincronizar estados iniciais quando props mudam
   useEffect(() => {
@@ -262,7 +308,8 @@ export const useLocalFirstGameEngine = ({
       conflictCount: 0,
       lastSyncAttempt: Date.now(),
       stats,
-      systemStats
+      systemStats,
+      healthMetrics: gameMetrics.getHealthStatus()
     }
   };
 };
