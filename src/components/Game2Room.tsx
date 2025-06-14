@@ -1,14 +1,14 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { toast } from 'sonner';
 import { GameData, PlayerData, ProcessedPlayer, DominoPieceType } from '@/types/game';
 import GameBoard from './GameBoard';
-import OpponentsList from './OpponentsList';
+import OptimizedOpponentsList from './OptimizedOpponentsList';
 import PlayerHand from './PlayerHand';
 import GamePlayersHeader from './GamePlayersHeader';
-import { useIsMobile } from '@/hooks/use-mobile';
-import { useGameLogic } from '@/hooks/useGameLogic';
+import { useIsMobile } from '@/hooks/use-is-mobile';
+import { useOptimizedGameLogic } from '@/hooks/useOptimizedGameLogic';
+import { useOptimizedGameTimer } from '@/hooks/useOptimizedGameTimer';
 import { 
   standardizePiece, 
   extractBoardEnds,
@@ -33,8 +33,13 @@ const Game2Room: React.FC<Game2RoomProps> = ({
   const [playersState, setPlayersState] = useState(initialPlayers);
   const [currentDraggedPiece, setCurrentDraggedPiece] = useState<DominoPieceType | null>(null);
 
-  // Usar o hook unificado de lógica de jogo
-  const { playPiece, passTurn, playAutomatic, isProcessingMove, currentAction } = useGameLogic({
+  const { 
+    playPiece, 
+    passTurn, 
+    isProcessingMove, 
+    currentAction,
+    isMyTurn
+  } = useOptimizedGameLogic({
     gameId: gameState.id,
     userId: user?.id,
     currentPlayerTurn: gameState.current_player_turn,
@@ -112,6 +117,27 @@ const Game2Room: React.FC<Game2RoomProps> = ({
     }
   }, [gameState.board_state]);
 
+  const handleAutoPlay = useCallback(() => {
+    if (!currentUserPlayer || !isMyTurn || isProcessingMove) return;
+
+    const playablePieces = currentUserPlayer.pieces.filter(canPiecePlay);
+    if (playablePieces.length > 0) {
+      // IA simples: joga a primeira peça válida
+      const pieceToPlay = playablePieces[0];
+      toast.info(`Jogando peça automaticamente: [${pieceToPlay.top}|${pieceToPlay.bottom}]`);
+      playPiece(pieceToPlay);
+    } else {
+      toast.info('Nenhuma peça jogável, passando a vez automaticamente.');
+      passTurn();
+    }
+  }, [currentUserPlayer, isMyTurn, isProcessingMove, canPiecePlay, playPiece, passTurn]);
+
+  const { timeLeft, isWarning } = useOptimizedGameTimer({
+    isMyTurn: isMyTurn,
+    onTimeout: handleAutoPlay,
+    isGameActive: gameState.status === 'active',
+  });
+
   const handlePieceDrag = (piece: DominoPieceType) => {
     console.log('Iniciando drag da peça:', piece);
     setCurrentDraggedPiece(piece);
@@ -132,17 +158,6 @@ const Game2Room: React.FC<Game2RoomProps> = ({
     setCurrentDraggedPiece(null);
   };
 
-  const handleAutoPlay = () => {
-    const playablePieces = currentUserPlayer?.pieces.filter(canPiecePlay);
-    if (!playablePieces || playablePieces.length === 0) {
-      toast.info('Nenhuma peça jogável, passando a vez.');
-      passTurn();
-      return;
-    }
-    playAutomatic();
-  };
-
-  // Adicionar verificação de vitória
   const winState = useGameWinCheck({
     players: processedPlayers,
     gameStatus: gameState.status
@@ -164,13 +179,11 @@ const Game2Room: React.FC<Game2RoomProps> = ({
     <div className="min-h-screen bg-gradient-to-br from-purple-900 via-purple-800 to-black overflow-hidden">
       <GamePlayersHeader gameId={gameState.id} />
       
-      {/* Feedback de ações */}
       <ActionFeedback 
         isProcessing={isProcessingMove}
         action={currentAction}
       />
       
-      {/* Dialog de vitória */}
       <WinnerDialog 
         winner={winState.winner}
         winType={winState.winType}
@@ -180,7 +193,6 @@ const Game2Room: React.FC<Game2RoomProps> = ({
       
       {isMobile ? (
         <div className="h-screen flex flex-col relative">
-          {/* Header com oponentes - mobile */}
           <div className="flex-shrink-0 p-2">
             <div className="grid grid-cols-3 gap-2">
               {opponents.slice(0, 3).map((opponent) => (
@@ -193,7 +205,6 @@ const Game2Room: React.FC<Game2RoomProps> = ({
             </div>
           </div>
 
-          {/* Tabuleiro - mobile */}
           <div className="flex-1 flex items-center justify-center p-2">
             <GameBoard 
               placedPieces={placedPieces} 
@@ -203,7 +214,6 @@ const Game2Room: React.FC<Game2RoomProps> = ({
             />
           </div>
 
-          {/* Mão do jogador - mobile */}
           <div className="flex-shrink-0 p-2">
             {currentUserPlayer && (
               <PlayerHand 
@@ -215,6 +225,8 @@ const Game2Room: React.FC<Game2RoomProps> = ({
                 isProcessingMove={isProcessingMove}
                 canPiecePlay={canPiecePlay}
                 onAutoPlay={handleAutoPlay}
+                timeLeft={timeLeft}
+                isWarning={isWarning}
               />
             )}
           </div>
@@ -222,7 +234,7 @@ const Game2Room: React.FC<Game2RoomProps> = ({
       ) : (
         <div className="min-h-screen flex flex-col">
           <div className="flex-shrink-0 p-4">
-            <OpponentsList opponents={opponents} />
+            <OptimizedOpponentsList opponents={opponents} />
           </div>
           <div className="flex-1 flex items-center justify-center p-4 px-0 py-[56px] my-0">
             <GameBoard 
@@ -244,6 +256,8 @@ const Game2Room: React.FC<Game2RoomProps> = ({
                   isProcessingMove={isProcessingMove}
                   canPiecePlay={canPiecePlay}
                   onAutoPlay={handleAutoPlay}
+                  timeLeft={timeLeft}
+                  isWarning={isWarning}
                 />
               )}
             </div>

@@ -1,10 +1,9 @@
-
 import React, { useState } from 'react';
 import DominoPiece from './DominoPiece';
 import { DominoPieceType } from '@/types/game';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
-import { useIsMobile } from '@/hooks/use-mobile';
+import { useIsMobile } from '@/hooks/use-is-mobile';
 
 interface PlayerHandProps {
   playerPieces: DominoPieceType[];
@@ -13,6 +12,7 @@ interface PlayerHandProps {
   isCurrentPlayer: boolean;
   playerName: string;
   timeLeft?: number;
+  isWarning?: boolean;
   onAutoPlay?: () => void;
   isProcessingMove?: boolean;
   canPiecePlay?: (piece: DominoPieceType) => boolean;
@@ -25,6 +25,7 @@ const PlayerHand: React.FC<PlayerHandProps> = ({
   isCurrentPlayer,
   playerName,
   timeLeft = 30,
+  isWarning = false,
   onAutoPlay,
   isProcessingMove = false,
   canPiecePlay
@@ -106,7 +107,7 @@ const PlayerHand: React.FC<PlayerHandProps> = ({
           {isCurrentPlayer && (
             <div className={cn(
               "font-mono px-3 py-1 rounded-full",
-              timeLeft <= 3 ? "bg-red-500 text-white animate-pulse" : "bg-yellow-400 text-black",
+              isWarning ? "bg-red-500 text-white animate-pulse" : "bg-yellow-400 text-black",
               isMobile ? "text-xs" : "text-sm"
             )}>
               {timeLeft}s
