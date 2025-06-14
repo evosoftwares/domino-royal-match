@@ -36,7 +36,7 @@ export const useCircuitBreaker = () => {
     return false;
   }, [circuitState]);
 
-  const recordSuccess = useCallback(() => {
+  const recordSuccess = useCallback((responseTime: number) => {
     if (circuitState.isOpen) {
       console.log('✅ Circuit breaker: Fechando após sucesso');
       setCircuitState({
@@ -48,7 +48,7 @@ export const useCircuitBreaker = () => {
     }
   }, [circuitState.isOpen]);
 
-  const recordFailure = useCallback((error: any) => {
+  const recordFailure = useCallback((responseTime: number, error: any) => {
     const now = Date.now();
     const newFailureCount = circuitState.failureCount + 1;
 
