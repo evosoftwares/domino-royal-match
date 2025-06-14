@@ -1,7 +1,7 @@
 
 import { useState, useCallback, useEffect, useMemo } from 'react';
 import { GameData, PlayerData, DominoPieceType } from '@/types/game';
-import { validateMove, standardizePiece, toBackendFormat, extractBoardEnds } from '@/utils/pieceValidation';
+import { validateMove, standardizePiece, toBackendFormat, extractBoardEnds, arePiecesEqual } from '@/utils/pieceValidation';
 import { toast } from 'sonner';
 
 interface UseLocalGameEngineProps {
@@ -47,17 +47,15 @@ export const useLocalGameEngine = ({
         return;
     }
     
-    // 1. Update Player's Hand
-    const standardPieceToPlay = standardizePiece(piece);
+    // 1. Update Player's Hand - usar peça já padronizada
+    const standardPieceToPlay = { top: piece.top, bottom: piece.bottom };
     const updatedPlayers = playersState.map(p => {
         if (p.user_id === userId) {
             let found = false;
             const newHand = p.hand.filter((p_piece: any) => {
                 if (found) return true;
-                const standard = standardizePiece(p_piece);
-                const isMatch = (standard.left === standardPieceToPlay.left && standard.right === standardPieceToPlay.right) ||
-                                (standard.left === standardPieceToPlay.right && standard.right === standardPieceToPlay.left);
-                if (isMatch) {
+                // Usar função de comparação robusta
+                if (arePiecesEqual(p_piece, standardPieceToPlay)) {
                     found = true;
                     return false;
                 }
@@ -80,26 +78,26 @@ export const useLocalGameEngine = ({
 
     if (newPieces.length === 0) {
         newPieces.push({ piece: toBackendFormat(standardPieceToPlay), rotation: 0 });
-        newLeftEnd = standardPieceToPlay.left;
-        newRightEnd = standardPieceToPlay.right;
+        newLeftEnd = standardPieceToPlay.top;
+        newRightEnd = standardPieceToPlay.bottom;
     } else if (side === 'left') {
         let pieceForBoard;
-        if (standardPieceToPlay.right === boardEnds.left) {
-            newLeftEnd = standardPieceToPlay.left;
-            pieceForBoard = { l: standardPieceToPlay.left, r: standardPieceToPlay.right };
+        if (standardPieceToPlay.bottom === boardEnds.left) {
+            newLeftEnd = standardPieceToPlay.top;
+            pieceForBoard = { l: standardPieceToPlay.top, r: standardPieceToPlay.bottom };
         } else {
-            newLeftEnd = standardPieceToPlay.right;
-            pieceForBoard = { l: standardPieceToPlay.right, r: standardPieceToPlay.left };
+            newLeftEnd = standardPieceToPlay.bottom;
+            pieceForBoard = { l: standardPieceToPlay.bottom, r: standardPieceToPlay.top };
         }
         newPieces.unshift({ piece: pieceForBoard, rotation: 0 });
     } else { // side === 'right'
         let pieceForBoard;
-        if (standardPieceToPlay.left === boardEnds.right) {
-            newRightEnd = standardPieceToPlay.right;
-            pieceForBoard = { l: standardPieceToPlay.left, r: standardPieceToPlay.right };
+        if (standardPieceToPlay.top === boardEnds.right) {
+            newRightEnd = standardPieceToPlay.bottom;
+            pieceForBoard = { l: standardPieceToPlay.top, r: standardPieceToPlay.bottom };
         } else {
-            newRightEnd = standardPieceToPlay.left;
-            pieceForBoard = { l: standardPieceToPlay.right, r: standardPieceToPlay.left };
+            newRightEnd = standardPieceToPlay.top;
+            pieceForBoard = { l: standardPieceToPlay.bottom, r: standardPieceToPlay.top };
         }
         newPieces.push({ piece: pieceForBoard, rotation: 0 });
     }
