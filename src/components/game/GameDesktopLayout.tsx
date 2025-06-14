@@ -14,6 +14,7 @@ interface GameDesktopLayoutProps {
     handleDragOver: (e: React.DragEvent) => void;
     handlePieceDrag: (piece: DominoPieceType) => void;
     handleAutoPlay: () => void;
+    handlePassClick: () => void;
     canPiecePlay: (piece: DominoPieceType) => boolean;
   };
   playPiece: (piece: DominoPieceType) => void;
@@ -57,6 +58,7 @@ const GameDesktopLayout: React.FC<GameDesktopLayoutProps> = ({
               isProcessingMove={isProcessingMove}
               canPiecePlay={gameHandlers.canPiecePlay}
               onAutoPlay={gameHandlers.handleAutoPlay}
+              onPassTurn={gameHandlers.handlePassClick}
               timeLeft={timeLeft}
               isWarning={isWarning}
             />

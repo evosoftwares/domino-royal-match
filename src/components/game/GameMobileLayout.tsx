@@ -14,6 +14,7 @@ interface GameMobileLayoutProps {
     handleDragOver: (e: React.DragEvent) => void;
     handlePieceDrag: (piece: DominoPieceType) => void;
     handleAutoPlay: () => void;
+    handlePassClick: () => void;
     canPiecePlay: (piece: DominoPieceType) => boolean;
   };
   playPiece: (piece: DominoPieceType) => void;
@@ -56,6 +57,7 @@ const GameMobileLayout: React.FC<GameMobileLayoutProps> = ({
             isProcessingMove={isProcessingMove}
             canPiecePlay={gameHandlers.canPiecePlay}
             onAutoPlay={gameHandlers.handleAutoPlay}
+            onPassTurn={gameHandlers.handlePassClick}
             timeLeft={timeLeft}
             isWarning={isWarning}
           />

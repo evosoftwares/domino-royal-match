@@ -15,6 +15,7 @@ interface PlayerHandProps {
   timeLeft?: number;
   isWarning?: boolean;
   onAutoPlay?: () => void;
+  onPassTurn?: () => void;
   isProcessingMove?: boolean;
   canPiecePlay?: (piece: DominoPieceType) => boolean;
 }
@@ -28,6 +29,7 @@ const PlayerHand: React.FC<PlayerHandProps> = ({
   timeLeft = 30,
   isWarning = false,
   onAutoPlay,
+  onPassTurn,
   isProcessingMove = false,
   canPiecePlay
 }) => {
@@ -102,6 +104,18 @@ const PlayerHand: React.FC<PlayerHandProps> = ({
               className="bg-yellow-400/10 border-yellow-400/50 text-yellow-400 hover:bg-yellow-400/20"
             >
               {isProcessingMove ? 'Processando...' : 'Auto Play'}
+            </Button>
+          )}
+
+          {isCurrentPlayer && onPassTurn && !isMobile && (
+            <Button 
+              onClick={onPassTurn}
+              disabled={isProcessingMove}
+              size="sm"
+              variant="outline"
+              className="bg-red-400/10 border-red-400/50 text-red-400 hover:bg-red-400/20"
+            >
+              {isProcessingMove ? 'Processando...' : 'Passar'}
             </Button>
           )}
           

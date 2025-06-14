@@ -99,6 +99,6 @@ export const useGameHandlers = ({
     handlePieceDrag,
     handleDragOver,
     handleDrop,
-    handlePassClick, // Exporta o novo manipulador para a UI
+    handlePassClick,
   };
 };
