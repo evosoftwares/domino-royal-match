@@ -15,6 +15,7 @@ interface UseGameHandlersProps {
   isProcessingMove: boolean;
   playPiece: (piece: DominoPieceType) => void;
   passTurn: () => void;
+  playAutomatic?: () => void;
 }
 
 export const useGameHandlers = ({
@@ -23,7 +24,8 @@ export const useGameHandlers = ({
   isMyTurn,
   isProcessingMove,
   playPiece,
-  passTurn
+  passTurn,
+  playAutomatic
 }: UseGameHandlersProps) => {
   const [currentDraggedPiece, setCurrentDraggedPiece] = useState<DominoPieceType | null>(null);
 
@@ -50,9 +52,13 @@ export const useGameHandlers = ({
       playPiece(pieceToPlay);
     } else {
       toast.info('Nenhuma peça jogável, passando a vez automaticamente.');
-      passTurn();
+      if (playAutomatic) {
+        playAutomatic();
+      } else {
+        passTurn();
+      }
     }
-  }, [currentUserPlayer, isMyTurn, isProcessingMove, canPiecePlay, playPiece, passTurn]);
+  }, [currentUserPlayer, isMyTurn, isProcessingMove, canPiecePlay, playPiece, passTurn, playAutomatic]);
 
   const handlePieceDrag = (piece: DominoPieceType) => {
     console.log('Iniciando drag da peça:', piece);

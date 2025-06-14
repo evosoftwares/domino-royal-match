@@ -4,7 +4,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { GameData, PlayerData } from '@/types/game';
 import GamePlayersHeader from './GamePlayersHeader';
 import { useIsMobile } from '@/hooks/use-mobile';
-import { useLocalGameEngine } from '@/hooks/useLocalGameEngine';
+import { useHybridGameEngine } from '@/hooks/useHybridGameEngine';
 import { useOptimizedGameTimer } from '@/hooks/useOptimizedGameTimer';
 import WinnerDialog from './WinnerDialog';
 import ActionFeedback from './ActionFeedback';
@@ -32,10 +32,13 @@ const Game2Room: React.FC<Game2RoomProps> = ({
     playersState,
     playPiece,
     passTurn,
+    playAutomatic,
     isMyTurn,
     isProcessingMove,
-    currentAction
-  } = useLocalGameEngine({
+    currentAction,
+    retryCount,
+    pendingMovesCount
+  } = useHybridGameEngine({
     gameData: initialGameData,
     players: initialPlayers,
     userId: user?.id,
@@ -63,7 +66,11 @@ const Game2Room: React.FC<Game2RoomProps> = ({
 
   const { timeLeft, isWarning } = useOptimizedGameTimer({
     isMyTurn: isMyTurn,
-    onTimeout: gameHandlers.handleAutoPlay,
+    onTimeout: () => {
+      if (!isProcessingMove) {
+        gameHandlers.handleAutoPlay();
+      }
+    },
     isGameActive: gameState.status === 'active',
   });
 
@@ -89,6 +96,15 @@ const Game2Room: React.FC<Game2RoomProps> = ({
         isProcessing={isProcessingMove}
         action={currentAction}
       />
+
+      {/* Indicador de sincronização */}
+      {(retryCount > 0 || pendingMovesCount > 0) && (
+        <div className="fixed top-16 right-4 bg-blue-900/90 backdrop-blur-sm rounded-lg p-2 border border-blue-600/50 shadow-lg z-40">
+          <p className="text-xs text-blue-200">
+            {retryCount > 0 ? `Sincronizando... ${retryCount}/3` : `${pendingMovesCount} ação(ões) pendente(s)`}
+          </p>
+        </div>
+      )}
       
       <WinnerDialog 
         winner={winState.winner}
