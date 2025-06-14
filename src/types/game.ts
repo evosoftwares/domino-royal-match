@@ -1,4 +1,3 @@
-
 export interface PlayerProfile {
   full_name: string;
   avatar_url: string;
@@ -11,6 +10,7 @@ export interface GameData {
   current_player_turn: string | null;
   board_state: any;
   created_at: string;
+  consecutive_passes: number;
 }
 
 export interface PlayerData {

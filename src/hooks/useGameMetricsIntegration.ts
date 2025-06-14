@@ -1,4 +1,3 @@
-
 import { useCallback, useEffect } from 'react';
 import { useSystemHealthMonitor } from './useSystemHealthMonitor';
 
@@ -20,6 +19,11 @@ export const useGameMetricsIntegration = ({
     recordError,
     getHealthStatus
   } = useSystemHealthMonitor();
+
+  // Record game actions
+  const recordGameAction = useCallback((action: string) => {
+    console.log(`🎬 Ação do jogo: ${action}`);
+  }, []);
 
   // Record successful operations
   const recordGameSuccess = useCallback((operation: string, responseTime?: number) => {
@@ -50,6 +54,7 @@ export const useGameMetricsIntegration = ({
   }, [pendingMovesCount, recordGameError]);
 
   return {
+    recordGameAction,
     recordGameSuccess,
     recordGameError,
     getHealthStatus
