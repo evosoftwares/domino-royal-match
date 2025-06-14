@@ -36,24 +36,38 @@ const processPlayerPieces = (player: PlayerData): DominoPieceType[] => {
   if (cached && (now - cached.timestamp) < CACHE_EXPIRY_MS) {
     const piecesHash = createPiecesHash(player.hand || []);
     if (cached.hash === piecesHash) {
+      console.log(`💾 Cache hit para jogador ${player.user_id} (${cached.pieces.length} peças)`);
       return cached.pieces;
     }
   }
 
+  console.log(`🔄 Processando peças para jogador ${player.user_id}...`);
+  
   // Processar peças com padronização
   let pieces: DominoPieceType[] = [];
   
   if (player.hand && Array.isArray(player.hand)) {
+    const startTime = performance.now();
+    
     pieces = player.hand.map((piece: any, index: number): DominoPieceType | null => {
       try {
         return toDominoPieceType(piece, `${player.user_id}-piece-${index}`);
       } catch (error) {
-        console.error(`Falha ao processar peça ${index} para jogador ${player.user_id}:`, piece, error);
+        console.error(`❌ Falha ao processar peça ${index} para jogador ${player.user_id}:`, piece, error);
         return null;
       }
     }).filter((p): p is DominoPieceType => p !== null);
+    
+    const endTime = performance.now();
+    const duration = endTime - startTime;
+    
+    console.log(`✅ Processadas ${pieces.length} peças em ${duration.toFixed(2)}ms para ${player.user_id}`);
+    
+    if (duration > 10) {
+      console.warn(`⚠️ Processamento lento de peças para ${player.user_id}: ${duration.toFixed(2)}ms`);
+    }
   } else {
-    console.warn(`Jogador ${player.user_id} tem mão inválida:`, player.hand);
+    console.warn(`⚠️ Jogador ${player.user_id} tem mão inválida:`, player.hand);
   }
 
   // Atualizar cache com timestamp e limite de tamanho
@@ -70,6 +84,7 @@ const processPlayerPieces = (player: PlayerData): DominoPieceType[] => {
       .sort(([,a], [,b]) => a.timestamp - b.timestamp)[0]?.[0];
     if (oldestKey) {
       playerPiecesCache.delete(oldestKey);
+      console.log(`🧹 Removido do cache: ${oldestKey}`);
     }
   }
 
@@ -83,9 +98,14 @@ export const useGameDataProcessing = ({
 }: UseGameDataProcessingProps) => {
   // Memoização otimizada para cada jogador
   const processedPlayersMap = useMemo(() => {
+    console.group('👥 Processando dados dos jogadores');
+    const startTime = performance.now();
+    
     const playersMap = new Map<string, ProcessedPlayer>();
     
-    playersState.forEach((player) => {
+    playersState.forEach((player, index) => {
+      console.log(`Processando jogador ${index + 1}/${playersState.length}: ${player.user_id}`);
+      
       const pieces = processPlayerPieces(player);
       const playerName = player.profiles?.full_name || `Jogador ${player.position || 'Desconhecido'}`;
 
@@ -97,7 +117,15 @@ export const useGameDataProcessing = ({
         position: player.position || 0,
         originalData: player
       });
+      
+      console.log(`  ✅ ${playerName}: ${pieces.length} peças processadas`);
     });
+
+    const endTime = performance.now();
+    const duration = endTime - startTime;
+    
+    console.log(`🏁 Processamento completo em ${duration.toFixed(2)}ms`);
+    console.groupEnd();
 
     return playersMap;
   }, [playersState, gameState.current_player_turn]);
@@ -109,24 +137,32 @@ export const useGameDataProcessing = ({
   );
 
   // Memoização para jogador atual
-  const currentUserPlayer = useMemo(() => 
-    userId ? processedPlayersMap.get(userId) : undefined,
-    [processedPlayersMap, userId]
-  );
+  const currentUserPlayer = useMemo(() => {
+    const player = userId ? processedPlayersMap.get(userId) : undefined;
+    if (player && userId) {
+      console.log(`🎯 Jogador atual: ${player.name} (${player.pieces.length} peças)`);
+    }
+    return player;
+  }, [processedPlayersMap, userId]);
 
   // Memoização para oponentes
-  const opponents = useMemo(() => 
-    processedPlayers.filter(p => p.id !== userId),
-    [processedPlayers, userId]
-  );
+  const opponents = useMemo(() => {
+    const opponentsList = processedPlayers.filter(p => p.id !== userId);
+    console.log(`👤 Oponentes: ${opponentsList.map(o => `${o.name}(${o.pieces.length})`).join(', ')}`);
+    return opponentsList;
+  }, [processedPlayers, userId]);
 
   // Memoização otimizada para peças do tabuleiro com padronização completa
   const placedPieces = useMemo(() => {
     if (!gameState?.board_state?.pieces || !Array.isArray(gameState.board_state.pieces)) {
+      console.log('📋 Tabuleiro vazio');
       return [];
     }
 
-    return gameState.board_state.pieces.map((boardPiece: any, index: number): DominoPieceType | null => {
+    console.group('📋 Processando peças do tabuleiro');
+    const startTime = performance.now();
+
+    const pieces = gameState.board_state.pieces.map((boardPiece: any, index: number): DominoPieceType | null => {
       try {
         let piece;
         
@@ -137,25 +173,67 @@ export const useGameDataProcessing = ({
           piece = boardPiece;
         }
 
-        return toDominoPieceType(piece, `board-piece-${index}`);
+        const processed = toDominoPieceType(piece, `board-piece-${index}`);
+        console.log(`  Peça ${index}: [${processed.top}|${processed.bottom}]`);
+        return processed;
       } catch (error) {
-        console.error('Erro ao processar peça do tabuleiro:', boardPiece, error);
+        console.error(`❌ Erro ao processar peça ${index} do tabuleiro:`, boardPiece, error);
         return null;
       }
     }).filter((p): p is DominoPieceType => p !== null);
+
+    const endTime = performance.now();
+    const duration = endTime - startTime;
+    
+    console.log(`✅ ${pieces.length} peças do tabuleiro processadas em ${duration.toFixed(2)}ms`);
+    console.groupEnd();
+
+    return pieces;
   }, [gameState.board_state]);
 
   // Função para limpar cache
   const clearCache = useCallback(() => {
+    const sizeBefore = playerPiecesCache.size;
     playerPiecesCache.clear();
+    console.log(`🧹 Cache limpo: ${sizeBefore} entradas removidas`);
   }, []);
 
   // Estatísticas do cache para debugging
-  const getCacheStats = useCallback(() => ({
-    size: playerPiecesCache.size,
-    keys: Array.from(playerPiecesCache.keys()),
-    oldestEntry: Math.min(...Array.from(playerPiecesCache.values()).map(v => v.timestamp))
-  }), []);
+  const getCacheStats = useCallback(() => {
+    const stats = {
+      size: playerPiecesCache.size,
+      keys: Array.from(playerPiecesCache.keys()),
+      oldestEntry: playerPiecesCache.size > 0 ? Math.min(...Array.from(playerPiecesCache.values()).map(v => v.timestamp)) : 0,
+      totalMemoryUsage: Array.from(playerPiecesCache.values()).reduce((acc, entry) => acc + entry.pieces.length, 0)
+    };
+    
+    console.group('💾 Estatísticas do Cache');
+    console.log('Entradas ativas:', stats.size);
+    console.log('Peças em cache:', stats.totalMemoryUsage);
+    console.log('Idade da entrada mais antiga:', stats.oldestEntry ? `${Date.now() - stats.oldestEntry}ms` : 'N/A');
+    console.groupEnd();
+    
+    return stats;
+  }, []);
+
+  // Função para otimizar cache (remover entradas antigas)
+  const optimizeCache = useCallback(() => {
+    const now = Date.now();
+    const entriesBefore = playerPiecesCache.size;
+    
+    for (const [key, entry] of playerPiecesCache.entries()) {
+      if (now - entry.timestamp > CACHE_EXPIRY_MS) {
+        playerPiecesCache.delete(key);
+      }
+    }
+    
+    const entriesAfter = playerPiecesCache.size;
+    const removed = entriesBefore - entriesAfter;
+    
+    if (removed > 0) {
+      console.log(`🔧 Cache otimizado: ${removed} entradas antigas removidas`);
+    }
+  }, []);
 
   return {
     processedPlayers,
@@ -163,6 +241,7 @@ export const useGameDataProcessing = ({
     opponents,
     placedPieces,
     clearCache,
-    getCacheStats
+    getCacheStats,
+    optimizeCache
   };
 };
