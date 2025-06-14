@@ -4,9 +4,10 @@ import { useAuth } from '@/hooks/useAuth';
 import { GameData, PlayerData } from '@/types/game';
 import GamePlayersHeader from './GamePlayersHeader';
 import { useIsMobile } from '@/hooks/use-mobile';
-import { useSimplifiedGameEngine } from '@/hooks/useSimplifiedGameEngine';
+import { useLocalFirstGameEngine } from '@/hooks/useLocalFirstGameEngine';
 import { useOptimizedGameTimer } from '@/hooks/useOptimizedGameTimer';
-import { useCommunicationRobustness } from '@/hooks/useCommunicationRobustness';
+import { useStateValidator } from '@/hooks/useStateValidator';
+import { usePersistentQueue } from '@/hooks/usePersistentQueue';
 import WinnerDialog from './WinnerDialog';
 import ActionFeedback from './ActionFeedback';
 import { useGameWinCheck } from '@/hooks/useGameWinCheck';
@@ -16,6 +17,7 @@ import GameLoadingScreen from './game/GameLoadingScreen';
 import GameMobileLayout from './game/GameMobileLayout';
 import GameDesktopLayout from './game/GameDesktopLayout';
 import GameHealthIndicator from './game/GameHealthIndicator';
+import { toast } from 'sonner';
 
 interface Game2RoomProps {
   gameData: GameData;
@@ -29,7 +31,7 @@ const Game2Room: React.FC<Game2RoomProps> = ({
   const { user } = useAuth();
   const isMobile = useIsMobile();
   
-  // Engine de jogo simplificado
+  // Engine de jogo local-first
   const {
     gameState,
     playersState,
@@ -39,22 +41,46 @@ const Game2Room: React.FC<Game2RoomProps> = ({
     isMyTurn,
     isProcessingMove,
     currentAction,
+    syncStatus,
     pendingMovesCount,
-    connectionStatus
-  } = useSimplifiedGameEngine({
+    getStateHealth,
+    forceSync,
+    debugInfo
+  } = useLocalFirstGameEngine({
     gameData: initialGameData,
     players: initialPlayers,
     userId: user?.id,
   });
 
-  // Sistema de comunicação robusta
-  const {
-    robustPlayMove,
-    robustPassTurn,
-    getSystemHealth,
-    isCircuitOpen,
-    healthMetrics
-  } = useCommunicationRobustness(gameState.id);
+  // Fila persistente para recuperação
+  const persistentQueue = usePersistentQueue({
+    gameId: gameState.id,
+    maxItems: 30,
+    maxAge: 600000 // 10 minutos
+  });
+
+  // Validação contínua de estado
+  useStateValidator({
+    gameState,
+    playersState,
+    onCorruption: (result) => {
+      console.error('💥 Corrupção detectada:', result);
+      toast.error(`Estado corrompido detectado (${result.confidence}% confiança)`);
+      
+      // Se muito corrompido, forçar sync
+      if (result.confidence < 30) {
+        console.log('🔧 Forçando sincronização devido à corrupção');
+        forceSync();
+      }
+    },
+    onValidationFailed: (errors) => {
+      console.warn('⚠️ Validação falhou:', errors);
+      if (errors.length > 3) {
+        toast.warning('Problemas de sincronização detectados');
+      }
+    },
+    validationInterval: 15000 // 15 segundos
+  });
 
   // Processamento de dados do jogo
   const {
@@ -68,53 +94,14 @@ const Game2Room: React.FC<Game2RoomProps> = ({
     userId: user?.id
   });
 
-  // Wrapper para comunicação robusta integrada
-  const enhancedPlayPiece = async (piece: any) => {
-    try {
-      if (isCircuitOpen) {
-        console.warn('⛔ Circuit breaker aberto, usando engine local');
-        return await playPiece(piece);
-      }
-      
-      // Tentar comunicação robusta primeiro
-      const result = await robustPlayMove(piece);
-      if (result !== null) return true;
-      
-      // Fallback para engine local
-      return await playPiece(piece);
-    } catch (error) {
-      console.error('Erro em enhancedPlayPiece:', error);
-      return await playPiece(piece);
-    }
-  };
-
-  const enhancedPassTurn = async () => {
-    try {
-      if (isCircuitOpen) {
-        console.warn('⛔ Circuit breaker aberto, usando engine local');
-        return await passTurn();
-      }
-      
-      // Tentar comunicação robusta primeiro
-      const result = await robustPassTurn();
-      if (result !== null) return true;
-      
-      // Fallback para engine local
-      return await passTurn();
-    } catch (error) {
-      console.error('Erro em enhancedPassTurn:', error);
-      return await passTurn();
-    }
-  };
-
-  // Handlers do jogo
+  // Handlers do jogo com integração local-first
   const gameHandlers = useGameHandlers({
     gameState,
     currentUserPlayer,
     isMyTurn,
     isProcessingMove,
-    playPiece: enhancedPlayPiece,
-    passTurn: enhancedPassTurn
+    playPiece,
+    passTurn
   });
 
   // Timer otimizado
@@ -133,6 +120,23 @@ const Game2Room: React.FC<Game2RoomProps> = ({
     players: processedPlayers,
     gameStatus: gameState.status
   });
+
+  // Health do sistema
+  const systemHealth = React.useMemo(() => {
+    const stateHealth = getStateHealth();
+    const queueStats = persistentQueue.getStats();
+    
+    return {
+      isHealthy: stateHealth.isHealthy && syncStatus !== 'failed',
+      syncStatus,
+      pendingOperations: stateHealth.pendingOperations,
+      conflictCount: stateHealth.conflictCount,
+      queueSize: queueStats.total,
+      retryCount: queueStats.retryCount,
+      lastSync: stateHealth.lastSyncAttempt,
+      connectionStatus: stateHealth.isHealthy ? 'connected' : 'degraded'
+    };
+  }, [getStateHealth, syncStatus, persistentQueue]);
 
   if (gameState.status !== 'active') {
     return (
@@ -153,10 +157,26 @@ const Game2Room: React.FC<Game2RoomProps> = ({
       />
 
       <GameHealthIndicator
-        connectionStatus={connectionStatus}
-        serverHealth={getSystemHealth()}
+        connectionStatus={systemHealth.connectionStatus as any}
+        serverHealth={systemHealth}
         pendingMovesCount={pendingMovesCount}
       />
+      
+      {/* Debug info para desenvolvimento */}
+      {process.env.NODE_ENV === 'development' && (
+        <div className="fixed top-20 right-4 bg-black/80 text-white p-2 rounded text-xs max-w-xs">
+          <div>Sync: {syncStatus}</div>
+          <div>Pending: {pendingMovesCount}</div>
+          <div>Queue: {persistentQueue.size}</div>
+          <div>Conflicts: {debugInfo.conflictCount}</div>
+          <button 
+            onClick={forceSync}
+            className="bg-blue-600 px-2 py-1 rounded mt-1 text-xs"
+          >
+            Force Sync
+          </button>
+        </div>
+      )}
       
       <WinnerDialog 
         winner={winState.winner}
@@ -171,7 +191,7 @@ const Game2Room: React.FC<Game2RoomProps> = ({
           placedPieces={placedPieces}
           currentUserPlayer={currentUserPlayer}
           gameHandlers={gameHandlers}
-          playPiece={enhancedPlayPiece}
+          playPiece={playPiece}
           isProcessingMove={isProcessingMove}
           timeLeft={timeLeft}
           isWarning={isWarning}
@@ -182,7 +202,7 @@ const Game2Room: React.FC<Game2RoomProps> = ({
           placedPieces={placedPieces}
           currentUserPlayer={currentUserPlayer}
           gameHandlers={gameHandlers}
-          playPiece={enhancedPlayPiece}
+          playPiece={playPiece}
           isProcessingMove={isProcessingMove}
           timeLeft={timeLeft}
           isWarning={isWarning}
