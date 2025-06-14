@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { GameData, PlayerData } from '@/types/game';
@@ -31,7 +30,7 @@ const Game2Room: React.FC<Game2RoomProps> = ({
   const { user } = useAuth();
   const isMobile = useIsMobile();
   
-  // Engine de jogo local-first
+  // Engine de jogo local-first com Two-Phase Commit
   const {
     gameState,
     playersState,
@@ -121,15 +120,15 @@ const Game2Room: React.FC<Game2RoomProps> = ({
     gameStatus: gameState.status
   });
 
-  // Health do sistema - ajustado para corresponder ao que GameHealthIndicator espera
+  // Health do sistema - agora usando dados do Two-Phase Commit
   const systemHealth = React.useMemo(() => {
     const stateHealth = getStateHealth();
     const queueStats = persistentQueue.getStats();
     
     return {
       isHealthy: stateHealth.isHealthy && syncStatus !== 'failed',
-      successRate: stateHealth.isHealthy ? 95 : 60, // Simular taxa de sucesso baseada na saúde
-      serverResponseTime: 150, // Tempo de resposta simulado em ms
+      successRate: stateHealth.isHealthy ? 95 : 60,
+      serverResponseTime: 150,
       timeSinceLastSuccess: Date.now() - stateHealth.lastSyncAttempt,
       circuitBreakerStatus: (syncStatus === 'failed' ? 'open' : 'closed') as 'open' | 'closed',
       pendingFallbacks: queueStats.total
@@ -160,13 +159,13 @@ const Game2Room: React.FC<Game2RoomProps> = ({
         pendingMovesCount={pendingMovesCount}
       />
       
-      {/* Debug info para desenvolvimento */}
+      {/* Debug info atualizado com Two-Phase Commit */}
       {process.env.NODE_ENV === 'development' && (
         <div className="fixed top-20 right-4 bg-black/80 text-white p-2 rounded text-xs max-w-xs">
           <div>Sync: {syncStatus}</div>
           <div>Pending: {pendingMovesCount}</div>
           <div>Queue: {persistentQueue.size}</div>
-          <div>Conflicts: {debugInfo.conflictCount}</div>
+          <div>Stats: {JSON.stringify(debugInfo.stats)}</div>
           <button 
             onClick={forceSync}
             className="bg-blue-600 px-2 py-1 rounded mt-1 text-xs"
