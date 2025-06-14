@@ -1,5 +1,4 @@
-
-import React, { useState } from 'react';
+import React from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { GameData, PlayerData } from '@/types/game';
 import GamePlayersHeader from './GamePlayersHeader';
@@ -21,6 +20,7 @@ import GameLoadingScreen from './game/GameLoadingScreen';
 import GameMobileLayout from './game/GameMobileLayout';
 import GameDesktopLayout from './game/GameDesktopLayout';
 import GameHealthIndicator from './game/GameHealthIndicator';
+import { useGameDebug } from '@/hooks/useGameDebug';
 import { toast } from 'sonner';
 
 interface Game2RoomProps {
@@ -36,7 +36,6 @@ const Game2Room: React.FC<Game2RoomProps> = ({
 }) => {
   const { user } = useAuth();
   const isMobile = useIsMobile();
-  const [showHealthDashboard, setShowHealthDashboard] = useState(false);
   
   // Engine de jogo unificado
   const {
@@ -200,37 +199,19 @@ const Game2Room: React.FC<Game2RoomProps> = ({
       toast.error('Erro ao executar testes');
     }
   }, [isRunningTests, runIntegrationTests, gameState, playersState, playPiece, syncStatus, recordError, reconcileStates]);
+  
+  const handleResetMetrics = React.useCallback(() => {
+    resetMetrics();
+    toast.info('Métricas resetadas');
+  }, [resetMetrics]);
 
-  // Keyboard shortcuts expandidos
-  React.useEffect(() => {
-    const handleKeyPress = (event: KeyboardEvent) => {
-      if (event.ctrlKey || event.metaKey) {
-        switch (event.key) {
-          case 'h':
-            event.preventDefault();
-            setShowHealthDashboard(!showHealthDashboard);
-            break;
-          case 't':
-            event.preventDefault();
-            handleRunTests();
-            break;
-          case 'r':
-            event.preventDefault();
-            resetMetrics();
-            toast.info('Métricas resetadas');
-            break;
-          case 's':
-            event.preventDefault();
-            forceSync();
-            break;
-        }
-      }
-    };
-
-    window.addEventListener('keydown', handleKeyPress);
-    return () => window.removeEventListener('keydown', handleKeyPress);
-  }, [showHealthDashboard, handleRunTests, resetMetrics, forceSync]);
-
+  // Hook para funcionalidades de depuração
+  const { showHealthDashboard, setShowHealthDashboard } = useGameDebug({
+    onRunTests: handleRunTests,
+    onResetMetrics: handleResetMetrics,
+    onForceSync: forceSync,
+  });
+  
   // Handlers para resolução de conflitos
   const handleResolveConflict = (conflictId: string, resolution: 'use_local' | 'use_server' | 'merge', mergedValue?: any) => {
     resolveCriticalConflict(conflictId, resolution, mergedValue);
@@ -323,7 +304,7 @@ const Game2Room: React.FC<Game2RoomProps> = ({
               {isRunningTests ? '⏳' : 'Test'}
             </button>
             <button 
-              onClick={resetMetrics}
+              onClick={handleResetMetrics}
               className="bg-orange-600 px-2 py-1 rounded text-xs"
             >
               Reset
