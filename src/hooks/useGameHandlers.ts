@@ -1,5 +1,5 @@
 
-import { useState, useCallback } from 'react';
+import { useCallback } from 'react';
 import { DominoPieceType } from '@/types/game';
 import { toast } from 'sonner';
 import { gameCache, createPieceValidationKey } from '@/utils/gameCache';
@@ -24,8 +24,6 @@ export const useGameHandlers = ({
   passTurn,
   playAutomatic
 }: UseGameHandlersProps) => {
-  const [currentDraggedPiece, setCurrentDraggedPiece] = useState<DominoPieceType | null>(null);
-
   // Verificação otimizada se peça pode jogar usando cache centralizado
   const canPiecePlay = useCallback((piece: DominoPieceType): boolean => {
     try {
@@ -81,28 +79,44 @@ export const useGameHandlers = ({
     }
   }, [currentUserPlayer, isMyTurn, isProcessingMove, canPiecePlay, playPiece, passTurn, playAutomatic]);
 
-  const handlePieceDrag = (piece: DominoPieceType) => {
-    setCurrentDraggedPiece(piece);
-  };
-
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault();
     e.dataTransfer.dropEffect = 'move';
   };
 
-  const handleDrop = (e: React.DragEvent) => {
+  const handleDrop = useCallback((e: React.DragEvent) => {
     e.preventDefault();
     
-    if (currentDraggedPiece && isMyTurn && !isProcessingMove) {
-      playPiece(currentDraggedPiece);
+    if (!isMyTurn || isProcessingMove) {
+      toast.warning("Aguarde, processando jogada anterior ou não é sua vez.");
+      return;
     }
-    setCurrentDraggedPiece(null);
-  };
+
+    try {
+      const pieceJSON = e.dataTransfer.getData('application/json');
+      if (!pieceJSON) {
+        console.warn('Dropped item has no "application/json" data.');
+        return;
+      }
+      
+      const piece = JSON.parse(pieceJSON) as DominoPieceType;
+      
+      if (!piece || typeof piece.top !== 'number' || typeof piece.bottom !== 'number' || !piece.id) {
+          toast.error("Dados da peça inválidos ou corrompidos.");
+          return;
+      }
+      
+      playPiece(piece);
+
+    } catch (error) {
+      console.error('Erro ao processar o drop da peça:', error);
+      toast.error('Ocorreu um erro ao soltar a peça.');
+    }
+  }, [isMyTurn, isProcessingMove, playPiece]);
 
   return {
     canPiecePlay,
     handleAutoPlay,
-    handlePieceDrag,
     handleDragOver,
     handleDrop,
     handlePassClick,

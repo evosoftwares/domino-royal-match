@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import DominoPiece from './DominoPiece';
 import { DominoPieceType } from '@/types/game';
@@ -8,7 +7,6 @@ import { useIsMobile } from '@/hooks/use-mobile';
 
 interface PlayerHandProps {
   playerPieces: DominoPieceType[];
-  onPieceDrag: (piece: DominoPieceType) => void;
   onPiecePlay: (piece: DominoPieceType) => void;
   isCurrentPlayer: boolean;
   playerName: string;
@@ -22,7 +20,6 @@ interface PlayerHandProps {
 
 const PlayerHand: React.FC<PlayerHandProps> = ({
   playerPieces,
-  onPieceDrag,
   onPiecePlay,
   isCurrentPlayer,
   playerName,
@@ -49,7 +46,6 @@ const PlayerHand: React.FC<PlayerHandProps> = ({
     }
 
     setDraggedPiece(piece);
-    onPieceDrag(piece);
     
     e.dataTransfer.effectAllowed = 'move';
     e.dataTransfer.setData('text/plain', piece.id);

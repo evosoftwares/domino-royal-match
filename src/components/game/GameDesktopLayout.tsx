@@ -12,7 +12,6 @@ interface GameDesktopLayoutProps {
   gameHandlers: {
     handleDrop: (e: React.DragEvent) => void;
     handleDragOver: (e: React.DragEvent) => void;
-    handlePieceDrag: (piece: DominoPieceType) => void;
     handleAutoPlay: () => void;
     handlePassClick: () => void;
     canPiecePlay: (piece: DominoPieceType) => boolean;
@@ -51,7 +50,6 @@ const GameDesktopLayout: React.FC<GameDesktopLayoutProps> = ({
           {currentUserPlayer && (
             <PlayerHand 
               playerPieces={currentUserPlayer.pieces}
-              onPieceDrag={gameHandlers.handlePieceDrag}
               onPiecePlay={playPiece}
               isCurrentPlayer={currentUserPlayer.isCurrentPlayer}
               playerName={currentUserPlayer.name}
