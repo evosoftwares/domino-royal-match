@@ -16,11 +16,7 @@ export const useCircuitBreakerSync = ({ gameId }: UseCircuitBreakerSyncProps) =>
     recordSuccess,
     recordFailure,
     isOpen
-  } = useCircuitBreaker({
-    failureThreshold: 3,
-    recoveryTimeout: 30000, // 30 segundos
-    monitoringWindow: 60000 // 1 minuto
-  });
+  } = useCircuitBreaker();
 
   // Fila de fallback para operações offline
   const {
