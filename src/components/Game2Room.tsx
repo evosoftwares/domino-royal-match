@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { toast } from 'sonner';
@@ -8,7 +7,7 @@ import OptimizedOpponentsList from './OptimizedOpponentsList';
 import PlayerHand from './PlayerHand';
 import GamePlayersHeader from './GamePlayersHeader';
 import { useIsMobile } from '@/hooks/use-mobile';
-import { useOptimizedGameLogic } from '@/hooks/useOptimizedGameLogic';
+import { useLocalGameEngine } from '@/hooks/useLocalGameEngine';
 import { useOptimizedGameTimer } from '@/hooks/useOptimizedGameTimer';
 import { 
   standardizePiece, 
@@ -30,30 +29,22 @@ const Game2Room: React.FC<Game2RoomProps> = ({
 }) => {
   const { user } = useAuth();
   const isMobile = useIsMobile();
-  const [gameState, setGameState] = useState(initialGameData);
-  const [playersState, setPlayersState] = useState(initialPlayers);
-  const [currentDraggedPiece, setCurrentDraggedPiece] = useState<DominoPieceType | null>(null);
-
-  const { 
-    playPiece, 
-    passTurn, 
-    isProcessingMove, 
-    currentAction,
-    isMyTurn
-  } = useOptimizedGameLogic({
-    gameId: gameState.id,
+  
+  const {
+    gameState,
+    playersState,
+    playPiece,
+    passTurn,
+    isMyTurn,
+    isProcessingMove,
+    currentAction
+  } = useLocalGameEngine({
+    gameData: initialGameData,
+    players: initialPlayers,
     userId: user?.id,
-    currentPlayerTurn: gameState.current_player_turn,
-    boardState: gameState.board_state
   });
 
-  useEffect(() => {
-    setGameState(initialGameData);
-  }, [initialGameData]);
-
-  useEffect(() => {
-    setPlayersState(initialPlayers);
-  }, [initialPlayers]);
+  const [currentDraggedPiece, setCurrentDraggedPiece] = useState<DominoPieceType | null>(null);
 
   const processedPlayers: ProcessedPlayer[] = playersState.map((player): ProcessedPlayer => {
     const pieces: DominoPieceType[] = player.hand && Array.isArray(player.hand) 
@@ -153,7 +144,7 @@ const Game2Room: React.FC<Game2RoomProps> = ({
     e.preventDefault();
     console.log('Drop detectado');
     
-    if (currentDraggedPiece && currentUserPlayer?.isCurrentPlayer && !isProcessingMove) {
+    if (currentDraggedPiece && isMyTurn && !isProcessingMove) {
       playPiece(currentDraggedPiece);
     }
     setCurrentDraggedPiece(null);
