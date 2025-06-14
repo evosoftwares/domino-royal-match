@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
@@ -15,6 +14,9 @@ import {
   extractBoardEnds,
   canPieceConnect 
 } from '@/utils/pieceValidation';
+import WinnerDialog from './WinnerDialog';
+import ActionFeedback from './ActionFeedback';
+import { useGameWinCheck } from '@/hooks/useGameWinCheck';
 
 interface Game2RoomProps {
   gameData: GameData;
@@ -32,7 +34,7 @@ const Game2Room: React.FC<Game2RoomProps> = ({
   const [currentDraggedPiece, setCurrentDraggedPiece] = useState<DominoPieceType | null>(null);
 
   // Usar o hook unificado de lógica de jogo
-  const { playPiece, passTurn, playAutomatic, isProcessingMove } = useGameLogic({
+  const { playPiece, passTurn, playAutomatic, isProcessingMove, currentAction } = useGameLogic({
     gameId: gameState.id,
     userId: user?.id,
     currentPlayerTurn: gameState.current_player_turn,
@@ -140,6 +142,12 @@ const Game2Room: React.FC<Game2RoomProps> = ({
     playAutomatic();
   };
 
+  // Adicionar verificação de vitória
+  const winState = useGameWinCheck({
+    players: processedPlayers,
+    gameStatus: gameState.status
+  });
+
   if (gameState.status !== 'active') {
     return (
       <div className="min-h-screen bg-gradient-to-br from-purple-900 via-purple-800 to-black flex items-center justify-center">
@@ -155,6 +163,21 @@ const Game2Room: React.FC<Game2RoomProps> = ({
   return (
     <div className="min-h-screen bg-gradient-to-br from-purple-900 via-purple-800 to-black overflow-hidden">
       <GamePlayersHeader gameId={gameState.id} />
+      
+      {/* Feedback de ações */}
+      <ActionFeedback 
+        isProcessing={isProcessingMove}
+        action={currentAction}
+      />
+      
+      {/* Dialog de vitória */}
+      <WinnerDialog 
+        winner={winState.winner}
+        winType={winState.winType}
+        isVisible={winState.hasWinner}
+        currentUserId={user?.id}
+      />
+      
       {isMobile ? (
         <div className="h-screen flex flex-col relative">
           {/* Header com oponentes - mobile */}

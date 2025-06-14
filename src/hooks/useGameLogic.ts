@@ -12,8 +12,11 @@ interface UseGameLogicProps {
   boardState: any;
 }
 
+type ActionType = 'playing' | 'passing' | 'auto_playing' | null;
+
 export const useGameLogic = ({ gameId, userId, currentPlayerTurn, boardState }: UseGameLogicProps) => {
   const [isProcessingMove, setIsProcessingMove] = useState(false);
+  const [currentAction, setCurrentAction] = useState<ActionType>(null);
 
   const playPiece = useCallback(async (piece: DominoPieceType) => {
     console.log('useGameLogic: Tentando jogar peça:', piece);
@@ -37,6 +40,7 @@ export const useGameLogic = ({ gameId, userId, currentPlayerTurn, boardState }: 
     }
 
     setIsProcessingMove(true);
+    setCurrentAction('playing');
     
     try {
       // Preparar peça no formato do backend
@@ -69,6 +73,7 @@ export const useGameLogic = ({ gameId, userId, currentPlayerTurn, boardState }: 
       return false;
     } finally {
       setIsProcessingMove(false);
+      setCurrentAction(null);
     }
   }, [isProcessingMove, userId, currentPlayerTurn, gameId, boardState]);
 
@@ -77,6 +82,7 @@ export const useGameLogic = ({ gameId, userId, currentPlayerTurn, boardState }: 
     
     console.log('useGameLogic: Passando a vez...');
     setIsProcessingMove(true);
+    setCurrentAction('passing');
     
     try {
       const { error } = await supabase.rpc('pass_turn', {
@@ -98,6 +104,7 @@ export const useGameLogic = ({ gameId, userId, currentPlayerTurn, boardState }: 
       return false;
     } finally {
       setIsProcessingMove(false);
+      setCurrentAction(null);
     }
   }, [gameId, isProcessingMove]);
 
@@ -106,6 +113,7 @@ export const useGameLogic = ({ gameId, userId, currentPlayerTurn, boardState }: 
     
     console.log('useGameLogic: Executando auto-play...');
     setIsProcessingMove(true);
+    setCurrentAction('auto_playing');
     
     try {
       const { error } = await supabase.rpc('play_piece_periodically', {
@@ -127,6 +135,7 @@ export const useGameLogic = ({ gameId, userId, currentPlayerTurn, boardState }: 
       return false;
     } finally {
       setIsProcessingMove(false);
+      setCurrentAction(null);
     }
   }, [gameId, isProcessingMove]);
 
@@ -134,6 +143,7 @@ export const useGameLogic = ({ gameId, userId, currentPlayerTurn, boardState }: 
     playPiece,
     passTurn,
     playAutomatic,
-    isProcessingMove
+    isProcessingMove,
+    currentAction
   };
 };

@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
@@ -12,6 +11,9 @@ import { GameData, PlayerData } from '@/types/game';
 import { useGameLogic } from '@/hooks/useGameLogic';
 import { useGameTimer } from '@/hooks/useGameTimer';
 import { standardizePiece, extractBoardEnds, canPieceConnect } from '@/utils/pieceValidation';
+import WinnerDialog from './WinnerDialog';
+import ActionFeedback from './ActionFeedback';
+import { useGameWinCheck } from '@/hooks/useGameWinCheck';
 
 interface GameRoomProps {
   gameData: GameData;
@@ -25,7 +27,7 @@ const GameRoom: React.FC<GameRoomProps> = ({ gameData: initialGameData, players:
   const [currentDraggedPiece, setCurrentDraggedPiece] = useState<DominoPieceType | null>(null);
 
   // Usar hooks unificados
-  const { playPiece, passTurn, playAutomatic, isProcessingMove } = useGameLogic({
+  const { playPiece, passTurn, playAutomatic, isProcessingMove, currentAction } = useGameLogic({
     gameId: gameState.id,
     userId: user?.id,
     currentPlayerTurn: gameState.current_player_turn,
@@ -141,6 +143,12 @@ const GameRoom: React.FC<GameRoomProps> = ({ gameData: initialGameData, players:
     playAutomatic();
   };
 
+  // Adicionar verificação de vitória
+  const winState = useGameWinCheck({
+    players: processedPlayers,
+    gameStatus: gameState.status
+  });
+
   if (gameState.status !== 'active') {
     return (
       <div className="min-h-screen bg-gradient-to-br from-purple-900 via-purple-800 to-black flex items-center justify-center">
@@ -156,6 +164,20 @@ const GameRoom: React.FC<GameRoomProps> = ({ gameData: initialGameData, players:
   return (
     <div className="min-h-screen bg-gradient-to-br from-purple-900 via-purple-800 to-black p-4">
       <div className="max-w-7xl mx-auto">
+        {/* Feedback de ações */}
+        <ActionFeedback 
+          isProcessing={isProcessingMove}
+          action={currentAction}
+        />
+        
+        {/* Dialog de vitória */}
+        <WinnerDialog 
+          winner={winState.winner}
+          winType={winState.winType}
+          isVisible={winState.hasWinner}
+          currentUserId={user?.id}
+        />
+
         <OpponentsDisplay opponents={otherPlayers} />
 
         <GameBoard
