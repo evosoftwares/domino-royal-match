@@ -59,8 +59,32 @@ export const useServerSync = ({ gameId, boardState }: UseServerSyncProps) => {
     }
   }, [gameId]);
 
+  // Auto play function
+  const syncAutoPlay = useCallback(async (): Promise<boolean> => {
+    try {
+      console.log('🔄 Sincronizando auto play com servidor');
+      
+      const { data, error } = await supabase.rpc('play_piece_periodically', {
+        p_game_id: gameId,
+      });
+      
+      if (error) {
+        console.error('❌ Erro no servidor ao fazer auto play:', error);
+        return false;
+      }
+      
+      console.log('✅ Auto play sincronizado com sucesso:', data);
+      return true;
+      
+    } catch (error) {
+      console.error('❌ Erro de rede ao sincronizar auto play:', error);
+      return false;
+    }
+  }, [gameId]);
+
   return {
     syncPlayMove,
-    syncPassTurn
+    syncPassTurn,
+    syncAutoPlay
   };
 };

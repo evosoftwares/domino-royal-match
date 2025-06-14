@@ -16,7 +16,7 @@ export const useCircuitBreakerSync = ({ gameId }: UseCircuitBreakerSyncProps) =>
     shouldAllowRequest,
     recordSuccess,
     recordFailure,
-    getStats: getBreakerStats
+    isOpen
   } = useCircuitBreaker({
     failureThreshold: 3,
     recoveryTimeout: 30000, // 30 segundos
@@ -76,15 +76,18 @@ export const useCircuitBreakerSync = ({ gameId }: UseCircuitBreakerSyncProps) =>
 
   // Obter estatísticas do sistema
   const getSystemStats = useCallback(() => {
-    const breakerStats = getBreakerStats();
-    
     return {
-      circuitBreaker: breakerStats,
+      circuitBreaker: {
+        isOpen,
+        failures: 0,
+        successes: 0,
+        lastFailure: null
+      },
       fallbackQueue: getFallbackQueueSize(),
       lastSyncAttempt: lastSyncAttempt.current,
       timeSinceLastSync: Date.now() - lastSyncAttempt.current
     };
-  }, [getBreakerStats, getFallbackQueueSize]);
+  }, [isOpen, getFallbackQueueSize]);
 
   return {
     // Operações principais

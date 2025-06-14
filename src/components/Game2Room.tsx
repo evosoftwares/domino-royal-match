@@ -1,3 +1,4 @@
+
 import React from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { GameData, PlayerData } from '@/types/game';
@@ -7,8 +8,10 @@ import { useLocalFirstGameEngine } from '@/hooks/useLocalFirstGameEngine';
 import { useOptimizedGameTimer } from '@/hooks/useOptimizedGameTimer';
 import { useStateValidator } from '@/hooks/useStateValidator';
 import { usePersistentQueue } from '@/hooks/usePersistentQueue';
+import { useSmartReconciliation } from '@/hooks/useSmartReconciliation';
 import WinnerDialog from './WinnerDialog';
 import ActionFeedback from './ActionFeedback';
+import ConflictResolutionDialog from './game/ConflictResolutionDialog';
 import { useGameWinCheck } from '@/hooks/useGameWinCheck';
 import { useGameDataProcessing } from '@/hooks/useGameDataProcessing';
 import { useGameHandlers } from '@/hooks/useGameHandlers';
@@ -22,6 +25,8 @@ interface Game2RoomProps {
   gameData: GameData;
   players: PlayerData[];
 }
+
+type ActionType = 'playing' | 'passing' | 'auto_playing';
 
 const Game2Room: React.FC<Game2RoomProps> = ({
   gameData: initialGameData,
@@ -49,6 +54,25 @@ const Game2Room: React.FC<Game2RoomProps> = ({
     gameData: initialGameData,
     players: initialPlayers,
     userId: user?.id,
+  });
+
+  // Sistema de reconciliação inteligente
+  const {
+    reconcileStates,
+    resolveCriticalConflict,
+    forceReconciliation,
+    reconciliationStatus,
+    criticalConflicts,
+    getReconciliationStats
+  } = useSmartReconciliation({
+    onStateReconciled: (reconciledGameState, reconciledPlayersState) => {
+      console.log('🔄 Estados reconciliados aplicados');
+      // O LocalFirstGameEngine já gerencia a atualização de estado
+    },
+    onCriticalConflict: (conflicts) => {
+      console.error('🚨 Conflitos críticos detectados:', conflicts);
+      toast.error(`${conflicts.length} conflito${conflicts.length > 1 ? 's' : ''} crítico${conflicts.length > 1 ? 's' : ''} detectado${conflicts.length > 1 ? 's' : ''}`);
+    }
   });
 
   // Fila persistente para recuperação
@@ -124,16 +148,33 @@ const Game2Room: React.FC<Game2RoomProps> = ({
   const systemHealth = React.useMemo(() => {
     const stateHealth = getStateHealth();
     const queueStats = persistentQueue.getStats();
+    const reconciliationStats = getReconciliationStats();
     
     return {
-      isHealthy: stateHealth.isHealthy && syncStatus !== 'failed',
-      successRate: stateHealth.isHealthy ? 95 : 60,
+      isHealthy: stateHealth.isHealthy && syncStatus !== 'failed' && reconciliationStats.pendingCriticalConflicts === 0,
+      successRate: reconciliationStats.successRate,
       serverResponseTime: 150,
       timeSinceLastSuccess: Date.now() - stateHealth.lastSyncAttempt,
       circuitBreakerStatus: (syncStatus === 'failed' ? 'open' : 'closed') as 'open' | 'closed',
       pendingFallbacks: queueStats.total
     };
-  }, [getStateHealth, syncStatus, persistentQueue]);
+  }, [getStateHealth, syncStatus, persistentQueue, getReconciliationStats]);
+
+  // Handlers para resolução de conflitos
+  const handleResolveConflict = (conflictId: string, resolution: 'use_local' | 'use_server' | 'merge', mergedValue?: any) => {
+    resolveCriticalConflict(conflictId, resolution, mergedValue);
+  };
+
+  const handleResolveAllConflicts = (resolution: 'use_local' | 'use_server') => {
+    criticalConflicts.forEach(conflict => {
+      resolveCriticalConflict(conflict.id, resolution);
+    });
+  };
+
+  const handleDismissConflicts = () => {
+    console.log('🚫 Usuário escolheu ignorar conflitos');
+    toast.warning('Conflitos ignorados - pode haver inconsistências');
+  };
 
   if (gameState.status !== 'active') {
     return (
@@ -150,7 +191,7 @@ const Game2Room: React.FC<Game2RoomProps> = ({
       
       <ActionFeedback 
         isProcessing={isProcessingMove}
-        action={currentAction}
+        action={currentAction as ActionType}
       />
 
       <GameHealthIndicator
@@ -158,19 +199,36 @@ const Game2Room: React.FC<Game2RoomProps> = ({
         serverHealth={systemHealth}
         pendingMovesCount={pendingMovesCount}
       />
+
+      {/* Dialog de resolução de conflitos */}
+      <ConflictResolutionDialog
+        isVisible={criticalConflicts.length > 0}
+        conflicts={criticalConflicts}
+        onResolve={handleResolveConflict}
+        onResolveAll={handleResolveAllConflicts}
+        onDismiss={handleDismissConflicts}
+      />
       
-      {/* Debug info atualizado com Two-Phase Commit */}
+      {/* Debug info atualizado com Two-Phase Commit e Reconciliação */}
       {process.env.NODE_ENV === 'development' && (
         <div className="fixed top-20 right-4 bg-black/80 text-white p-2 rounded text-xs max-w-xs">
           <div>Sync: {syncStatus}</div>
           <div>Pending: {pendingMovesCount}</div>
           <div>Queue: {persistentQueue.size}</div>
+          <div>Conflicts: {criticalConflicts.length}</div>
+          <div>Reconciliation: {reconciliationStatus}</div>
           <div>Stats: {JSON.stringify(debugInfo.stats)}</div>
           <button 
             onClick={forceSync}
-            className="bg-blue-600 px-2 py-1 rounded mt-1 text-xs"
+            className="bg-blue-600 px-2 py-1 rounded mt-1 text-xs mr-1"
           >
             Force Sync
+          </button>
+          <button 
+            onClick={() => forceReconciliation(gameState, gameState, playersState, playersState)}
+            className="bg-purple-600 px-2 py-1 rounded mt-1 text-xs"
+          >
+            Force Reconcile
           </button>
         </div>
       )}
