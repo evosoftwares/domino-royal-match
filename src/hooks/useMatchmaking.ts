@@ -1,4 +1,3 @@
-
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
@@ -85,10 +84,13 @@ export const useMatchmaking = () => {
             ...prev, 
             queuePlayers: [], 
             queueCount: 0,
-            isGameCreating: false 
+            isGameCreating: prev.isInQueue ? prev.isGameCreating : false
           }));
-          setLastQueueCount(0);
-          setRetryCount(0);
+          
+          if (!state.isInQueue) {
+            setLastQueueCount(0);
+            setRetryCount(0);
+          }
         }
         return;
       }
@@ -114,7 +116,7 @@ export const useMatchmaking = () => {
           ...prev, 
           queuePlayers: players,
           queueCount: players.length,
-          isGameCreating: isNow4OrMore
+          isGameCreating: prev.isGameCreating || isNow4OrMore
         }));
       }
 
