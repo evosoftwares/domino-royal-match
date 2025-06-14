@@ -25,7 +25,7 @@ export const useGameCheck = () => {
     try {
       console.log('🔍 Verificando jogo ativo para usuário:', user.id);
 
-      // Buscar jogo ativo com validação de integridade melhorada
+      // Buscar jogo ativo com validação otimizada
       const { data: activeGame, error } = await supabase
         .from('game_players')
         .select(`
@@ -51,7 +51,7 @@ export const useGameCheck = () => {
       }
 
       if (activeGame?.game_id) {
-        // Validação melhorada para distinguir entre "jogo iniciando" vs "jogo corrompido"
+        // Validação melhorada para jogos válidos
         const isGameValid = validateGameIntegrity(activeGame);
         
         if (isGameValid) {
@@ -79,21 +79,20 @@ export const useGameCheck = () => {
       const game = gameData.games;
       const playerHand = gameData.hand;
 
-      // Verificar se o jogo foi criado recentemente (últimos 5 minutos)
+      // Verificar se o jogo foi criado recentemente (últimos 10 minutos)
       const gameAge = Date.now() - new Date(game.created_at).getTime();
-      const isRecentGame = gameAge < 5 * 60 * 1000; // 5 minutos
+      const isRecentGame = gameAge < 10 * 60 * 1000; // 10 minutos
 
-      // Para jogos recentes, ser mais permissivo com board_state
+      // Para jogos recentes, ser mais permissivo
       if (isRecentGame) {
         console.log('✅ Jogo recente detectado, validação permissiva');
         
-        // Verificar se o jogador tem mão válida (mais importante)
-        if (!playerHand || !Array.isArray(playerHand) || playerHand.length === 0) {
+        // Verificar se o jogador tem mão válida
+        if (!playerHand || !Array.isArray(playerHand)) {
           console.warn('⚠️ Mão do jogador inválida:', playerHand);
           return false;
         }
 
-        // Para jogos recém-criados, board_state pode estar sendo configurado
         return true;
       }
 
@@ -142,10 +141,10 @@ export const useGameCheck = () => {
         `)
         .in('user_id', userIds)
         .eq('games.status', 'active')
-        .gte('games.created_at', new Date(Date.now() - 60000).toISOString()); // Último minuto
+        .gte('games.created_at', new Date(Date.now() - 120000).toISOString()); // Últimos 2 minutos
 
       if (existingGames && existingGames.length > 0) {
-        // Verificar se os jogos existentes são válidos com validação melhorada
+        // Verificar se os jogos existentes são válidos
         const validGames = existingGames.filter(game => {
           return validateGameIntegrity(game);
         });

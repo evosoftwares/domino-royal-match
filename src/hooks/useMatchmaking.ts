@@ -44,7 +44,7 @@ export const useMatchmaking = () => {
 
   const [retryCount, setRetryCount] = useState(0);
   const [lastQueueCount, setLastQueueCount] = useState(0);
-  const maxRetries = 8; // Aumentado para mais tentativas
+  const maxRetries = 10; // Aumentado para mais tentativas
 
   const fetchQueuePlayers = async () => {
     try {
@@ -109,8 +109,8 @@ export const useMatchmaking = () => {
         if (wasLessThan4 && isNow4OrMore && isUserInQueue) {
           console.log('🎯 4 jogadores detectados! Iniciando verificação otimizada...');
           setRetryCount(0);
-          // Verificação mais rápida - 1 segundo ao invés de 3
-          setTimeout(() => checkForGameCreation(true), 1000);
+          // Verificação imediata
+          setTimeout(() => checkForGameCreation(true), 500);
         }
       }
 
@@ -134,13 +134,13 @@ export const useMatchmaking = () => {
       return;
     }
     
-    // Se não encontrou jogo, tentar novamente com intervalos menores
+    // Se não encontrou jogo, tentar novamente com intervalos otimizados
     if (retryCount < maxRetries) {
       console.log(`⏳ Jogo não encontrado, tentativa ${retryCount + 1}/${maxRetries}`);
       setRetryCount(prev => prev + 1);
       
-      // Intervalos otimizados: mais tentativas com menos delay
-      const delay = isInitialCheck ? 2000 : Math.min(3000 + (retryCount * 1000), 8000);
+      // Intervalos mais rápidos: 1s, 2s, 3s, depois 4s
+      const delay = isInitialCheck ? 1000 : Math.min(1000 + (retryCount * 1000), 4000);
       setTimeout(() => checkForGameCreation(false), delay);
     } else {
       console.warn('⚠️ Jogo não foi criado após várias tentativas');
@@ -269,44 +269,44 @@ export const useMatchmaking = () => {
     checkInitialStatus();
 
     // Polling otimizado para detectar mudanças
-    const queueInterval = setInterval(fetchQueuePlayers, 800); // Mais frequente
+    const queueInterval = setInterval(fetchQueuePlayers, 600); // Mais frequente
 
-    // Canais realtime fortalecidos com melhor detecção
+    // Canais realtime otimizados
     const queueChannel = supabase
-      .channel('enhanced-matchmaking-queue-v4')
+      .channel('super-optimized-matchmaking-v5')
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'matchmaking_queue' },
         (payload) => {
-          console.log('🔄 Mudança na fila detectada:', payload.eventType);
-          setTimeout(fetchQueuePlayers, 100); // Resposta mais rápida
+          console.log('🔄 Mudança na fila detectada via realtime:', payload.eventType);
+          setTimeout(fetchQueuePlayers, 50); // Resposta imediata
         }
       )
       .subscribe();
 
-    // Canal otimizado para criação de jogos válidos
+    // Canal otimizado para criação de jogos
     const gameChannel = supabase
-      .channel('enhanced-game-creation-v4')
+      .channel('super-optimized-game-creation-v5')
       .on(
         'postgres_changes',
         { event: 'INSERT', schema: 'public', table: 'games' },
         async (payload) => {
           console.log('🎯 Novo jogo detectado via realtime:', payload.new);
-          // Verificação imediata mais rápida
+          // Verificação ultra-rápida
           setTimeout(async () => {
             const gameFound = await checkUserActiveGame();
             if (gameFound) {
               console.log('✅ Redirecionamento via realtime bem-sucedido!');
               setState(prev => ({ ...prev, isGameCreating: false }));
             }
-          }, 500); // Reduzido para 500ms
+          }, 200); // Ultra-rápido
         }
       )
       .subscribe();
 
-    // Canal específico para "jogo pronto para jogar"
+    // Canal específico para game_players
     const gamePlayersChannel = supabase
-      .channel('enhanced-game-players-v4')
+      .channel('super-optimized-game-players-v5')
       .on(
         'postgres_changes',
         { event: 'INSERT', schema: 'public', table: 'game_players' },
@@ -320,20 +320,20 @@ export const useMatchmaking = () => {
               if (gameFound) {
                 setState(prev => ({ ...prev, isGameCreating: false }));
               }
-            }, 300); // Verificação muito rápida
+            }, 100); // Verificação instantânea
           }
         }
       )
       .subscribe();
 
-    console.log('📡 Canais realtime v4 otimizados configurados');
+    console.log('📡 Canais realtime v5 super-otimizados configurados');
 
     return () => {
       clearInterval(queueInterval);
       supabase.removeChannel(queueChannel);
       supabase.removeChannel(gameChannel);
       supabase.removeChannel(gamePlayersChannel);
-      console.log('🧹 Cleanup do matchmaking v4 concluído');
+      console.log('🧹 Cleanup do matchmaking v5 concluído');
     };
   }, [navigate]);
 
