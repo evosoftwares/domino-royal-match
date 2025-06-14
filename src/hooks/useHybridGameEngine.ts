@@ -130,6 +130,7 @@ export const useHybridGameEngine = ({
     }
 
     setCurrentAction('playing');
+    console.log('Jogando peça padronizada:', { top: piece.top, bottom: piece.bottom });
 
     try {
       const localSuccess = applyLocalMove(piece);
@@ -145,6 +146,7 @@ export const useHybridGameEngine = ({
         priority: 1
       });
 
+      toast.success('Peça jogada (aguardando sincronização)!');
       return true;
     } catch (error) {
       console.error('Erro ao jogar peça:', error);
@@ -176,6 +178,7 @@ export const useHybridGameEngine = ({
         priority: 2
       });
 
+      toast.info('Você passou a vez (aguardando sincronização).');
       return true;
     } catch (error) {
       console.error('Erro ao passar a vez:', error);

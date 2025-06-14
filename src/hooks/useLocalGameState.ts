@@ -1,7 +1,7 @@
 
 import { useState, useCallback } from 'react';
 import { GameData, PlayerData, DominoPieceType } from '@/types/game';
-import { validateMove, standardizePiece, toBackendFormat, extractBoardEnds, arePiecesEqual } from '@/utils/pieceValidation';
+import { validateMove, toBackendFormat, extractBoardEnds, arePiecesEqual } from '@/utils/pieceValidation';
 
 interface UseLocalGameStateProps {
   initialGameData: GameData;
@@ -31,7 +31,7 @@ export const useLocalGameState = ({
         return false;
       }
 
-      // Usar peça já padronizada
+      // Usar peça já padronizada diretamente
       const validation = validateMove(piece, gameState.board_state);
       if (!validation.isValid || !validation.side) {
         console.error('Movimento inválido:', validation.error);
@@ -39,8 +39,9 @@ export const useLocalGameState = ({
       }
 
       const standardPieceToPlay = { top: piece.top, bottom: piece.bottom };
+      console.log('Aplicando movimento local com peça padronizada:', standardPieceToPlay);
       
-      // Update Player's Hand - busca mais robusta
+      // Update Player's Hand - busca mais robusta com comparação padronizada
       const updatedPlayers = playersState.map(p => {
         if (p.user_id === userId) {
           if (!p.hand || !Array.isArray(p.hand)) {
@@ -52,7 +53,7 @@ export const useLocalGameState = ({
           const newHand = p.hand.filter((p_piece: any) => {
             if (found) return true;
             try {
-              // Usa função de comparação robusta
+              // Usa função de comparação robusta e padronizada
               if (arePiecesEqual(p_piece, standardPieceToPlay)) {
                 found = true;
                 return false;
@@ -69,7 +70,7 @@ export const useLocalGameState = ({
       });
       setPlayersState(updatedPlayers);
 
-      // Update Board State - lógica aprimorada
+      // Update Board State - usando formato padronizado
       const currentBoardPieces = gameState.board_state?.pieces || [];
       const boardEnds = extractBoardEnds(gameState.board_state);
       const side = validation.side;
@@ -120,6 +121,11 @@ export const useLocalGameState = ({
         current_player_turn: nextPlayerId,
       }));
 
+      console.log('Movimento local aplicado com sucesso. Novo estado:', {
+        newBoardState,
+        nextPlayerId
+      });
+
       return true;
     } catch (error) {
       console.error('Erro ao aplicar movimento local:', error);
@@ -133,13 +139,16 @@ export const useLocalGameState = ({
       ...prev,
       current_player_turn: nextPlayerId,
     }));
+    console.log('Passe local aplicado. Próximo jogador:', nextPlayerId);
   }, [getNextPlayerId]);
 
   const updateGameState = useCallback((newGameState: GameData) => {
+    console.log('Atualizando estado do jogo via realtime:', newGameState.id);
     setGameState(newGameState);
   }, []);
 
   const updatePlayerState = useCallback((updatedPlayer: PlayerData) => {
+    console.log('Atualizando estado do jogador via realtime:', updatedPlayer.user_id);
     setPlayersState(current => 
       current.map(p => p.id === updatedPlayer.id ? updatedPlayer : p)
     );
