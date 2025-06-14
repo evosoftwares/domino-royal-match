@@ -1,8 +1,9 @@
+
 import React, { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { toast } from 'sonner';
-import { DominoPieceType } from '@/utils/dominoUtils';
+import { DominoPieceType } from '@/types/game';
 import GameBoard from './GameBoard';
 import PlayerArea from './PlayerArea';
 import OpponentsDisplay, { ProcessedPlayer } from './OpponentsDisplay';
