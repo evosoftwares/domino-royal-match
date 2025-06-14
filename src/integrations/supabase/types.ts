@@ -333,6 +333,10 @@ export type Database = {
         Args: { p_game_id: string }
         Returns: undefined
       }
+      start_game: {
+        Args: { p_player_ids: string[]; p_room_id?: string }
+        Returns: Json
+      }
     }
     Enums: {
       [_ in never]: never
