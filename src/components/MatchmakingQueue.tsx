@@ -1,3 +1,4 @@
+
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
@@ -9,7 +10,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Loader2, Users, Clock, UserPlus, UserMinus, AlertCircle, RefreshCw, CheckCircle, Timer, Zap } from 'lucide-react';
+import { Loader2, Users, Clock, UserPlus, UserMinus, AlertCircle, RefreshCw, CheckCircle, Timer, Zap, Shield } from 'lucide-react';
 
 // --- Sub-componentes para a UI ---
 const PlayerSlot: React.FC<{ 
@@ -98,18 +99,18 @@ const MatchmakingQueue: React.FC = () => {
     toast.success('Fila atualizada!');
   };
 
-  // Indicadores visuais melhorados com mais estados
+  // Indicadores visuais melhorados com sistema seguro
   const shouldShowGameStarting = queueCount >= 4;
   const showRetryIndicator = retryCount > 0 && retryCount < maxRetries;
   const showFailureIndicator = retryCount >= maxRetries;
-  const isSystemWorking = queueCount >= 4 && retryCount < 10;
+  const isSystemSecure = queueCount >= 4 && retryCount < 10;
 
   // Se está carregando inicialmente
   if (isLoading && queuePlayers.length === 0) {
     return (
       <Card className="max-w-2xl mx-auto bg-slate-900/95">
         <CardHeader className="text-center p-4 border-b border-slate-700/50">
-          <CardTitle className="text-slate-100">Carregando Sala...</CardTitle>
+          <CardTitle className="text-slate-100">Carregando Sistema Seguro...</CardTitle>
         </CardHeader>
         <CardContent className="grid grid-cols-2 md:grid-cols-4 gap-4 p-6">
           {Array.from({ length: 4 }).map((_, index) => <LoadingSkeleton key={index} />)}
@@ -123,7 +124,7 @@ const MatchmakingQueue: React.FC = () => {
       <CardHeader className="text-center p-4 border-b border-slate-700/50">
         <CardTitle className="text-slate-100 flex items-center justify-center gap-2 text-xl font-bold">
           <Users className="w-6 h-6 text-blue-400" />
-          {shouldShowGameStarting ? 'Iniciando Partida...' : 'Procurando Partida'}
+          {shouldShowGameStarting ? 'Sistema Seguro Ativo' : 'Procurando Partida'}
           <Button
             onClick={handleRefresh}
             variant="ghost"
@@ -136,39 +137,39 @@ const MatchmakingQueue: React.FC = () => {
         </CardTitle>
         <p className="text-slate-300 text-sm font-medium">
           {queueCount}/4 jogadores na fila
-          {isSystemWorking && (
+          {isSystemSecure && (
             <span className="ml-2 text-emerald-400 animate-pulse flex items-center gap-1">
-              <Zap className="w-3 h-3" />
-              Sistema seguro v2.0 ativo
+              <Shield className="w-3 h-3" />
+              Sistema seguro v3.0 ativo
             </span>
           )}
           {showRetryIndicator && (
             <span className="ml-2 text-yellow-400 flex items-center gap-1">
               <Timer className="w-3 h-3" />
-              Verificação {retryCount}/{maxRetries}
+              Verificação segura {retryCount}/{maxRetries}
             </span>
           )}
           {showFailureIndicator && (
-            <span className="ml-2 text-red-400">• Sistema bloqueado - tente novamente</span>
+            <span className="ml-2 text-red-400">• Sistema bloqueado - saia e entre novamente</span>
           )}
         </p>
       </CardHeader>
       <CardContent className="space-y-6 p-6">
-        {/* Indicadores de status melhorados */}
+        {/* Indicadores de status com sistema seguro */}
         {shouldShowGameStarting && !showFailureIndicator && (
           <div className="bg-emerald-900/30 border border-emerald-500/50 rounded-lg p-4 text-center">
             <div className="flex items-center justify-center gap-2 text-emerald-400 font-medium">
-              <Loader2 className="w-4 h-4 animate-spin" />
-              4 jogadores encontrados! Sistema seguro criando jogo...
+              <Shield className="w-4 h-4 animate-pulse" />
+              Sistema Seguro v3.0: Criando jogo com proteção total...
               {showRetryIndicator && (
                 <span className="text-xs ml-2">
-                  (Tentativa {retryCount}/{maxRetries})
+                  (Verificação {retryCount}/{maxRetries})
                 </span>
               )}
             </div>
             <div className="text-emerald-300 text-xs mt-2 flex items-center justify-center gap-1">
               <CheckCircle className="w-3 h-3" />
-              Proteção anti-duplicação ativa • Lock de transação • Validação rigorosa
+              Lock transacional • Validação rigorosa • Anti-duplicação • Debounce inteligente
             </div>
           </div>
         )}
@@ -177,23 +178,23 @@ const MatchmakingQueue: React.FC = () => {
           <div className="bg-red-900/30 border border-red-500/50 rounded-lg p-4 text-center">
             <div className="flex items-center justify-center gap-2 text-red-400 font-medium">
               <AlertCircle className="w-4 h-4" />
-              Sistema bloqueado após {maxRetries} tentativas
+              Sistema seguro bloqueado após {maxRetries} tentativas
             </div>
             <div className="text-red-300 text-xs mt-2">
-              Saia da fila e tente entrar novamente para reativar o sistema
+              O sistema se protegeu automaticamente. Saia da fila e entre novamente.
             </div>
           </div>
         )}
 
-        {isGameCreating && !showFailureIndicator && retryCount < 5 && (
+        {isGameCreating && !showFailureIndicator && retryCount < 8 && (
           <div className="bg-blue-900/30 border border-blue-500/50 rounded-lg p-4 text-center">
             <div className="flex items-center justify-center gap-2 text-blue-400 font-medium">
-              <CheckCircle className="w-4 h-4 animate-pulse" />
-              Sistema seguro ativado - criação em progresso
+              <Shield className="w-4 h-4 animate-pulse" />
+              Sistema Seguro v3.0 em operação
             </div>
             <div className="text-blue-300 text-xs mt-2 flex items-center justify-center gap-1">
               <Zap className="w-3 h-3" />
-              Lock de transação • Validação de integridade • Prevenção de race conditions
+              Proteção máxima: Lock • Validação • Prevenção • Monitoramento
             </div>
           </div>
         )}
@@ -247,18 +248,18 @@ const MatchmakingQueue: React.FC = () => {
           )}
           {isLoading ? (isInQueue ? 'Saindo...' : 'Entrando...') : 
            isInQueue ? 'Sair da Fila' : 
-           shouldShowGameStarting && !isInQueue && !showFailureIndicator ? 'Aguarde...' : 'Entrar na Fila'}
+           shouldShowGameStarting && !isInQueue && !showFailureIndicator ? 'Sistema Seguro Ativo...' : 'Entrar na Fila'}
         </Button>
 
         {queueCount > 0 && (
           <div className="text-center text-xs text-slate-400">
             {shouldShowGameStarting 
-              ? '🔒 Sistema Seguro v2.0: Lock de transação + Validação rigorosa + Anti-duplicação'
-              : '🔄 Atualização em tempo real ativa + Debounce inteligente'
+              ? '🛡️ Sistema Seguro v3.0: Proteção máxima com lock transacional + validação rigorosa + anti-duplicação'
+              : '🔄 Realtime ativo + debounce inteligente + validação contínua'
             }
             {showRetryIndicator && (
               <div className="mt-1 text-yellow-400 flex items-center justify-center gap-1">
-                <Zap className="w-3 h-3" />
+                <Shield className="w-3 h-3" />
                 Verificação segura em andamento... ({retryCount}/{maxRetries})
               </div>
             )}

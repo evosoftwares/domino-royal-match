@@ -340,6 +340,10 @@ export type Database = {
         Args: { p_game_id: string }
         Returns: undefined
       }
+      safe_create_game_when_ready: {
+        Args: Record<PropertyKey, never>
+        Returns: Json
+      }
       start_game: {
         Args: { p_player_ids: string[]; p_room_id?: string }
         Returns: Json

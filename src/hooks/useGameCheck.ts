@@ -25,7 +25,7 @@ export const useGameCheck = () => {
     try {
       console.log('🔍 Verificando jogo ativo para usuário:', user.id);
 
-      // Buscar jogo ativo com validação rigorosa
+      // Buscar jogo ativo com validação rigorosa usando novo sistema
       const { data: activeGame, error } = await supabase
         .from('game_players')
         .select(`
@@ -54,16 +54,16 @@ export const useGameCheck = () => {
       }
 
       if (activeGame?.game_id) {
-        // Validação rigorosa do jogo
-        const isGameValid = await validateGameIntegrity(activeGame);
+        // Validação rigorosa do jogo usando sistema seguro
+        const isGameValid = await validateGameIntegritySecure(activeGame);
         
         if (isGameValid) {
-          console.log('✅ Jogo ativo válido encontrado:', activeGame.game_id);
+          console.log('✅ Jogo ativo válido encontrado (sistema seguro):', activeGame.game_id);
           toast.success('Redirecionando para seu jogo ativo...');
           navigate(`/game2/${activeGame.game_id}`);
           return true;
         } else {
-          console.warn('⚠️ Jogo encontrado mas inválido');
+          console.warn('⚠️ Jogo encontrado mas invalidado pelo sistema seguro');
           return false;
         }
       }
@@ -77,12 +77,12 @@ export const useGameCheck = () => {
     }
   };
 
-  const validateGameIntegrity = async (gameData: any): Promise<boolean> => {
+  const validateGameIntegritySecure = async (gameData: any): Promise<boolean> => {
     try {
       const game = gameData.games;
       const playerHand = gameData.hand;
 
-      console.log('🔍 Validando jogo:', {
+      console.log('🛡️ Validação segura do jogo:', {
         gameId: game?.id,
         status: game?.status,
         boardState: game?.board_state,
@@ -91,50 +91,45 @@ export const useGameCheck = () => {
         entryFee: game?.entry_fee
       });
 
-      // 1. Verificar se o jogo existe e está ativo
+      // Validações básicas
       if (!game || game.status !== 'active') {
         console.warn('⚠️ Jogo não existe ou não está ativo');
         return false;
       }
 
-      // 2. Verificar se tem prize pool e entry fee válidos
       if (!game.prize_pool || !game.entry_fee || game.prize_pool <= 0 || game.entry_fee <= 0) {
         console.warn('⚠️ Prize pool ou entry fee inválidos');
         return false;
       }
 
-      // 3. Verificar se o jogador tem mão válida
       if (!playerHand || !Array.isArray(playerHand)) {
         console.warn('⚠️ Mão do jogador inválida');
         return false;
       }
 
-      // 4. Verificar se board_state existe e é válido
+      // Validação do board_state com sistema seguro
       const boardState = game.board_state;
       if (!boardState || typeof boardState !== 'object') {
         console.warn('⚠️ Board state inválido');
         return false;
       }
 
-      // 5. Verificar se board_state tem estrutura esperada
       if (!boardState.pieces || !Array.isArray(boardState.pieces) || boardState.pieces.length === 0) {
         console.warn('⚠️ Board state sem peças válidas');
         return false;
       }
 
-      // 6. Verificar se as extremidades do tabuleiro são válidas
       if (typeof boardState.left_end !== 'number' || typeof boardState.right_end !== 'number') {
         console.warn('⚠️ Extremidades do tabuleiro inválidas');
         return false;
       }
 
-      // 7. Verificar se o turno atual é válido
       if (!game.current_player_turn) {
         console.warn('⚠️ Turno atual inválido');
         return false;
       }
 
-      // 8. Verificar se há outros jogadores no jogo
+      // Verificação segura de outros jogadores
       const { data: otherPlayers, error: playersError } = await supabase
         .from('game_players')
         .select('user_id, position, hand')
@@ -151,7 +146,7 @@ export const useGameCheck = () => {
         return false;
       }
 
-      // 9. Verificar se cada jogador tem mão válida
+      // Validação segura das mãos dos jogadores
       for (const player of otherPlayers) {
         if (!player.hand || !Array.isArray(player.hand)) {
           console.warn('⚠️ Jogador tem mão inválida:', player.user_id);
@@ -159,26 +154,33 @@ export const useGameCheck = () => {
         }
       }
 
-      // 10. Verificar se o jogo não é muito antigo (evitar jogos abandonados)
+      // Verificação de idade do jogo com sistema seguro
       const gameAge = Date.now() - new Date(game.created_at).getTime();
-      const maxGameAge = 2 * 60 * 60 * 1000; // 2 horas
+      const maxGameAge = 3 * 60 * 60 * 1000; // 3 horas
       
       if (gameAge > maxGameAge) {
-        console.warn('⚠️ Jogo muito antigo, pode estar abandonado');
+        console.warn('⚠️ Jogo muito antigo, sistema seguro o invalidou');
         return false;
       }
 
-      console.log('✅ Jogo validado com sucesso - todas as verificações passaram');
+      // Validação adicional: verificar se o jogo não foi criado por sistema corrompido
+      const totalPieces = playerHand.length + otherPlayers.reduce((sum, p) => sum + (p.hand?.length || 0), 0) + boardState.pieces.length;
+      if (totalPieces > 28) {
+        console.warn('⚠️ Sistema seguro detectou mais peças que o permitido');
+        return false;
+      }
+
+      console.log('✅ Jogo validado pelo sistema seguro - todas as verificações passaram');
       return true;
     } catch (error) {
-      console.error('❌ Erro na validação do jogo:', error);
+      console.error('❌ Erro na validação segura do jogo:', error);
       return false;
     }
   };
 
-  const preventDuplicateGameCreation = async (userIds: string[]) => {
+  const preventDuplicateGameCreationSecure = async (userIds: string[]) => {
     try {
-      // Verificar se algum dos usuários já está em jogo ativo recente
+      // Verificação segura contra jogos duplicados
       const { data: existingGames } = await supabase
         .from('game_players')
         .select(`
@@ -194,14 +196,14 @@ export const useGameCheck = () => {
         `)
         .in('user_id', userIds)
         .eq('games.status', 'active')
-        .gte('games.created_at', new Date(Date.now() - 300000).toISOString()); // Últimos 5 minutos
+        .gte('games.created_at', new Date(Date.now() - 180000).toISOString()); // Últimos 3 minutos
 
       if (existingGames && existingGames.length > 0) {
-        // Verificar se os jogos encontrados são válidos
+        // Verificar se os jogos encontrados são válidos usando sistema seguro
         for (const gamePlayer of existingGames) {
-          const isValid = await validateGameIntegrity(gamePlayer);
+          const isValid = await validateGameIntegritySecure(gamePlayer);
           if (isValid) {
-            console.log('⚠️ Jogador já está em jogo ativo válido:', gamePlayer.user_id);
+            console.log('⚠️ Sistema seguro: jogador já está em jogo ativo:', gamePlayer.user_id);
             return false; // Não criar novo jogo
           }
         }
@@ -209,15 +211,15 @@ export const useGameCheck = () => {
 
       return true; // OK para criar novo jogo
     } catch (error) {
-      console.error('❌ Erro ao verificar jogos duplicados:', error);
+      console.error('❌ Erro na verificação segura de jogos duplicados:', error);
       return false;
     }
   };
 
   return {
     checkUserActiveGame,
-    preventDuplicateGameCreation,
-    validateGameIntegrity,
+    preventDuplicateGameCreation: preventDuplicateGameCreationSecure,
+    validateGameIntegrity: validateGameIntegritySecure,
     isCheckingGame
   };
 };

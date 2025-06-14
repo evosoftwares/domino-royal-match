@@ -1,3 +1,4 @@
+
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
@@ -44,7 +45,7 @@ export const useMatchmaking = () => {
   const [retryCount, setRetryCount] = useState(0);
   const [lastQueueCount, setLastQueueCount] = useState(0);
   const [debounceTimer, setDebounceTimer] = useState<NodeJS.Timeout | null>(null);
-  const maxRetries = 20; // Aumentado para mais tentativas
+  const maxRetries = 15; // Reduzido para sistema mais estável
 
   const fetchQueuePlayers = async () => {
     try {
@@ -76,6 +77,7 @@ export const useMatchmaking = () => {
           isGameCreating: false 
         }));
         setLastQueueCount(0);
+        setRetryCount(0);
         return;
       }
 
@@ -88,7 +90,7 @@ export const useMatchmaking = () => {
 
       console.log(`📊 Jogadores na fila: ${players.length}`);
 
-      // Detectar quando chegamos a 4 jogadores com debounce
+      // Detectar quando chegamos a 4 jogadores
       const wasLessThan4 = lastQueueCount < 4;
       const isNow4OrMore = players.length >= 4;
       
@@ -105,20 +107,18 @@ export const useMatchmaking = () => {
         const isUserInQueue = players.some(player => player.id === user.user.id);
         setState(prev => ({ ...prev, isInQueue: isUserInQueue }));
         
-        // Se acabamos de chegar a 4 jogadores e o usuário está na fila
+        // Se chegamos a 4 jogadores e usuário está na fila
         if (wasLessThan4 && isNow4OrMore && isUserInQueue) {
-          console.log('🎯 4 jogadores detectados! Iniciando verificação com debounce...');
+          console.log('🎯 4 jogadores detectados! Sistema seguro ativado...');
           
-          // Limpar timer anterior
           if (debounceTimer) {
             clearTimeout(debounceTimer);
           }
           
-          // Definir novo timer com debounce
           const newTimer = setTimeout(() => {
             setRetryCount(0);
             checkForGameCreation(true);
-          }, 1000); // 1 segundo de debounce
+          }, 800); // Debounce otimizado
           
           setDebounceTimer(newTimer);
         }
@@ -132,6 +132,12 @@ export const useMatchmaking = () => {
   };
 
   const checkForGameCreation = useCallback(async (isInitialCheck = false) => {
+    if (retryCount >= maxRetries) {
+      console.warn('⚠️ Máximo de tentativas atingido');
+      setState(prev => ({ ...prev, isGameCreating: false }));
+      return;
+    }
+
     console.log(`🔍 Verificando criação de jogo... (tentativa ${retryCount + 1}/${maxRetries})`);
     
     // Verificar se usuário foi redirecionado para jogo
@@ -144,17 +150,16 @@ export const useMatchmaking = () => {
       return;
     }
     
-    // Se não encontrou jogo, tentar novamente
+    // Continuar verificando se não atingiu limite
     if (retryCount < maxRetries) {
-      console.log(`⏳ Jogo não encontrado, tentativa ${retryCount + 1}/${maxRetries}`);
       setRetryCount(prev => prev + 1);
       
-      // Intervalos mais inteligentes: rápido no início, mais lento depois
-      const delay = retryCount < 5 ? 500 : retryCount < 10 ? 1000 : 2000;
+      // Intervalos progressivos mais inteligentes
+      const delay = retryCount < 3 ? 600 : retryCount < 8 ? 1200 : 2000;
       setTimeout(() => checkForGameCreation(false), delay);
     } else {
-      console.warn('⚠️ Jogo não foi criado após várias tentativas, resetando...');
-      toast.warning('Parece que houve um problema. Tente sair e entrar na fila novamente.');
+      console.warn('⚠️ Sistema bloqueado após tentativas máximas');
+      toast.warning('Sistema seguro bloqueou após várias tentativas. Saia e entre na fila novamente.');
       setState(prev => ({ ...prev, isGameCreating: false }));
       setRetryCount(0);
     }
@@ -215,7 +220,7 @@ export const useMatchmaking = () => {
           queueCount: response.queue_count || 0
         }));
         toast.success(response.message || 'Adicionado à fila');
-        console.log(`✅ Entrou na fila com sucesso. Total de jogadores: ${response.queue_count}`);
+        console.log(`✅ Entrou na fila. Total: ${response.queue_count} jogadores`);
         
         setRetryCount(0);
         await fetchQueuePlayers();
@@ -253,7 +258,6 @@ export const useMatchmaking = () => {
         setRetryCount(0);
         setLastQueueCount(0);
         
-        // Limpar debounce timer
         if (debounceTimer) {
           clearTimeout(debounceTimer);
           setDebounceTimer(null);
@@ -275,7 +279,7 @@ export const useMatchmaking = () => {
         const { data: user } = await supabase.auth.getUser();
         if (!user.user) return;
 
-        console.log('🔍 Verificando status inicial...');
+        console.log('🔍 Verificando status inicial do sistema seguro...');
         await fetchQueuePlayers();
       } catch (error) {
         console.error('❌ Erro ao verificar status inicial:', error);
@@ -284,64 +288,66 @@ export const useMatchmaking = () => {
 
     checkInitialStatus();
 
-    // Polling otimizado
-    const queueInterval = setInterval(fetchQueuePlayers, 800);
+    // Polling otimizado com sistema seguro
+    const queueInterval = setInterval(fetchQueuePlayers, 1000);
 
-    // Canais realtime otimizados
+    // Canais realtime otimizados para sistema seguro v3.0
     const queueChannel = supabase
-      .channel('optimized-matchmaking-v7')
+      .channel('secure-matchmaking-v3')
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'matchmaking_queue' },
         (payload) => {
-          console.log('🔄 Mudança na fila via realtime:', payload.eventType);
-          setTimeout(fetchQueuePlayers, 200);
+          console.log('🔄 Mudança segura na fila:', payload.eventType);
+          setTimeout(fetchQueuePlayers, 300);
         }
       )
       .subscribe();
 
-    // Canal para criação de jogos
+    // Canal para criação de jogos com sistema seguro
     const gameChannel = supabase
-      .channel('optimized-game-creation-v7')
+      .channel('secure-game-creation-v3')
       .on(
         'postgres_changes',
         { event: 'INSERT', schema: 'public', table: 'games' },
         async (payload) => {
-          console.log('🎯 Novo jogo detectado via realtime:', payload.new);
+          console.log('🎯 Novo jogo detectado (sistema seguro):', payload.new);
           setTimeout(async () => {
             const gameFound = await checkUserActiveGame();
             if (gameFound) {
-              console.log('✅ Redirecionamento via realtime bem-sucedido!');
+              console.log('✅ Redirecionamento seguro bem-sucedido!');
               setState(prev => ({ ...prev, isGameCreating: false }));
+              setRetryCount(0);
             }
-          }, 200);
+          }, 400);
         }
       )
       .subscribe();
 
-    // Canal para game_players
+    // Canal para game_players com sistema seguro
     const gamePlayersChannel = supabase
-      .channel('optimized-game-players-v7')
+      .channel('secure-game-players-v3')
       .on(
         'postgres_changes',
         { event: 'INSERT', schema: 'public', table: 'game_players' },
         async (payload) => {
-          console.log('👤 Jogador adicionado via realtime:', payload.new);
+          console.log('👤 Jogador adicionado (sistema seguro):', payload.new);
           const { data: user } = await supabase.auth.getUser();
           if (user.user && payload.new.user_id === user.user.id) {
-            console.log('🎮 Usuário atual foi adicionado ao jogo!');
+            console.log('🎮 Usuário atual adicionado ao jogo seguro!');
             setTimeout(async () => {
               const gameFound = await checkUserActiveGame();
               if (gameFound) {
                 setState(prev => ({ ...prev, isGameCreating: false }));
+                setRetryCount(0);
               }
-            }, 100);
+            }, 200);
           }
         }
       )
       .subscribe();
 
-    console.log('📡 Canais realtime v7 otimizados configurados');
+    console.log('📡 Sistema seguro v3.0 ativado - Canais realtime configurados');
 
     return () => {
       clearInterval(queueInterval);
@@ -349,12 +355,11 @@ export const useMatchmaking = () => {
       supabase.removeChannel(gameChannel);
       supabase.removeChannel(gamePlayersChannel);
       
-      // Limpar debounce timer
       if (debounceTimer) {
         clearTimeout(debounceTimer);
       }
       
-      console.log('🧹 Cleanup do matchmaking v7 concluído');
+      console.log('🧹 Cleanup do sistema seguro v3.0 concluído');
     };
   }, [navigate, debounceTimer]);
 
