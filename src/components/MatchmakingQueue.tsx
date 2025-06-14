@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
@@ -99,10 +98,11 @@ const MatchmakingQueue: React.FC = () => {
     toast.success('Fila atualizada!');
   };
 
-  // Indicadores visuais melhorados
+  // Indicadores visuais melhorados com mais estados
   const shouldShowGameStarting = queueCount >= 4;
   const showRetryIndicator = retryCount > 0 && retryCount < maxRetries;
   const showFailureIndicator = retryCount >= maxRetries;
+  const isSystemWorking = queueCount >= 4 && retryCount < 10;
 
   // Se está carregando inicialmente
   if (isLoading && queuePlayers.length === 0) {
@@ -136,10 +136,10 @@ const MatchmakingQueue: React.FC = () => {
         </CardTitle>
         <p className="text-slate-300 text-sm font-medium">
           {queueCount}/4 jogadores na fila
-          {shouldShowGameStarting && !showFailureIndicator && (
+          {isSystemWorking && (
             <span className="ml-2 text-emerald-400 animate-pulse flex items-center gap-1">
               <Zap className="w-3 h-3" />
-              Sistema otimizado ativo
+              Sistema seguro v2.0 ativo
             </span>
           )}
           {showRetryIndicator && (
@@ -149,26 +149,26 @@ const MatchmakingQueue: React.FC = () => {
             </span>
           )}
           {showFailureIndicator && (
-            <span className="ml-2 text-red-400">• Falha na criação</span>
+            <span className="ml-2 text-red-400">• Sistema bloqueado - tente novamente</span>
           )}
         </p>
       </CardHeader>
       <CardContent className="space-y-6 p-6">
-        {/* Indicadores de status otimizados */}
+        {/* Indicadores de status melhorados */}
         {shouldShowGameStarting && !showFailureIndicator && (
           <div className="bg-emerald-900/30 border border-emerald-500/50 rounded-lg p-4 text-center">
             <div className="flex items-center justify-center gap-2 text-emerald-400 font-medium">
               <Loader2 className="w-4 h-4 animate-spin" />
-              4 jogadores encontrados! Sistema otimizado ativo...
+              4 jogadores encontrados! Sistema seguro criando jogo...
               {showRetryIndicator && (
                 <span className="text-xs ml-2">
-                  (Verificação {retryCount}/{maxRetries})
+                  (Tentativa {retryCount}/{maxRetries})
                 </span>
               )}
             </div>
             <div className="text-emerald-300 text-xs mt-2 flex items-center justify-center gap-1">
-              <Zap className="w-3 h-3" />
-              Redirecionamento automático em segundos
+              <CheckCircle className="w-3 h-3" />
+              Proteção anti-duplicação ativa • Lock de transação • Validação rigorosa
             </div>
           </div>
         )}
@@ -177,23 +177,23 @@ const MatchmakingQueue: React.FC = () => {
           <div className="bg-red-900/30 border border-red-500/50 rounded-lg p-4 text-center">
             <div className="flex items-center justify-center gap-2 text-red-400 font-medium">
               <AlertCircle className="w-4 h-4" />
-              Falha na criação após {maxRetries} tentativas
+              Sistema bloqueado após {maxRetries} tentativas
             </div>
             <div className="text-red-300 text-xs mt-2">
-              Sistema corrigido - tente sair e entrar na fila novamente
+              Saia da fila e tente entrar novamente para reativar o sistema
             </div>
           </div>
         )}
 
-        {isGameCreating && !showFailureIndicator && (
+        {isGameCreating && !showFailureIndicator && retryCount < 5 && (
           <div className="bg-blue-900/30 border border-blue-500/50 rounded-lg p-4 text-center">
             <div className="flex items-center justify-center gap-2 text-blue-400 font-medium">
               <CheckCircle className="w-4 h-4 animate-pulse" />
-              Função SQL otimizada detectou 4 jogadores
+              Sistema seguro ativado - criação em progresso
             </div>
             <div className="text-blue-300 text-xs mt-2 flex items-center justify-center gap-1">
               <Zap className="w-3 h-3" />
-              Criação automática em progresso
+              Lock de transação • Validação de integridade • Prevenção de race conditions
             </div>
           </div>
         )}
@@ -253,13 +253,13 @@ const MatchmakingQueue: React.FC = () => {
         {queueCount > 0 && (
           <div className="text-center text-xs text-slate-400">
             {shouldShowGameStarting 
-              ? '🎮 Sistema SQL v2.0 + Frontend otimizado - Redirecionamento automático'
-              : '🔄 Atualização em tempo real ativa (800ms)'
+              ? '🔒 Sistema Seguro v2.0: Lock de transação + Validação rigorosa + Anti-duplicação'
+              : '🔄 Atualização em tempo real ativa + Debounce inteligente'
             }
             {showRetryIndicator && (
               <div className="mt-1 text-yellow-400 flex items-center justify-center gap-1">
                 <Zap className="w-3 h-3" />
-                Verificação otimizada em andamento... ({retryCount}/{maxRetries})
+                Verificação segura em andamento... ({retryCount}/{maxRetries})
               </div>
             )}
           </div>
