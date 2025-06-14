@@ -13,30 +13,29 @@ export const useOptimisticLocking = () => {
   const lockTimeouts = useRef<Map<string, NodeJS.Timeout>>(new Map());
 
   /**
-   * Executa uma operação com lock otimista
+   * Executa operação com lock otimista para tabela games
    */
-  const executeWithLock = useCallback(async <T>(
-    tableName: string,
-    recordId: string,
+  const executeGameOperation = useCallback(async <T = any>(
+    gameId: string,
     operation: (currentData: T) => Promise<Partial<T>>,
     maxRetries: number = 3
   ): Promise<OptimisticLockResult<T>> => {
     
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
       try {
-        console.log(`🔒 Lock attempt ${attempt}/${maxRetries} for ${tableName}:${recordId}`);
+        console.log(`🔒 Game lock attempt ${attempt}/${maxRetries} for game:${gameId}`);
 
-        // 1. Ler estado atual com timestamp
+        // 1. Ler estado atual do jogo
         const { data: currentData, error: readError } = await supabase
-          .from(tableName)
+          .from('games')
           .select('*')
-          .eq('id', recordId)
+          .eq('id', gameId)
           .single();
 
         if (readError || !currentData) {
           return {
             success: false,
-            error: `Failed to read current state: ${readError?.message}`
+            error: `Failed to read game state: ${readError?.message}`
           };
         }
 
@@ -50,19 +49,17 @@ export const useOptimisticLocking = () => {
         };
 
         const { data: updatedData, error: updateError } = await supabase
-          .from(tableName)
+          .from('games')
           .update(updateData)
-          .eq('id', recordId)
+          .eq('id', gameId)
           .eq('updated_at', currentData.updated_at) // Verificação otimista
           .select()
           .single();
 
         if (updateError) {
           // Se erro indica conflito de concorrência, retry
-          if (updateError.message.includes('updated_at') || 
-              updateError.code === 'PGRST116') { // No rows updated
-            
-            console.warn(`⚠️ Optimistic lock conflict on attempt ${attempt}, retrying...`);
+          if (updateError.code === 'PGRST116') { // No rows updated - conflito
+            console.warn(`⚠️ Optimistic lock conflict on game attempt ${attempt}, retrying...`);
             
             // Espera progressiva antes do retry
             const delay = Math.min(100 * Math.pow(2, attempt - 1), 1000);
@@ -76,7 +73,7 @@ export const useOptimisticLocking = () => {
           };
         }
 
-        console.log(`✅ Optimistic lock succeeded on attempt ${attempt}`);
+        console.log(`✅ Game optimistic lock succeeded on attempt ${attempt}`);
         
         return {
           success: true,
@@ -84,7 +81,7 @@ export const useOptimisticLocking = () => {
         };
 
       } catch (error: any) {
-        console.error(`❌ Lock attempt ${attempt} failed:`, error);
+        console.error(`❌ Game lock attempt ${attempt} failed:`, error);
         
         if (attempt === maxRetries) {
           return {
@@ -101,29 +98,94 @@ export const useOptimisticLocking = () => {
 
     return {
       success: false,
-      error: 'Unexpected error in optimistic locking'
+      error: 'Unexpected error in game optimistic locking'
     };
   }, []);
 
   /**
-   * Lock específico para operações de jogo
+   * Executa operação com lock otimista para tabela game_players
    */
-  const executeGameOperation = useCallback(async (
-    gameId: string,
-    operation: (gameData: any) => Promise<any>
-  ) => {
-    return executeWithLock('games', gameId, operation);
-  }, [executeWithLock]);
-
-  /**
-   * Lock específico para operações de jogador
-   */
-  const executePlayerOperation = useCallback(async (
+  const executePlayerOperation = useCallback(async <T = any>(
     playerId: string,
-    operation: (playerData: any) => Promise<any>
-  ) => {
-    return executeWithLock('game_players', playerId, operation);
-  }, [executeWithLock]);
+    operation: (currentData: T) => Promise<Partial<T>>,
+    maxRetries: number = 3
+  ): Promise<OptimisticLockResult<T>> => {
+    
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      try {
+        console.log(`🔒 Player lock attempt ${attempt}/${maxRetries} for player:${playerId}`);
+
+        // 1. Ler estado atual do jogador
+        const { data: currentData, error: readError } = await supabase
+          .from('game_players')
+          .select('*')
+          .eq('id', playerId)
+          .single();
+
+        if (readError || !currentData) {
+          return {
+            success: false,
+            error: `Failed to read player state: ${readError?.message}`
+          };
+        }
+
+        // 2. Executar operação com estado atual
+        const updates = await operation(currentData as T);
+
+        // 3. Tentar atualizar - game_players não tem updated_at, usar joined_at como versão
+        const { data: updatedData, error: updateError } = await supabase
+          .from('game_players')
+          .update(updates)
+          .eq('id', playerId)
+          .eq('joined_at', currentData.joined_at) // Verificação otimista usando joined_at
+          .select()
+          .single();
+
+        if (updateError) {
+          // Se erro indica conflito de concorrência, retry
+          if (updateError.code === 'PGRST116') { // No rows updated - conflito
+            console.warn(`⚠️ Optimistic lock conflict on player attempt ${attempt}, retrying...`);
+            
+            // Espera progressiva antes do retry
+            const delay = Math.min(100 * Math.pow(2, attempt - 1), 1000);
+            await new Promise(resolve => setTimeout(resolve, delay));
+            continue;
+          }
+
+          return {
+            success: false,
+            error: updateError.message
+          };
+        }
+
+        console.log(`✅ Player optimistic lock succeeded on attempt ${attempt}`);
+        
+        return {
+          success: true,
+          data: updatedData as T
+        };
+
+      } catch (error: any) {
+        console.error(`❌ Player lock attempt ${attempt} failed:`, error);
+        
+        if (attempt === maxRetries) {
+          return {
+            success: false,
+            error: error.message || 'Max retries exceeded'
+          };
+        }
+
+        // Espera antes do próximo retry
+        const delay = Math.min(100 * Math.pow(2, attempt - 1), 1000);
+        await new Promise(resolve => setTimeout(resolve, delay));
+      }
+    }
+
+    return {
+      success: false,
+      error: 'Unexpected error in player optimistic locking'
+    };
+  }, []);
 
   /**
    * Limpa timeouts pendentes
@@ -134,7 +196,6 @@ export const useOptimisticLocking = () => {
   }, []);
 
   return {
-    executeWithLock,
     executeGameOperation,
     executePlayerOperation,
     cleanup
