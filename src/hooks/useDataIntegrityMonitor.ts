@@ -1,4 +1,3 @@
-
 import { useCallback, useRef, useEffect } from 'react';
 import { GameData, PlayerData } from '@/types/game';
 import { UniversalPieceConverter } from '@/utils/universalPieceConverter';
@@ -22,6 +21,48 @@ interface IntegrityReport {
 export const useDataIntegrityMonitor = () => {
   const issueHistory = useRef<IntegrityIssue[]>([]);
   const lastCheck = useRef<number>(0);
+
+  /**
+   * Gera relatório de integridade
+   */
+  const generateReport = useCallback((issues: IntegrityIssue[]): IntegrityReport => {
+    // Calcular score (0-100)
+    let score = 100;
+    issues.forEach(issue => {
+      switch (issue.severity) {
+        case 'critical': score -= 25; break;
+        case 'high': score -= 15; break;
+        case 'medium': score -= 10; break;
+        case 'low': score -= 5; break;
+      }
+    });
+    score = Math.max(0, score);
+
+    // Gerar sugestões
+    const suggestions: string[] = [];
+    const criticalIssues = issues.filter(i => i.severity === 'critical').length;
+    const highIssues = issues.filter(i => i.severity === 'high').length;
+
+    if (criticalIssues > 0) {
+      suggestions.push(`Resolver ${criticalIssues} problema(s) crítico(s) imediatamente`);
+    }
+    if (highIssues > 0) {
+      suggestions.push(`Atenção para ${highIssues} problema(s) de alta prioridade`);
+    }
+    if (score < 80) {
+      suggestions.push('Considerar atualização/sincronização dos dados');
+    }
+    if (issues.some(i => i.type === 'format_mismatch')) {
+      suggestions.push('Verificar conversão de formatos de peças');
+    }
+
+    return {
+      isHealthy: score >= 90 && criticalIssues === 0,
+      issues,
+      score,
+      suggestions
+    };
+  }, []);
 
   /**
    * Monitora integridade dos dados do jogo
@@ -74,7 +115,7 @@ export const useDataIntegrityMonitor = () => {
               issues.push({
                 type: 'format_mismatch',
                 severity: 'medium',
-                description: `Cannot parse piece at position ${i}: ${error.message}`,
+                description: `Cannot parse piece at position ${i}: ${(error as Error).message}`,
                 data: piece,
                 timestamp
               });
@@ -106,15 +147,15 @@ export const useDataIntegrityMonitor = () => {
         issues.push({
           type: 'corrupted_data',
           severity: 'critical',
-          description: `Corrupted board_state: ${error.message}`,
+          description: `Corrupted board_state: ${(error as Error).message}`,
           data: gameData.board_state,
           timestamp
         });
       }
     }
 
-    return this.generateReport(issues);
-  }, []);
+    return generateReport(issues);
+  }, [generateReport]);
 
   /**
    * Monitora integridade dos dados dos jogadores
@@ -131,7 +172,7 @@ export const useDataIntegrityMonitor = () => {
         data: playersData,
         timestamp
       });
-      return this.generateReport(issues);
+      return generateReport(issues);
     }
 
     playersData.forEach((player, index) => {
@@ -178,7 +219,7 @@ export const useDataIntegrityMonitor = () => {
               issues.push({
                 type: 'format_mismatch',
                 severity: 'low',
-                description: `Player ${index} cannot parse piece at position ${i}: ${error.message}`,
+                description: `Player ${index} cannot parse piece at position ${i}: ${(error as Error).message}`,
                 data: piece,
                 timestamp
               });
@@ -188,7 +229,7 @@ export const useDataIntegrityMonitor = () => {
           issues.push({
             type: 'corrupted_data',
             severity: 'high',
-            description: `Player ${index} corrupted hand data: ${error.message}`,
+            description: `Player ${index} corrupted hand data: ${(error as Error).message}`,
             data: player.hand,
             timestamp
           });
@@ -196,8 +237,8 @@ export const useDataIntegrityMonitor = () => {
       }
     });
 
-    return this.generateReport(issues);
-  }, []);
+    return generateReport(issues);
+  }, [generateReport]);
 
   /**
    * Monitora integridade combinada
@@ -239,50 +280,8 @@ export const useDataIntegrityMonitor = () => {
       });
     }
 
-    return this.generateReport(combinedIssues);
-  }, [checkGameDataIntegrity, checkPlayersDataIntegrity]);
-
-  /**
-   * Gera relatório de integridade
-   */
-  const generateReport = useCallback((issues: IntegrityIssue[]): IntegrityReport => {
-    // Calcular score (0-100)
-    let score = 100;
-    issues.forEach(issue => {
-      switch (issue.severity) {
-        case 'critical': score -= 25; break;
-        case 'high': score -= 15; break;
-        case 'medium': score -= 10; break;
-        case 'low': score -= 5; break;
-      }
-    });
-    score = Math.max(0, score);
-
-    // Gerar sugestões
-    const suggestions: string[] = [];
-    const criticalIssues = issues.filter(i => i.severity === 'critical').length;
-    const highIssues = issues.filter(i => i.severity === 'high').length;
-
-    if (criticalIssues > 0) {
-      suggestions.push(`Resolver ${criticalIssues} problema(s) crítico(s) imediatamente`);
-    }
-    if (highIssues > 0) {
-      suggestions.push(`Atenção para ${highIssues} problema(s) de alta prioridade`);
-    }
-    if (score < 80) {
-      suggestions.push('Considerar atualização/sincronização dos dados');
-    }
-    if (issues.some(i => i.type === 'format_mismatch')) {
-      suggestions.push('Verificar conversão de formatos de peças');
-    }
-
-    return {
-      isHealthy: score >= 90 && criticalIssues === 0,
-      issues,
-      score,
-      suggestions
-    };
-  }, []);
+    return generateReport(combinedIssues);
+  }, [checkGameDataIntegrity, checkPlayersDataIntegrity, generateReport]);
 
   /**
    * Adiciona issue ao histórico e mostra toast se necessário
