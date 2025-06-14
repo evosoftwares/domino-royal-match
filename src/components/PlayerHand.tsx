@@ -1,7 +1,7 @@
 
 import React, { useState } from 'react';
 import DominoPiece from './DominoPiece';
-import { DominoPieceType } from '@/utils/dominoUtils';
+import { DominoPieceType } from '@/types/game';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { useIsMobile } from '@/hooks/use-mobile';
@@ -115,7 +115,6 @@ const PlayerHand: React.FC<PlayerHandProps> = ({
         </div>
       </div>
 
-      {/* Layout das peças adaptado para mobile landscape */}
       <div className={cn(
         "justify-items-center",
         isMobile ? "grid grid-cols-7 gap-1" : "grid grid-cols-7 gap-2"

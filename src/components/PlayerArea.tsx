@@ -1,7 +1,7 @@
 
 import React, { useState } from 'react';
 import DominoPiece from './DominoPiece';
-import { DominoPieceType } from '@/utils/dominoUtils';
+import { DominoPieceType } from '@/types/game';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 
