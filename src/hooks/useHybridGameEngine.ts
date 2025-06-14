@@ -1,23 +1,16 @@
-
 import { useState, useCallback, useEffect, useMemo, useRef } from 'react';
 import { GameData, PlayerData, DominoPieceType } from '@/types/game';
 import { supabase } from '@/integrations/supabase/client';
 import { validateMove, standardizePiece, toBackendFormat, extractBoardEnds } from '@/utils/pieceValidation';
 import { toast } from 'sonner';
 import { RealtimeChannel } from '@supabase/supabase-js';
+import { useOptimizedStateControl } from './useOptimizedStateControl';
+import { useOptimizedPendingMoves } from './useOptimizedPendingMoves';
 
 interface UseHybridGameEngineProps {
   gameData: GameData;
   players: PlayerData[];
   userId?: string;
-}
-
-interface PendingMove {
-  id: string;
-  type: 'play' | 'pass';
-  piece?: DominoPieceType;
-  timestamp: number;
-  retryCount: number;
 }
 
 type ActionType = 'playing' | 'passing' | 'auto_playing' | null;
@@ -29,19 +22,33 @@ export const useHybridGameEngine = ({
 }: UseHybridGameEngineProps) => {
   const [gameState, setGameState] = useState<GameData>(initialGameData);
   const [playersState, setPlayersState] = useState<PlayerData[]>(initialPlayers);
-  const [isProcessingMove, setIsProcessingMove] = useState(false);
   const [currentAction, setCurrentAction] = useState<ActionType>(null);
-  const [pendingMoves, setPendingMoves] = useState<PendingMove[]>([]);
-  const [retryCount, setRetryCount] = useState(0);
   const [connectionStatus, setConnectionStatus] = useState<'connected' | 'disconnected' | 'reconnecting'>('connected');
   
-  // Refs para debounce e heartbeat
+  // Refs otimizados
   const debounceTimerRef = useRef<NodeJS.Timeout>();
   const heartbeatRef = useRef<NodeJS.Timeout>();
   const channelRef = useRef<RealtimeChannel | null>(null);
   const lastHeartbeatRef = useRef<number>(Date.now());
 
+  // Hooks otimizados
+  const stateControl = useOptimizedStateControl();
+  
+  const pendingMoves = useOptimizedPendingMoves({
+    maxRetries: 3,
+    baseDelay: 500,
+    maxDelay: 8000,
+    onMoveSuccess: (moveId) => {
+      console.log('Movimento sincronizado com sucesso:', moveId);
+    },
+    onMoveFailure: (moveId, error) => {
+      console.error('Falha ao sincronizar movimento:', moveId, error);
+      toast.error('Falha ao sincronizar movimento');
+    }
+  });
+
   const isMyTurn = useMemo(() => gameState.current_player_turn === userId, [gameState.current_player_turn, userId]);
+  const isProcessingMove = pendingMoves.isProcessing || currentAction !== null;
 
   const getNextPlayerId = useCallback(() => {
     const sortedPlayers = [...playersState].sort((a, b) => a.position - b.position);
@@ -50,7 +57,7 @@ export const useHybridGameEngine = ({
     return sortedPlayers[nextPlayerIndex]?.user_id;
   }, [playersState, gameState.current_player_turn]);
 
-  // Heartbeat melhorado para detectar desconexões
+  // Heartbeat otimizado com timing adaptativo
   const startHeartbeat = useCallback(() => {
     if (heartbeatRef.current) {
       clearInterval(heartbeatRef.current);
@@ -60,19 +67,18 @@ export const useHybridGameEngine = ({
       const now = Date.now();
       const timeSinceLastHeartbeat = now - lastHeartbeatRef.current;
       
-      if (timeSinceLastHeartbeat > 20000) { // Reduzido de 30s para 20s
+      if (timeSinceLastHeartbeat > 15000) {
         setConnectionStatus('disconnected');
-        console.warn('Conexão perdida - sem heartbeat há', timeSinceLastHeartbeat, 'ms');
-      } else if (timeSinceLastHeartbeat > 10000) { // Reduzido de 15s para 10s
+      } else if (timeSinceLastHeartbeat > 8000) {
         setConnectionStatus('reconnecting');
       } else {
         setConnectionStatus('connected');
       }
-    }, 3000); // Reduzido de 5s para 3s
+    }, 2000);
   }, []);
 
-  // Debounced update handler com timeout reduzido
-  const debouncedStateUpdate = useCallback((updateFn: () => void, delay: number = 300) => {
+  // Debounced update com validação de estado
+  const debouncedStateUpdate = useCallback((updateFn: () => void, delay: number = 200) => {
     if (debounceTimerRef.current) {
       clearTimeout(debounceTimerRef.current);
     }
@@ -82,60 +88,84 @@ export const useHybridGameEngine = ({
     }, delay);
   }, []);
 
-  // Centralizar toda sincronização real-time aqui
+  // Função de sincronização otimizada
+  const syncWithServer = useCallback(async (move: any) => {
+    try {
+      if (move.type === 'play' && move.piece) {
+        const pieceForRPC = move.piece.originalFormat || toBackendFormat(standardizePiece(move.piece));
+        const validation = validateMove(move.piece, gameState.board_state);
+        
+        const { error } = await supabase.rpc('play_move', {
+          p_game_id: gameState.id,
+          p_piece: pieceForRPC,
+          p_side: validation.side
+        });
+
+        if (error) throw error;
+      } else if (move.type === 'pass') {
+        const { error } = await supabase.rpc('pass_turn', {
+          p_game_id: gameState.id
+        });
+
+        if (error) throw error;
+      }
+
+      return true;
+    } catch (error) {
+      console.error('Erro na sincronização:', error);
+      return false;
+    }
+  }, [gameState.id, gameState.board_state]);
+
+  // Setup realtime otimizado
   useEffect(() => {
     if (!gameState.id) return;
 
-    // Limpar canal anterior se existir
     if (channelRef.current) {
       supabase.removeChannel(channelRef.current);
     }
 
     try {
-      const gameChannel = supabase.channel(`hybrid-game:${gameState.id}`);
+      const gameChannel = supabase.channel(`hybrid-game:${gameState.id}`, {
+        config: {
+          presence: { key: userId }
+        }
+      });
       channelRef.current = gameChannel;
 
-      // Subscription para mudanças no jogo
       gameChannel.on<GameData>(
         'postgres_changes',
         { event: 'UPDATE', schema: 'public', table: 'games', filter: `id=eq.${gameState.id}` },
         (payload) => {
-          console.log('Game state updated via realtime:', payload.new);
           lastHeartbeatRef.current = Date.now();
           
+          const stateVersion = stateControl.createStateVersion('realtime');
+          
           debouncedStateUpdate(() => {
-            setGameState(payload.new as GameData);
-            // Reduzir toast notifications excessivos
-            console.info("Estado do jogo atualizado via realtime");
-          });
+            if (stateControl.shouldApplyUpdate(payload.new, gameState)) {
+              setGameState(payload.new as GameData);
+            }
+          }, 150);
         }
       );
 
-      // Subscription para mudanças nos jogadores
       gameChannel.on<PlayerData>(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'game_players', filter: `game_id=eq.${gameState.id}` },
-        async (payload) => {
-          try {
-            console.log('Player state updated via realtime:', payload);
-            lastHeartbeatRef.current = Date.now();
+        (payload) => {
+          lastHeartbeatRef.current = Date.now();
 
-            debouncedStateUpdate(() => {
-              if (payload.eventType === 'UPDATE') {
-                setPlayersState(currentPlayers => 
-                  currentPlayers.map(p => p.id === payload.new.id ? payload.new as PlayerData : p)
-                );
-              }
-            });
-          } catch (error) {
-            console.error('Erro ao processar atualização de jogador:', error);
-          }
+          debouncedStateUpdate(() => {
+            if (payload.eventType === 'UPDATE') {
+              setPlayersState(current => 
+                current.map(p => p.id === payload.new.id ? payload.new as PlayerData : p)
+              );
+            }
+          }, 150);
         }
       );
 
-      // Subscribe com status tracking melhorado
       gameChannel.subscribe((status) => {
-        console.log('Canal híbrido status:', status);
         lastHeartbeatRef.current = Date.now();
         
         if (status === 'SUBSCRIBED') {
@@ -143,13 +173,11 @@ export const useHybridGameEngine = ({
           startHeartbeat();
         } else if (status === 'CHANNEL_ERROR') {
           setConnectionStatus('disconnected');
-          console.error('Erro no canal realtime híbrido');
-          // Não mostrar toast aqui para evitar spam
         }
       });
 
     } catch (error) {
-      console.error('Erro ao configurar realtime híbrido:', error);
+      console.error('Erro ao configurar realtime:', error);
       setConnectionStatus('disconnected');
     }
 
@@ -167,7 +195,17 @@ export const useHybridGameEngine = ({
         debounceTimerRef.current = null;
       }
     };
-  }, [gameState.id, debouncedStateUpdate, startHeartbeat]);
+  }, [gameState.id, userId, debouncedStateUpdate, startHeartbeat, stateControl]);
+
+  // Auto-processar movimentos pendentes
+  useEffect(() => {
+    if (pendingMoves.pendingCount > 0) {
+      const nextMove = pendingMoves.getNextMoveToProcess();
+      if (nextMove) {
+        pendingMoves.processNextMove(syncWithServer);
+      }
+    }
+  }, [pendingMoves, syncWithServer]);
 
   // Aplicar mudança local (optimistic update) com validação defensiva
   const applyLocalMove = useCallback((piece: DominoPieceType) => {
@@ -281,78 +319,8 @@ export const useHybridGameEngine = ({
     }));
   }, [getNextPlayerId]);
 
-  // Sincronizar com servidor
-  const syncWithServer = useCallback(async (move: PendingMove) => {
-    try {
-      if (move.type === 'play' && move.piece) {
-        const pieceForRPC = move.piece.originalFormat || toBackendFormat(standardizePiece(move.piece));
-        const validation = validateMove(move.piece, gameState.board_state);
-        
-        const { error } = await supabase.rpc('play_move', {
-          p_game_id: gameState.id,
-          p_piece: pieceForRPC,
-          p_side: validation.side
-        });
-
-        if (error) {
-          console.error('Erro ao sincronizar jogada:', error);
-          throw error;
-        }
-      } else if (move.type === 'pass') {
-        const { error } = await supabase.rpc('pass_turn', {
-          p_game_id: gameState.id
-        });
-
-        if (error) {
-          console.error('Erro ao sincronizar passe:', error);
-          throw error;
-        }
-      }
-
-      // Remove movimento da fila de pendentes
-      setPendingMoves(prev => prev.filter(m => m.id !== move.id));
-      setRetryCount(0);
-      return true;
-    } catch (error) {
-      console.error('Erro na sincronização:', error);
-      
-      // Incrementar retry count
-      setPendingMoves(prev => prev.map(m => 
-        m.id === move.id 
-          ? { ...m, retryCount: m.retryCount + 1 }
-          : m
-      ));
-      
-      return false;
-    }
-  }, [gameState.id, gameState.board_state]);
-
-  // Processar fila de movimentos pendentes
-  useEffect(() => {
-    const processPendingMoves = async () => {
-      if (pendingMoves.length === 0 || isProcessingMove) return;
-
-      const moveToProcess = pendingMoves[0];
-      
-      // Limitar tentativas
-      if (moveToProcess.retryCount >= 3) {
-        setPendingMoves(prev => prev.filter(m => m.id !== moveToProcess.id));
-        toast.error('Falha ao sincronizar movimento após 3 tentativas');
-        setRetryCount(0);
-        return;
-      }
-
-      setRetryCount(moveToProcess.retryCount + 1);
-      await syncWithServer(moveToProcess);
-    };
-
-    const timeoutId = setTimeout(processPendingMoves, 100);
-    return () => clearTimeout(timeoutId);
-  }, [pendingMoves, isProcessingMove, syncWithServer]);
-
   const playPiece = useCallback(async (piece: DominoPieceType) => {
     if (isProcessingMove) {
-      // Não mostrar toast para evitar spam
       console.warn("Tentativa de jogar enquanto processando movimento anterior");
       return false;
     }
@@ -362,11 +330,9 @@ export const useHybridGameEngine = ({
       return false;
     }
 
-    setIsProcessingMove(true);
     setCurrentAction('playing');
 
     try {
-      // 1. Aplicar mudança local imediatamente (optimistic update)
       const localSuccess = applyLocalMove(piece);
       
       if (!localSuccess) {
@@ -374,28 +340,21 @@ export const useHybridGameEngine = ({
         return false;
       }
 
-      // 2. Adicionar à fila de sincronização
-      const moveId = `${Date.now()}-${Math.random()}`;
-      setPendingMoves(prev => [...prev, {
-        id: moveId,
+      pendingMoves.addPendingMove({
         type: 'play',
         piece,
-        timestamp: Date.now(),
-        retryCount: 0
-      }]);
+        priority: 1
+      });
 
-      // Reduzir toasts de sucesso para evitar spam
-      console.info('Peça jogada com sucesso:', piece);
       return true;
     } catch (error) {
       console.error('Erro ao jogar peça:', error);
       toast.error('Erro ao jogar peça');
       return false;
     } finally {
-      setIsProcessingMove(false);
       setCurrentAction(null);
     }
-  }, [isProcessingMove, userId, gameState.current_player_turn, applyLocalMove]);
+  }, [isProcessingMove, userId, gameState.current_player_turn, applyLocalMove, pendingMoves]);
 
   const passTurn = useCallback(async () => {
     if (isProcessingMove) {
@@ -408,33 +367,25 @@ export const useHybridGameEngine = ({
       return false;
     }
 
-    setIsProcessingMove(true);
     setCurrentAction('passing');
 
     try {
-      // 1. Aplicar passe local
       applyLocalPass();
 
-      // 2. Adicionar à fila de sincronização
-      const moveId = `${Date.now()}-${Math.random()}`;
-      setPendingMoves(prev => [...prev, {
-        id: moveId,
+      pendingMoves.addPendingMove({
         type: 'pass',
-        timestamp: Date.now(),
-        retryCount: 0
-      }]);
+        priority: 2
+      });
 
-      console.info('Vez passada com sucesso');
       return true;
     } catch (error) {
       console.error('Erro ao passar a vez:', error);
       toast.error('Erro ao passar a vez');
       return false;
     } finally {
-      setIsProcessingMove(false);
       setCurrentAction(null);
     }
-  }, [isProcessingMove, userId, gameState.current_player_turn, applyLocalPass]);
+  }, [isProcessingMove, userId, gameState.current_player_turn, applyLocalPass, pendingMoves]);
 
   const playAutomatic = useCallback(async () => {
     if (isProcessingMove) return false;
@@ -471,8 +422,8 @@ export const useHybridGameEngine = ({
     isMyTurn,
     isProcessingMove,
     currentAction,
-    retryCount,
-    pendingMovesCount: pendingMoves.length,
+    retryCount: 0, // Deprecated - usar pendingMoves.pendingCount
+    pendingMovesCount: pendingMoves.pendingCount,
     connectionStatus
   };
 };

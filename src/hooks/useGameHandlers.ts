@@ -1,12 +1,8 @@
 
 import { useState, useCallback } from 'react';
 import { DominoPieceType } from '@/types/game';
-import { 
-  standardizePiece, 
-  extractBoardEnds,
-  canPieceConnect 
-} from '@/utils/pieceValidation';
 import { toast } from 'sonner';
+import { usePieceValidationCache } from './usePieceValidationCache';
 
 interface UseGameHandlersProps {
   gameState: any;
@@ -28,19 +24,18 @@ export const useGameHandlers = ({
   playAutomatic
 }: UseGameHandlersProps) => {
   const [currentDraggedPiece, setCurrentDraggedPiece] = useState<DominoPieceType | null>(null);
+  
+  // Hook de cache de validações
+  const validationCache = usePieceValidationCache();
 
   const canPiecePlay = useCallback((piece: DominoPieceType): boolean => {
     try {
-      const standardPiece = standardizePiece(piece);
-      const boardEnds = extractBoardEnds(gameState.board_state);
-      const result = canPieceConnect(standardPiece, boardEnds);
-      
-      return result;
+      return validationCache.canPiecePlay(piece, gameState.board_state);
     } catch (error) {
       console.error('Erro ao verificar jogabilidade da peça:', error);
       return false;
     }
-  }, [gameState.board_state]);
+  }, [gameState.board_state, validationCache]);
 
   const handlePassClick = useCallback(() => {
     if (!isMyTurn || isProcessingMove || !currentUserPlayer) return;
@@ -74,7 +69,6 @@ export const useGameHandlers = ({
   }, [currentUserPlayer, isMyTurn, isProcessingMove, canPiecePlay, playPiece, passTurn, playAutomatic]);
 
   const handlePieceDrag = (piece: DominoPieceType) => {
-    console.log('Iniciando drag da peça:', piece);
     setCurrentDraggedPiece(piece);
   };
 
@@ -85,7 +79,6 @@ export const useGameHandlers = ({
 
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault();
-    console.log('Drop detectado');
     
     if (currentDraggedPiece && isMyTurn && !isProcessingMove) {
       playPiece(currentDraggedPiece);
