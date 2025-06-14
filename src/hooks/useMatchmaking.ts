@@ -1,3 +1,4 @@
+
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
@@ -44,18 +45,22 @@ export const useMatchmaking = () => {
   const [retryCount, setRetryCount] = useState(0);
   const [lastQueueCount, setLastQueueCount] = useState(0);
   const [debounceTimer, setDebounceTimer] = useState<NodeJS.Timeout | null>(null);
-  const maxRetries = 12; // Otimizado para sistema seguro
+  const maxRetries = 12;
   const mountedRef = useRef(true);
 
   const fetchQueuePlayers = async () => {
     if (!mountedRef.current) return;
     
     try {
+      console.log('📊 Buscando jogadores na fila...');
+      
       const { data: queueData, error: queueError } = await supabase
         .from('matchmaking_queue')
         .select(`
           user_id,
           created_at,
+          status,
+          idjogopleiteado,
           profiles!inner(
             id,
             full_name,
@@ -71,7 +76,10 @@ export const useMatchmaking = () => {
         return;
       }
 
+      console.log('📋 Dados da fila recebidos:', queueData);
+
       if (!queueData || queueData.length === 0) {
+        console.log('🔍 Nenhum jogador na fila');
         if (mountedRef.current) {
           setState(prev => ({ 
             ...prev, 
@@ -92,7 +100,10 @@ export const useMatchmaking = () => {
         position: index + 1
       }));
 
-      console.log(`📊 Jogadores na fila: ${players.length}`);
+      console.log(`📊 Jogadores na fila: ${players.length}`, players.map(p => ({ 
+        id: p.id, 
+        name: p.displayName 
+      })));
 
       // Detectar quando chegamos a 4 jogadores
       const wasLessThan4 = lastQueueCount < 4;
@@ -111,11 +122,14 @@ export const useMatchmaking = () => {
       const { data: user } = await supabase.auth.getUser();
       if (user.user && mountedRef.current) {
         const isUserInQueue = players.some(player => player.id === user.user.id);
+        console.log(`👤 Usuário ${user.user.id} na fila:`, isUserInQueue);
+        
         setState(prev => ({ ...prev, isInQueue: isUserInQueue }));
         
         // Se chegamos a 4 jogadores e usuário está na fila
         if (wasLessThan4 && isNow4OrMore && isUserInQueue) {
-          console.log('🎯 4 jogadores detectados! Sistema seguro ativado...');
+          console.log('🎯 4 jogadores detectados! Iniciando criação de jogo...');
+          console.log('📝 Estado atual: wasLessThan4:', wasLessThan4, 'isNow4OrMore:', isNow4OrMore);
           
           if (debounceTimer) {
             clearTimeout(debounceTimer);
@@ -124,10 +138,11 @@ export const useMatchmaking = () => {
           if (mountedRef.current) {
             const newTimer = setTimeout(() => {
               if (mountedRef.current) {
+                console.log('⏰ Timer executado, iniciando verificação de jogo...');
                 setRetryCount(0);
                 checkForGameCreation(true);
               }
-            }, 800); // Debounce otimizado
+            }, 800);
             
             setDebounceTimer(newTimer);
           }
@@ -137,14 +152,14 @@ export const useMatchmaking = () => {
       setLastQueueCount(players.length);
 
     } catch (error) {
-      console.error('❌ Erro ao buscar participantes da fila:', error);
+      console.error('❌ Erro crítico ao buscar participantes da fila:', error);
     }
   };
 
   const checkForGameCreation = useCallback(async (isInitialCheck = false) => {
     if (!mountedRef.current || retryCount >= maxRetries) {
       if (retryCount >= maxRetries) {
-        console.warn('⚠️ Máximo de tentativas atingido');
+        console.warn('⚠️ Máximo de tentativas atingido para criação de jogo');
         setState(prev => ({ ...prev, isGameCreating: false }));
       }
       return;
@@ -170,6 +185,8 @@ export const useMatchmaking = () => {
       
       // Intervalos progressivos mais inteligentes
       const delay = retryCount < 3 ? 600 : retryCount < 8 ? 1200 : 2000;
+      console.log(`⏳ Próxima verificação em ${delay}ms`);
+      
       setTimeout(() => {
         if (mountedRef.current) {
           checkForGameCreation(false);
@@ -185,8 +202,13 @@ export const useMatchmaking = () => {
 
   const checkUserBalance = async (): Promise<boolean> => {
     try {
+      console.log('💰 Verificando saldo do usuário...');
+      
       const { data: user } = await supabase.auth.getUser();
-      if (!user.user) return false;
+      if (!user.user) {
+        console.error('❌ Usuário não autenticado');
+        return false;
+      }
 
       const { data: profile, error } = await supabase
         .from('profiles')
@@ -202,19 +224,23 @@ export const useMatchmaking = () => {
       const balance = profile?.balance || 0;
       const minimumBalance = 2.20;
 
+      console.log(`💰 Saldo atual: R$ ${balance.toFixed(2)}, Mínimo: R$ ${minimumBalance.toFixed(2)}`);
+
       if (balance < minimumBalance) {
+        console.warn(`⚠️ Saldo insuficiente: R$ ${balance.toFixed(2)}`);
         toast.error(`Saldo insuficiente. Você precisa de pelo menos R$ ${minimumBalance.toFixed(2)} para entrar na fila.`);
         return false;
       }
 
       return true;
     } catch (error) {
-      console.error('❌ Erro ao verificar saldo:', error);
+      console.error('❌ Erro crítico ao verificar saldo:', error);
       return false;
     }
   };
 
   const joinQueue = async () => {
+    console.log('🚪 Iniciando entrada na fila...');
     setState(prev => ({ ...prev, isLoading: true }));
     
     try {
@@ -224,29 +250,34 @@ export const useMatchmaking = () => {
         return;
       }
 
-      console.log('💰 Tentando entrar na fila...');
+      console.log('💰 Tentando entrar na fila com saldo válido...');
       const { data, error } = await supabase.rpc('join_matchmaking_queue');
       
-      if (error) throw error;
+      if (error) {
+        console.error('❌ Erro RPC join_matchmaking_queue:', error);
+        throw error;
+      }
       
+      console.log('📝 Resposta do RPC:', data);
       const response = data as unknown as MatchmakingResponse;
       
       if (response.success) {
+        console.log(`✅ Entrou na fila com sucesso! Total: ${response.queue_count} jogadores`);
         setState(prev => ({ 
           ...prev, 
           isInQueue: true, 
           queueCount: response.queue_count || 0
         }));
         toast.success(response.message || 'Adicionado à fila');
-        console.log(`✅ Entrou na fila. Total: ${response.queue_count} jogadores`);
         
         setRetryCount(0);
         await fetchQueuePlayers();
       } else {
+        console.error('❌ Falha na entrada da fila:', response.error);
         toast.error(response.error || 'Erro ao entrar na fila');
       }
     } catch (error: any) {
-      console.error('❌ Erro ao entrar na fila:', error);
+      console.error('❌ Erro crítico ao entrar na fila:', error);
       toast.error(error.message || 'Erro ao entrar na fila');
     } finally {
       setState(prev => ({ ...prev, isLoading: false }));
@@ -254,16 +285,22 @@ export const useMatchmaking = () => {
   };
 
   const leaveQueue = async () => {
+    console.log('🚪 Iniciando saída da fila...');
     setState(prev => ({ ...prev, isLoading: true }));
     
     try {
       const { data, error } = await supabase.rpc('leave_matchmaking_queue');
       
-      if (error) throw error;
+      if (error) {
+        console.error('❌ Erro RPC leave_matchmaking_queue:', error);
+        throw error;
+      }
       
+      console.log('📝 Resposta do RPC:', data);
       const response = data as unknown as MatchmakingResponse;
       
       if (response.success) {
+        console.log('✅ Saiu da fila com sucesso');
         setState(prev => ({ 
           ...prev, 
           isInQueue: false, 
@@ -272,7 +309,6 @@ export const useMatchmaking = () => {
           isGameCreating: false
         }));
         toast.success(response.message || 'Removido da fila');
-        console.log('🚪 Saiu da fila com sucesso');
         setRetryCount(0);
         setLastQueueCount(0);
         
@@ -281,10 +317,11 @@ export const useMatchmaking = () => {
           setDebounceTimer(null);
         }
       } else {
+        console.error('❌ Falha na saída da fila:', response.error);
         toast.error(response.error || 'Erro ao sair da fila');
       }
     } catch (error: any) {
-      console.error('❌ Erro ao sair da fila:', error);
+      console.error('❌ Erro crítico ao sair da fila:', error);
       toast.error(error.message || 'Erro ao sair da fila');
     } finally {
       setState(prev => ({ ...prev, isLoading: false }));
@@ -301,7 +338,8 @@ export const useMatchmaking = () => {
         const { data: user } = await supabase.auth.getUser();
         if (!user.user || !mountedRef.current) return;
 
-        console.log('🔍 Matchmaking: Verificando status inicial do sistema seguro...');
+        console.log('🔍 Matchmaking: Verificando status inicial do sistema...');
+        console.log('👤 Usuário autenticado:', user.user.id);
         await fetchQueuePlayers();
       } catch (error) {
         console.error('❌ Erro ao verificar status inicial:', error);
@@ -310,22 +348,24 @@ export const useMatchmaking = () => {
 
     checkInitialStatus();
 
-    // Polling otimizado com sistema seguro
+    // Polling otimizado
     const queueInterval = setInterval(() => {
       if (mountedRef.current) {
         fetchQueuePlayers();
       }
     }, 1000);
 
-    // Canais realtime otimizados para sistema seguro v3.0
+    // Canais realtime otimizados
+    console.log('📡 Configurando canais realtime...');
+    
     const queueChannel = supabase
-      .channel('secure-matchmaking-v3')
+      .channel('secure-matchmaking-v4')
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'matchmaking_queue' },
         (payload) => {
+          console.log('🔄 Mudança na fila detectada:', payload.eventType, payload);
           if (mountedRef.current) {
-            console.log('🔄 Mudança segura na fila:', payload.eventType);
             setTimeout(() => {
               if (mountedRef.current) {
                 fetchQueuePlayers();
@@ -334,22 +374,24 @@ export const useMatchmaking = () => {
           }
         }
       )
-      .subscribe();
+      .subscribe((status) => {
+        console.log('📡 Status canal fila:', status);
+      });
 
-    // Canal para criação de jogos com sistema seguro
+    // Canal para criação de jogos
     const gameChannel = supabase
-      .channel('secure-game-creation-v3')
+      .channel('secure-game-creation-v4')
       .on(
         'postgres_changes',
         { event: 'INSERT', schema: 'public', table: 'games' },
         async (payload) => {
+          console.log('🎯 Novo jogo detectado:', payload.new);
           if (mountedRef.current) {
-            console.log('🎯 Novo jogo detectado (sistema seguro):', payload.new);
             setTimeout(async () => {
               if (mountedRef.current) {
                 const gameFound = await checkUserActiveGame();
                 if (gameFound) {
-                  console.log('✅ Redirecionamento seguro bem-sucedido!');
+                  console.log('✅ Redirecionamento bem-sucedido!');
                   setState(prev => ({ ...prev, isGameCreating: false }));
                   setRetryCount(0);
                 }
@@ -358,38 +400,41 @@ export const useMatchmaking = () => {
           }
         }
       )
-      .subscribe();
+      .subscribe((status) => {
+        console.log('📡 Status canal jogos:', status);
+      });
 
-    // Canal para game_players com sistema seguro
+    // Canal para game_players
     const gamePlayersChannel = supabase
-      .channel('secure-game-players-v3')
+      .channel('secure-game-players-v4')
       .on(
         'postgres_changes',
         { event: 'INSERT', schema: 'public', table: 'game_players' },
         async (payload) => {
-          if (mountedRef.current) {
-            console.log('👤 Jogador adicionado (sistema seguro):', payload.new);
-            const { data: user } = await supabase.auth.getUser();
-            if (user.user && payload.new.user_id === user.user.id) {
-              console.log('🎮 Usuário atual adicionado ao jogo seguro!');
-              setTimeout(async () => {
-                if (mountedRef.current) {
-                  const gameFound = await checkUserActiveGame();
-                  if (gameFound) {
-                    setState(prev => ({ ...prev, isGameCreating: false }));
-                    setRetryCount(0);
-                  }
+          console.log('👤 Jogador adicionado:', payload.new);
+          const { data: user } = await supabase.auth.getUser();
+          if (user.user && payload.new.user_id === user.user.id) {
+            console.log('🎮 Usuário atual adicionado ao jogo!');
+            setTimeout(async () => {
+              if (mountedRef.current) {
+                const gameFound = await checkUserActiveGame();
+                if (gameFound) {
+                  setState(prev => ({ ...prev, isGameCreating: false }));
+                  setRetryCount(0);
                 }
-              }, 200);
-            }
+              }
+            }, 200);
           }
         }
       )
-      .subscribe();
+      .subscribe((status) => {
+        console.log('📡 Status canal jogadores:', status);
+      });
 
-    console.log('📡 Sistema seguro v3.0 ativado - Canais realtime configurados');
+    console.log('📡 Sistema v4.0 ativado - Canais realtime configurados');
 
     return () => {
+      console.log('🧹 Limpando sistema de matchmaking...');
       mountedRef.current = false;
       clearInterval(queueInterval);
       supabase.removeChannel(queueChannel);
@@ -400,7 +445,7 @@ export const useMatchmaking = () => {
         clearTimeout(debounceTimer);
       }
       
-      console.log('🧹 Cleanup do sistema seguro v3.0 concluído');
+      console.log('🧹 Cleanup concluído');
     };
   }, [navigate, debounceTimer]);
 
