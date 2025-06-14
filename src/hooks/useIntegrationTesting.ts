@@ -1,4 +1,3 @@
-
 import { useCallback, useRef, useState } from 'react';
 import { GameData, PlayerData, DominoPieceType } from '@/types/game';
 import { toast } from 'sonner';
@@ -40,8 +39,13 @@ export const useIntegrationTesting = () => {
     // Test 1: Optimistic Update Application
     const startTime1 = performance.now();
     try {
-      // Simulate optimistic update
-      const testPiece: DominoPieceType = { top: 1, bottom: 2, originalFormat: null };
+      // Simulate optimistic update with proper DominoPieceType
+      const testPiece: DominoPieceType = { 
+        id: 'test-piece', 
+        top: 1, 
+        bottom: 2, 
+        originalFormat: null 
+      };
       const result = await playPiece(testPiece);
       
       tests.push({
@@ -180,8 +184,7 @@ export const useIntegrationTesting = () => {
         status: 'active',
         board_state: { pieces: [] },
         current_player_turn: 'test-player',
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString()
+        created_at: new Date().toISOString()
       };
       
       const result = validateGameData(mockGameState, []);

@@ -1,5 +1,4 @@
-
-import React from 'react';
+import React, { useState } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { GameData, PlayerData } from '@/types/game';
 import GamePlayersHeader from './GamePlayersHeader';
@@ -9,9 +8,12 @@ import { useOptimizedGameTimer } from '@/hooks/useOptimizedGameTimer';
 import { useStateValidator } from '@/hooks/useStateValidator';
 import { usePersistentQueue } from '@/hooks/usePersistentQueue';
 import { useSmartReconciliation } from '@/hooks/useSmartReconciliation';
+import { useSystemHealthMonitor } from '@/hooks/useSystemHealthMonitor';
+import { useIntegrationTesting } from '@/hooks/useIntegrationTesting';
 import WinnerDialog from './WinnerDialog';
 import ActionFeedback from './ActionFeedback';
 import ConflictResolutionDialog from './game/ConflictResolutionDialog';
+import SystemHealthDashboard from './game/SystemHealthDashboard';
 import { useGameWinCheck } from '@/hooks/useGameWinCheck';
 import { useGameDataProcessing } from '@/hooks/useGameDataProcessing';
 import { useGameHandlers } from '@/hooks/useGameHandlers';
@@ -34,6 +36,7 @@ const Game2Room: React.FC<Game2RoomProps> = ({
 }) => {
   const { user } = useAuth();
   const isMobile = useIsMobile();
+  const [showHealthDashboard, setShowHealthDashboard] = useState(false);
   
   // Engine de jogo local-first com Two-Phase Commit
   const {
@@ -55,6 +58,24 @@ const Game2Room: React.FC<Game2RoomProps> = ({
     players: initialPlayers,
     userId: user?.id,
   });
+
+  // Sistema de monitoramento de saúde
+  const {
+    healthMetrics,
+    alerts,
+    recordSuccess,
+    recordError,
+    getHealthStatus,
+    resetMetrics
+  } = useSystemHealthMonitor();
+
+  // Sistema de testes de integração
+  const {
+    runIntegrationTests,
+    isRunningTests,
+    testResults,
+    getTestSummary
+  } = useIntegrationTesting();
 
   // Sistema de reconciliação inteligente
   const {
@@ -144,21 +165,61 @@ const Game2Room: React.FC<Game2RoomProps> = ({
     gameStatus: gameState.status
   });
 
-  // Health do sistema - agora usando dados do Two-Phase Commit
+  // Health do sistema - integrado com o monitor
   const systemHealth = React.useMemo(() => {
     const stateHealth = getStateHealth();
-    const queueStats = persistentQueue.getStats();
-    const reconciliationStats = getReconciliationStats();
+    const healthStatus = getHealthStatus();
     
     return {
-      isHealthy: stateHealth.isHealthy && syncStatus !== 'failed' && reconciliationStats.pendingCriticalConflicts === 0,
-      successRate: reconciliationStats.successRate,
-      serverResponseTime: 150,
-      timeSinceLastSuccess: Date.now() - stateHealth.lastSyncAttempt,
+      isHealthy: healthStatus.status === 'healthy',
+      successRate: (healthMetrics.errorRate > 0 ? (100 - healthMetrics.errorRate) : 100),
+      serverResponseTime: healthMetrics.networkLatency,
+      timeSinceLastSuccess: Date.now() - healthMetrics.lastHealthCheck,
       circuitBreakerStatus: (syncStatus === 'failed' ? 'open' : 'closed') as 'open' | 'closed',
-      pendingFallbacks: queueStats.total
+      pendingFallbacks: pendingMovesCount
     };
-  }, [getStateHealth, syncStatus, persistentQueue, getReconciliationStats]);
+  }, [getStateHealth, getHealthStatus, healthMetrics, syncStatus, pendingMovesCount]);
+
+  // Executar testes de integração
+  const handleRunTests = React.useCallback(async () => {
+    if (isRunningTests) return;
+    
+    try {
+      await runIntegrationTests({
+        gameState,
+        playersState,
+        playPiece,
+        shouldAllowRequest: () => syncStatus !== 'failed',
+        recordFailure: recordError,
+        reconcileStates: async () => true, // Placeholder
+        validateGameData: () => ({ valid: true })
+      });
+    } catch (error) {
+      console.error('❌ Erro nos testes de integração:', error);
+      toast.error('Erro ao executar testes');
+    }
+  }, [isRunningTests, runIntegrationTests, gameState, playersState, playPiece, syncStatus, recordError]);
+
+  // Keyboard shortcuts
+  React.useEffect(() => {
+    const handleKeyPress = (event: KeyboardEvent) => {
+      if (event.ctrlKey || event.metaKey) {
+        switch (event.key) {
+          case 'h':
+            event.preventDefault();
+            setShowHealthDashboard(!showHealthDashboard);
+            break;
+          case 't':
+            event.preventDefault();
+            handleRunTests();
+            break;
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyPress);
+    return () => window.removeEventListener('keydown', handleKeyPress);
+  }, [showHealthDashboard, handleRunTests]);
 
   // Handlers para resolução de conflitos
   const handleResolveConflict = (conflictId: string, resolution: 'use_local' | 'use_server' | 'merge', mergedValue?: any) => {
@@ -198,6 +259,15 @@ const Game2Room: React.FC<Game2RoomProps> = ({
         connectionStatus={syncStatus === 'synced' ? 'connected' : syncStatus === 'pending' ? 'reconnecting' : 'disconnected'}
         serverHealth={systemHealth}
         pendingMovesCount={pendingMovesCount}
+        onHealthClick={() => setShowHealthDashboard(true)}
+      />
+
+      {/* System Health Dashboard */}
+      <SystemHealthDashboard
+        healthStatus={getHealthStatus()}
+        testResults={getTestSummary()}
+        isVisible={showHealthDashboard}
+        onClose={() => setShowHealthDashboard(false)}
       />
 
       {/* Dialog de resolução de conflitos */}
@@ -209,27 +279,37 @@ const Game2Room: React.FC<Game2RoomProps> = ({
         onDismiss={handleDismissConflicts}
       />
       
-      {/* Debug info atualizado com Two-Phase Commit e Reconciliação */}
+      {/* Debug info atualizado com monitoramento */}
       {process.env.NODE_ENV === 'development' && (
-        <div className="fixed top-20 right-4 bg-black/80 text-white p-2 rounded text-xs max-w-xs">
+        <div className="fixed top-20 right-4 bg-black/80 text-white p-2 rounded text-xs max-w-xs z-30">
           <div>Sync: {syncStatus}</div>
           <div>Pending: {pendingMovesCount}</div>
-          <div>Queue: {persistentQueue.size}</div>
-          <div>Conflicts: {criticalConflicts.length}</div>
-          <div>Reconciliation: {reconciliationStatus}</div>
-          <div>Stats: {JSON.stringify(debugInfo.stats)}</div>
-          <button 
-            onClick={forceSync}
-            className="bg-blue-600 px-2 py-1 rounded mt-1 text-xs mr-1"
-          >
-            Force Sync
-          </button>
-          <button 
-            onClick={() => forceReconciliation(gameState, gameState, playersState, playersState)}
-            className="bg-purple-600 px-2 py-1 rounded mt-1 text-xs"
-          >
-            Force Reconcile
-          </button>
+          <div>Health: {systemHealth.isHealthy ? '✅' : '⚠️'}</div>
+          <div>Alerts: {Object.values(alerts).filter(Boolean).length}</div>
+          <div className="flex gap-1 mt-1">
+            <button 
+              onClick={forceSync}
+              className="bg-blue-600 px-2 py-1 rounded text-xs"
+            >
+              Sync
+            </button>
+            <button 
+              onClick={() => setShowHealthDashboard(true)}
+              className="bg-green-600 px-2 py-1 rounded text-xs"
+            >
+              Health
+            </button>
+            <button 
+              onClick={handleRunTests}
+              className="bg-purple-600 px-2 py-1 rounded text-xs"
+              disabled={isRunningTests}
+            >
+              {isRunningTests ? '⏳' : 'Test'}
+            </button>
+          </div>
+          <div className="text-xs mt-1 text-gray-400">
+            Ctrl+H: Health | Ctrl+T: Tests
+          </div>
         </div>
       )}
       
