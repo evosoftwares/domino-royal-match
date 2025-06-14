@@ -6,6 +6,7 @@ import GamePlayersHeader from './GamePlayersHeader';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { useHybridGameEngine } from '@/hooks/useHybridGameEngine';
 import { useOptimizedGameTimer } from '@/hooks/useOptimizedGameTimer';
+import { useCommunicationRobustness } from '@/hooks/useCommunicationRobustness';
 import WinnerDialog from './WinnerDialog';
 import ActionFeedback from './ActionFeedback';
 import { useGameWinCheck } from '@/hooks/useGameWinCheck';
@@ -14,7 +15,7 @@ import { useGameHandlers } from '@/hooks/useGameHandlers';
 import GameLoadingScreen from './game/GameLoadingScreen';
 import GameMobileLayout from './game/GameMobileLayout';
 import GameDesktopLayout from './game/GameDesktopLayout';
-import { Wifi, WifiOff, RotateCcw } from 'lucide-react';
+import GameHealthIndicator from './game/GameHealthIndicator';
 
 interface Game2RoomProps {
   gameData: GameData;
@@ -37,7 +38,6 @@ const Game2Room: React.FC<Game2RoomProps> = ({
     isMyTurn,
     isProcessingMove,
     currentAction,
-    retryCount,
     pendingMovesCount,
     connectionStatus
   } = useHybridGameEngine({
@@ -45,6 +45,14 @@ const Game2Room: React.FC<Game2RoomProps> = ({
     players: initialPlayers,
     userId: user?.id,
   });
+
+  const {
+    robustPlayMove,
+    robustPassTurn,
+    getSystemHealth,
+    isCircuitOpen,
+    healthMetrics
+  } = useCommunicationRobustness(gameState.id);
 
   const {
     processedPlayers,
@@ -57,13 +65,44 @@ const Game2Room: React.FC<Game2RoomProps> = ({
     userId: user?.id
   });
 
+  // Wrapper para usar comunicação robusta
+  const enhancedPlayPiece = async (piece: any) => {
+    try {
+      if (isCircuitOpen) {
+        console.warn('⛔ Circuit breaker aberto, usando fallback local');
+        return await playPiece(piece);
+      }
+      
+      const result = await robustPlayMove(piece);
+      return result !== null;
+    } catch (error) {
+      console.error('Erro em enhancedPlayPiece:', error);
+      return await playPiece(piece);
+    }
+  };
+
+  const enhancedPassTurn = async () => {
+    try {
+      if (isCircuitOpen) {
+        console.warn('⛔ Circuit breaker aberto, usando fallback local');
+        return await passTurn();
+      }
+      
+      const result = await robustPassTurn();
+      return result !== null;
+    } catch (error) {
+      console.error('Erro em enhancedPassTurn:', error);
+      return await passTurn();
+    }
+  };
+
   const gameHandlers = useGameHandlers({
     gameState,
     currentUserPlayer,
     isMyTurn,
     isProcessingMove,
-    playPiece,
-    passTurn
+    playPiece: enhancedPlayPiece,
+    passTurn: enhancedPassTurn
   });
 
   const { timeLeft, isWarning } = useOptimizedGameTimer({
@@ -80,20 +119,6 @@ const Game2Room: React.FC<Game2RoomProps> = ({
     players: processedPlayers,
     gameStatus: gameState.status
   });
-
-  // Helper para ícone de conexão
-  const getConnectionIcon = () => {
-    switch (connectionStatus) {
-      case 'connected':
-        return <Wifi className="w-4 h-4 text-green-400" />;
-      case 'reconnecting':
-        return <RotateCcw className="w-4 h-4 text-yellow-400 animate-spin" />;
-      case 'disconnected':
-        return <WifiOff className="w-4 h-4 text-red-400" />;
-      default:
-        return <Wifi className="w-4 h-4 text-gray-400" />;
-    }
-  };
 
   if (gameState.status !== 'active') {
     return (
@@ -113,33 +138,11 @@ const Game2Room: React.FC<Game2RoomProps> = ({
         action={currentAction}
       />
 
-      {/* Status de conexão e sincronização */}
-      <div className="fixed top-16 right-4 z-40 space-y-2">
-        {/* Status de conexão */}
-        <div className={`bg-slate-900/90 backdrop-blur-sm rounded-lg p-2 border shadow-lg ${
-          connectionStatus === 'connected' ? 'border-green-600/50' :
-          connectionStatus === 'reconnecting' ? 'border-yellow-600/50' :
-          'border-red-600/50'
-        }`}>
-          <div className="flex items-center gap-2">
-            {getConnectionIcon()}
-            <span className="text-xs text-slate-200">
-              {connectionStatus === 'connected' ? 'Conectado' :
-               connectionStatus === 'reconnecting' ? 'Reconectando...' :
-               'Desconectado'}
-            </span>
-          </div>
-        </div>
-
-        {/* Indicador de sincronização */}
-        {(retryCount > 0 || pendingMovesCount > 0) && (
-          <div className="bg-blue-900/90 backdrop-blur-sm rounded-lg p-2 border border-blue-600/50 shadow-lg">
-            <p className="text-xs text-blue-200">
-              {retryCount > 0 ? `Sincronizando... ${retryCount}/3` : `${pendingMovesCount} ação(ões) pendente(s)`}
-            </p>
-          </div>
-        )}
-      </div>
+      <GameHealthIndicator
+        connectionStatus={connectionStatus}
+        serverHealth={getSystemHealth()}
+        pendingMovesCount={pendingMovesCount}
+      />
       
       <WinnerDialog 
         winner={winState.winner}
@@ -154,7 +157,7 @@ const Game2Room: React.FC<Game2RoomProps> = ({
           placedPieces={placedPieces}
           currentUserPlayer={currentUserPlayer}
           gameHandlers={gameHandlers}
-          playPiece={playPiece}
+          playPiece={enhancedPlayPiece}
           isProcessingMove={isProcessingMove}
           timeLeft={timeLeft}
           isWarning={isWarning}
@@ -165,7 +168,7 @@ const Game2Room: React.FC<Game2RoomProps> = ({
           placedPieces={placedPieces}
           currentUserPlayer={currentUserPlayer}
           gameHandlers={gameHandlers}
-          playPiece={playPiece}
+          playPiece={enhancedPlayPiece}
           isProcessingMove={isProcessingMove}
           timeLeft={timeLeft}
           isWarning={isWarning}

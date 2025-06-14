@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
@@ -10,6 +9,7 @@ import { Button } from '@/components/ui/button';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { useRobustGameData } from '@/hooks/useRobustGameData';
 import ErrorBoundary from '@/components/ErrorBoundary';
+import GameStateRecoveryDialog from '@/components/game/GameStateRecoveryDialog';
 
 const Game2: React.FC = () => {
   const { gameId } = useParams<{ gameId: string; }>();
@@ -24,7 +24,14 @@ const Game2: React.FC = () => {
     isLoading,
     error,
     retryCount,
-    retryManually
+    retryManually,
+    showRecoveryDialog,
+    corruption,
+    isRecovering,
+    recoveryAttempts,
+    hasBackup,
+    handleRecovery,
+    dismissRecoveryDialog
   } = useRobustGameData({ gameId: gameId || '' });
 
   useEffect(() => {
@@ -46,10 +53,6 @@ const Game2: React.FC = () => {
     navigate('/');
   };
 
-  // REMOVIDO: Todas as subscriptions duplicadas do realtime
-  // Agora toda sincronização é centralizada no useHybridGameEngine
-
-  // Tela para forçar rotação em mobile
   if (isMobile && !isLandscape) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-purple-900 via-purple-800 to-black flex items-center justify-center p-4">
@@ -151,6 +154,21 @@ const Game2: React.FC = () => {
         <div className="container mx-auto px-4 py-8">
           <Game2Room gameData={gameData} players={players} />
         </div>
+        
+        <GameStateRecoveryDialog
+          isVisible={showRecoveryDialog}
+          corruption={corruption || {
+            hasCorruptedState: false,
+            corruptionType: 'unknown',
+            confidence: 0
+          }}
+          isRecovering={isRecovering}
+          recoveryAttempts={recoveryAttempts}
+          hasBackup={hasBackup}
+          onRecovery={handleRecovery}
+          onManualRefresh={retryManually}
+          onDismiss={dismissRecoveryDialog}
+        />
       </div>
     </ErrorBoundary>
   );

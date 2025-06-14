@@ -4,6 +4,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { toast } from 'sonner';
 import { GameData, PlayerData } from '@/types/game';
+import { useGameStateRecovery } from './useGameStateRecovery';
 
 interface UseRobustGameDataProps {
   gameId: string;
@@ -19,7 +20,18 @@ export const useRobustGameData = ({ gameId }: UseRobustGameDataProps) => {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [retryCount, setRetryCount] = useState(0);
+  const [showRecoveryDialog, setShowRecoveryDialog] = useState(false);
   const retryTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  const {
+    detectStateCorruption,
+    saveLastKnownGoodState,
+    attemptStateRecovery,
+    isRecovering,
+    recoveryAttempts,
+    resetRecoveryState,
+    hasBackup
+  } = useGameStateRecovery();
 
   const fetchWithRetry = useCallback(async (retryAttempt = 0): Promise<void> => {
     try {
@@ -29,12 +41,10 @@ export const useRobustGameData = ({ gameId }: UseRobustGameDataProps) => {
         console.log(`Tentativa ${retryAttempt} de carregar dados do jogo`);
       }
 
-      // Validação de entrada
       if (!gameId || !user) {
         throw new Error('ID do jogo ou usuário inválido');
       }
 
-      // Fetch com timeout
       const gamePromise = supabase
         .from('games')
         .select('id, status, current_player_turn, board_state, prize_pool, created_at, updated_at')
@@ -47,7 +57,6 @@ export const useRobustGameData = ({ gameId }: UseRobustGameDataProps) => {
         .eq('game_id', gameId)
         .order('position');
 
-      // Timeout de 10 segundos
       const timeoutPromise = new Promise((_, reject) => {
         setTimeout(() => reject(new Error('Timeout ao carregar dados')), 10000);
       });
@@ -76,13 +85,33 @@ export const useRobustGameData = ({ gameId }: UseRobustGameDataProps) => {
         throw new Error('Jogadores não encontrados');
       }
 
-      // Verificar permissão
       if (!gamePlayers.some(p => p.user_id === user.id)) {
         throw new Error('Você não faz parte deste jogo');
       }
 
-      setGameData(game);
-      setPlayers(gamePlayers);
+      // Detectar corrupção de estado ANTES de aplicar
+      const corruption = detectStateCorruption(game, gamePlayers);
+      
+      if (corruption.hasCorruptedState && corruption.confidence > 0.8) {
+        console.warn('🚨 Estado corrompido detectado:', corruption);
+        setShowRecoveryDialog(true);
+        
+        // Tentar recuperação automática
+        const recovered = await attemptStateRecovery(gameId, corruption);
+        if (recovered.game) {
+          setGameData(recovered.game);
+          setPlayers(recovered.players.length > 0 ? recovered.players : gamePlayers);
+        } else {
+          setGameData(game);
+          setPlayers(gamePlayers);
+        }
+      } else {
+        // Estado válido - salvar como backup e aplicar
+        saveLastKnownGoodState(game, gamePlayers);
+        setGameData(game);
+        setPlayers(gamePlayers);
+      }
+
       setRetryCount(0);
       
       if (retryAttempt === 0) {
@@ -112,14 +141,33 @@ export const useRobustGameData = ({ gameId }: UseRobustGameDataProps) => {
     } finally {
       setIsLoading(false);
     }
-  }, [gameId, user]);
+  }, [gameId, user, detectStateCorruption, saveLastKnownGoodState, attemptStateRecovery]);
 
   const retryManually = useCallback(() => {
     setIsLoading(true);
     setError(null);
     setRetryCount(0);
+    resetRecoveryState();
+    setShowRecoveryDialog(false);
     fetchWithRetry(0);
-  }, [fetchWithRetry]);
+  }, [fetchWithRetry, resetRecoveryState]);
+
+  const handleRecovery = useCallback(async (useBackup: boolean) => {
+    if (!gameData) return;
+
+    const corruption = detectStateCorruption(gameData, players);
+    const recovered = await attemptStateRecovery(gameId, corruption, {
+      forceRefresh: !useBackup,
+      resetCache: true,
+      fallbackToLastKnown: useBackup
+    });
+
+    if (recovered.game) {
+      setGameData(recovered.game);
+      setPlayers(recovered.players.length > 0 ? recovered.players : players);
+      setShowRecoveryDialog(false);
+    }
+  }, [gameData, players, detectStateCorruption, attemptStateRecovery, gameId]);
 
   useEffect(() => {
     fetchWithRetry(0);
@@ -139,6 +187,14 @@ export const useRobustGameData = ({ gameId }: UseRobustGameDataProps) => {
     retryCount,
     retryManually,
     setGameData,
-    setPlayers
+    setPlayers,
+    // Novos recursos de recuperação
+    showRecoveryDialog,
+    corruption: gameData ? detectStateCorruption(gameData, players) : null,
+    isRecovering,
+    recoveryAttempts,
+    hasBackup,
+    handleRecovery,
+    dismissRecoveryDialog: () => setShowRecoveryDialog(false)
   };
 };
