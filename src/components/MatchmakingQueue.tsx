@@ -263,7 +263,11 @@ const MatchmakingQueue: React.FC = () => {
 
     const { error } = await supabase
       .from('matchmaking_queue')
-      .upsert({ user_id: user.id, status: 'searching' });
+      .upsert({ 
+        user_id: user.id, 
+        status: 'searching',
+        idjogopleiteado: 1
+      });
 
     if (error) {
       toast.error('Erro ao entrar na fila.');

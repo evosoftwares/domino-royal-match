@@ -169,7 +169,11 @@ export const useMatchmaking = () => {
       // Usando upsert para evitar erros se o usuário já estiver na fila
       const { error } = await supabase
         .from('matchmaking_queue')
-        .upsert({ user_id: user.id, status: 'searching' });
+        .upsert({ 
+          user_id: user.id, 
+          status: 'searching',
+          idjogopleiteado: 1
+        });
       
       if (error) {
         toast.error(error.message);
