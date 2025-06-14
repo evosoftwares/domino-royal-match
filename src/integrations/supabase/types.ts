@@ -18,6 +18,7 @@ export type Database = {
           joined_at: string | null
           position: number
           score: number | null
+          updated_at: string | null
           user_id: string | null
         }
         Insert: {
@@ -28,6 +29,7 @@ export type Database = {
           joined_at?: string | null
           position: number
           score?: number | null
+          updated_at?: string | null
           user_id?: string | null
         }
         Update: {
@@ -38,6 +40,7 @@ export type Database = {
           joined_at?: string | null
           position?: number
           score?: number | null
+          updated_at?: string | null
           user_id?: string | null
         }
         Relationships: [

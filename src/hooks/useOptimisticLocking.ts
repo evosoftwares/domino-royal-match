@@ -1,4 +1,3 @@
-
 import { useCallback, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 
@@ -132,12 +131,17 @@ export const useOptimisticLocking = () => {
         // 2. Executar operação com estado atual
         const updates = await operation(currentData as T);
 
-        // 3. Tentar atualizar - game_players não tem updated_at, usar joined_at como versão
+        // 3. Tentar atualizar com verificação de versão/timestamp
+        const updateData = {
+            ...updates,
+            updated_at: new Date().toISOString()
+        };
+        
         const { data: updatedData, error: updateError } = await supabase
           .from('game_players')
-          .update(updates)
+          .update(updateData)
           .eq('id', playerId)
-          .eq('joined_at', currentData.joined_at) // Verificação otimista usando joined_at
+          .eq('updated_at', (currentData as any).updated_at) // Verificação otimista usando updated_at
           .select()
           .single();
 
