@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { toast } from 'sonner';
@@ -6,7 +7,7 @@ import GameBoard from './GameBoard';
 import OptimizedOpponentsList from './OptimizedOpponentsList';
 import PlayerHand from './PlayerHand';
 import GamePlayersHeader from './GamePlayersHeader';
-import { useIsMobile } from '@/hooks/use-is-mobile';
+import { useIsMobile } from '@/hooks/use-mobile';
 import { useOptimizedGameLogic } from '@/hooks/useOptimizedGameLogic';
 import { useOptimizedGameTimer } from '@/hooks/useOptimizedGameTimer';
 import { 
