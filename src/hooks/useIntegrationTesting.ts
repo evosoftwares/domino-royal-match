@@ -7,6 +7,7 @@ import { testTwoPhaseCommit } from './testing/testTwoPhaseCommit';
 import { testCircuitBreaker } from './testing/testCircuitBreaker';
 import { testReconciliation } from './testing/testReconciliation';
 import { testPerformance } from './testing/testPerformance';
+import { testDataValidation, ValidationFunctions } from './testing/testDataValidation';
 
 interface RunTestsParams {
   gameState: GameData;
@@ -16,6 +17,7 @@ interface RunTestsParams {
   recordFailure: (time: number, error: any) => void;
   reconcileStates: (local: GameData, server: GameData, localPlayers: PlayerData[], serverPlayers: PlayerData[]) => Promise<boolean>;
   validateGameData: (gameState: GameData, playersState: PlayerData[]) => any;
+  validationFunctions: ValidationFunctions;
 }
 
 export const useIntegrationTesting = () => {
@@ -39,7 +41,7 @@ export const useIntegrationTesting = () => {
         circuitBreaker: await testCircuitBreaker(testParams.shouldAllowRequest, testParams.recordFailure),
         reconciliation: await testReconciliation(testParams.gameState, testParams.gameState, testParams.reconcileStates),
         performance: await testPerformance(testParams.validateGameData),
-        dataValidation: []
+        dataValidation: await testDataValidation(testParams.gameState, testParams.playersState, testParams.validationFunctions)
       };
 
       setTestResults(results);
@@ -49,7 +51,8 @@ export const useIntegrationTesting = () => {
         ...results.twoPhaseCommit,
         ...results.circuitBreaker,
         ...results.reconciliation,
-        ...results.performance
+        ...results.performance,
+        ...results.dataValidation
       ];
       
       const passed = allTests.filter(t => t.passed).length;

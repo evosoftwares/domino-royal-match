@@ -22,6 +22,7 @@ import GameDesktopLayout from './game/GameDesktopLayout';
 import GameHealthIndicator from './game/GameHealthIndicator';
 import { useGameDebug } from '@/hooks/useGameDebug';
 import { toast } from 'sonner';
+import { useTypeScriptStrictMode } from '@/hooks/useTypeScriptStrictMode';
 
 interface Game2RoomProps {
   gameData: GameData;
@@ -96,6 +97,9 @@ const Game2Room: React.FC<Game2RoomProps> = ({
       toast.error(`${conflicts.length} conflito${conflicts.length > 1 ? 's' : ''} crítico${conflicts.length > 1 ? 's' : ''} detectado${conflicts.length > 1 ? 's' : ''}`);
     }
   });
+
+  // Hook de modo estrito para validação
+  const strictMode = useTypeScriptStrictMode();
 
   // Validação contínua de estado com integração completa
   useStateValidator({
@@ -191,14 +195,19 @@ const Game2Room: React.FC<Game2RoomProps> = ({
         shouldAllowRequest: () => syncStatus !== 'failed',
         recordFailure: recordError,
         reconcileStates: reconcileStates,
-        validateGameData: (gameState, playersState) => ({ valid: true, gameState, playersState })
+        validateGameData: (gameState, playersState) => ({ valid: true, gameState, playersState }),
+        validationFunctions: {
+          toStrictGameState: strictMode.toStrictGameState,
+          toStrictPlayersState: strictMode.toStrictPlayersState,
+          validateStateConsistency: strictMode.validateStateConsistency,
+        },
       });
     } catch (error) {
       console.error('❌ Erro nos testes de integração:', error);
       recordError(1000, error as any);
       toast.error('Erro ao executar testes');
     }
-  }, [isRunningTests, runIntegrationTests, gameState, playersState, playPiece, syncStatus, recordError, reconcileStates]);
+  }, [isRunningTests, runIntegrationTests, gameState, playersState, playPiece, syncStatus, recordError, reconcileStates, strictMode]);
   
   const handleResetMetrics = React.useCallback(() => {
     resetMetrics();
