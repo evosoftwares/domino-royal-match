@@ -185,7 +185,8 @@ export const useIntegrationTesting = () => {
         board_state: { pieces: [] },
         current_player_turn: 'test-player',
         created_at: new Date().toISOString(),
-        prize_pool: 4.40
+        prize_pool: 4.40,
+        consecutive_passes: 0
       };
       
       const result = validateGameData(mockGameState, []);
