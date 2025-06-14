@@ -1,5 +1,5 @@
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { useNavigate } from 'react-router-dom';
@@ -9,17 +9,24 @@ export const useGameCheck = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
   const [isCheckingGame, setIsCheckingGame] = useState(false);
+  const checkingRef = useRef(false);
+  const lastCheckRef = useRef(0);
 
-  // Verificar se o usuário já está em um jogo ativo ao carregar
+  // Verificar se o usuário já está em um jogo ativo ao carregar - COM DEBOUNCE
   useEffect(() => {
-    if (user) {
-      checkUserActiveGame();
+    if (user && !checkingRef.current) {
+      const now = Date.now();
+      if (now - lastCheckRef.current > 1000) { // Debounce de 1 segundo
+        lastCheckRef.current = now;
+        checkUserActiveGame();
+      }
     }
   }, [user]);
 
   const checkUserActiveGame = async (): Promise<boolean> => {
-    if (!user || isCheckingGame) return false;
+    if (!user || checkingRef.current) return false;
 
+    checkingRef.current = true;
     setIsCheckingGame(true);
 
     try {
@@ -60,7 +67,12 @@ export const useGameCheck = () => {
         if (isGameValid) {
           console.log('✅ Jogo ativo válido encontrado (sistema seguro):', activeGame.game_id);
           toast.success('Redirecionando para seu jogo ativo...');
-          navigate(`/game2/${activeGame.game_id}`);
+          
+          // Usar setTimeout para evitar problemas de navegação
+          setTimeout(() => {
+            navigate(`/game2/${activeGame.game_id}`);
+          }, 100);
+          
           return true;
         } else {
           console.warn('⚠️ Jogo encontrado mas invalidado pelo sistema seguro');
@@ -73,6 +85,7 @@ export const useGameCheck = () => {
       console.error('❌ Erro ao verificar jogo ativo:', error);
       return false;
     } finally {
+      checkingRef.current = false;
       setIsCheckingGame(false);
     }
   };
