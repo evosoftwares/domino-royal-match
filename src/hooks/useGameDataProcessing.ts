@@ -1,5 +1,5 @@
 
-import { useMemo } from 'react';
+import { useMemo, useCallback } from 'react';
 import { GameData, PlayerData, ProcessedPlayer, DominoPieceType } from '@/types/game';
 import { standardizePiece, toBackendFormat } from '@/utils/pieceValidation';
 
@@ -9,7 +9,7 @@ interface UseGameDataProcessingProps {
   userId?: string;
 }
 
-// Cache para processamento de peças por jogador
+// Cache global para processamento de peças por jogador
 const playerPiecesCache = new Map<string, { hash: string; pieces: DominoPieceType[] }>();
 
 // Função para criar hash de array de peças
@@ -20,7 +20,7 @@ const createPiecesHash = (pieces: any[]): string => {
   ).join('');
 };
 
-// Função para processar peças de um jogador com cache
+// Função para processar peças de um jogador com cache otimizado
 const processPlayerPieces = (player: PlayerData): DominoPieceType[] => {
   const cacheKey = `${player.user_id}-${player.id}`;
   const piecesHash = createPiecesHash(player.hand || []);
@@ -53,11 +53,11 @@ const processPlayerPieces = (player: PlayerData): DominoPieceType[] => {
     console.warn(`Jogador ${player.user_id} tem mão inválida:`, player.hand);
   }
 
-  // Atualizar cache
+  // Atualizar cache com limite de tamanho
   playerPiecesCache.set(cacheKey, { hash: piecesHash, pieces });
   
-  // Limpar cache antigo (manter apenas últimos 10 jogadores)
-  if (playerPiecesCache.size > 10) {
+  // Limpar cache antigo (manter apenas últimos 20 jogadores)
+  if (playerPiecesCache.size > 20) {
     const firstKey = playerPiecesCache.keys().next().value;
     if (firstKey) playerPiecesCache.delete(firstKey);
   }
@@ -70,37 +70,47 @@ export const useGameDataProcessing = ({
   playersState,
   userId
 }: UseGameDataProcessingProps) => {
-  // Memoização granular para jogadores processados
-  const processedPlayers: ProcessedPlayer[] = useMemo(() => {
-    return playersState.map((player): ProcessedPlayer => {
+  // Memoização separada para cada jogador para evitar re-processamento desnecessário
+  const processedPlayersMap = useMemo(() => {
+    const playersMap = new Map<string, ProcessedPlayer>();
+    
+    playersState.forEach((player) => {
       const pieces = processPlayerPieces(player);
       const playerName = player.profiles?.full_name || `Jogador ${player.position || 'Desconhecido'}`;
 
-      return {
+      playersMap.set(player.user_id, {
         id: player.user_id,
         name: playerName,
         pieces,
         isCurrentPlayer: gameState.current_player_turn === player.user_id,
         position: player.position || 0,
         originalData: player
-      };
+      });
     });
+
+    return playersMap;
   }, [playersState, gameState.current_player_turn]);
+
+  // Converter Map para Array apenas quando necessário
+  const processedPlayers = useMemo(() => 
+    Array.from(processedPlayersMap.values()),
+    [processedPlayersMap]
+  );
 
   // Memoização separada para jogador atual
   const currentUserPlayer = useMemo(() => 
-    processedPlayers.find(p => p.id === userId), 
-    [processedPlayers, userId]
+    userId ? processedPlayersMap.get(userId) : undefined,
+    [processedPlayersMap, userId]
   );
 
   // Memoização separada para oponentes
   const opponents = useMemo(() => 
-    processedPlayers.filter(p => p.id !== userId), 
+    processedPlayers.filter(p => p.id !== userId),
     [processedPlayers, userId]
   );
 
-  // Memoização otimizada para peças do tabuleiro
-  const placedPieces: DominoPieceType[] = useMemo(() => {
+  // Memoização otimizada para peças do tabuleiro com validação defensiva
+  const placedPieces = useMemo(() => {
     if (!gameState?.board_state?.pieces || !Array.isArray(gameState.board_state.pieces)) {
       return [];
     }
@@ -109,7 +119,7 @@ export const useGameDataProcessing = ({
       try {
         let piece;
         
-        // Diferentes formatos possíveis
+        // Diferentes formatos possíveis - mais robusto
         if (boardPiece?.piece && Array.isArray(boardPiece.piece)) {
           piece = boardPiece.piece;
         } else if (Array.isArray(boardPiece)) {
@@ -139,16 +149,23 @@ export const useGameDataProcessing = ({
     }).filter((p): p is DominoPieceType => p !== null);
   }, [gameState.board_state]);
 
-  // Limpar cache quando necessário
-  const clearCache = useMemo(() => () => {
+  // Função para limpar cache - útil para troubleshooting
+  const clearCache = useCallback(() => {
     playerPiecesCache.clear();
   }, []);
+
+  // Estatísticas do cache para debugging
+  const getCacheStats = useCallback(() => ({
+    size: playerPiecesCache.size,
+    keys: Array.from(playerPiecesCache.keys())
+  }), []);
 
   return {
     processedPlayers,
     currentUserPlayer,
     opponents,
     placedPieces,
-    clearCache
+    clearCache,
+    getCacheStats
   };
 };
