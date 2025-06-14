@@ -14,6 +14,7 @@ import { useGameHandlers } from '@/hooks/useGameHandlers';
 import GameLoadingScreen from './game/GameLoadingScreen';
 import GameMobileLayout from './game/GameMobileLayout';
 import GameDesktopLayout from './game/GameDesktopLayout';
+import { Wifi, WifiOff, RotateCcw } from 'lucide-react';
 
 interface Game2RoomProps {
   gameData: GameData;
@@ -37,7 +38,8 @@ const Game2Room: React.FC<Game2RoomProps> = ({
     isProcessingMove,
     currentAction,
     retryCount,
-    pendingMovesCount
+    pendingMovesCount,
+    connectionStatus
   } = useHybridGameEngine({
     gameData: initialGameData,
     players: initialPlayers,
@@ -79,6 +81,20 @@ const Game2Room: React.FC<Game2RoomProps> = ({
     gameStatus: gameState.status
   });
 
+  // Helper para ícone de conexão
+  const getConnectionIcon = () => {
+    switch (connectionStatus) {
+      case 'connected':
+        return <Wifi className="w-4 h-4 text-green-400" />;
+      case 'reconnecting':
+        return <RotateCcw className="w-4 h-4 text-yellow-400 animate-spin" />;
+      case 'disconnected':
+        return <WifiOff className="w-4 h-4 text-red-400" />;
+      default:
+        return <Wifi className="w-4 h-4 text-gray-400" />;
+    }
+  };
+
   if (gameState.status !== 'active') {
     return (
       <GameLoadingScreen 
@@ -97,14 +113,33 @@ const Game2Room: React.FC<Game2RoomProps> = ({
         action={currentAction}
       />
 
-      {/* Indicador de sincronização */}
-      {(retryCount > 0 || pendingMovesCount > 0) && (
-        <div className="fixed top-16 right-4 bg-blue-900/90 backdrop-blur-sm rounded-lg p-2 border border-blue-600/50 shadow-lg z-40">
-          <p className="text-xs text-blue-200">
-            {retryCount > 0 ? `Sincronizando... ${retryCount}/3` : `${pendingMovesCount} ação(ões) pendente(s)`}
-          </p>
+      {/* Status de conexão e sincronização */}
+      <div className="fixed top-16 right-4 z-40 space-y-2">
+        {/* Status de conexão */}
+        <div className={`bg-slate-900/90 backdrop-blur-sm rounded-lg p-2 border shadow-lg ${
+          connectionStatus === 'connected' ? 'border-green-600/50' :
+          connectionStatus === 'reconnecting' ? 'border-yellow-600/50' :
+          'border-red-600/50'
+        }`}>
+          <div className="flex items-center gap-2">
+            {getConnectionIcon()}
+            <span className="text-xs text-slate-200">
+              {connectionStatus === 'connected' ? 'Conectado' :
+               connectionStatus === 'reconnecting' ? 'Reconectando...' :
+               'Desconectado'}
+            </span>
+          </div>
         </div>
-      )}
+
+        {/* Indicador de sincronização */}
+        {(retryCount > 0 || pendingMovesCount > 0) && (
+          <div className="bg-blue-900/90 backdrop-blur-sm rounded-lg p-2 border border-blue-600/50 shadow-lg">
+            <p className="text-xs text-blue-200">
+              {retryCount > 0 ? `Sincronizando... ${retryCount}/3` : `${pendingMovesCount} ação(ões) pendente(s)`}
+            </p>
+          </div>
+        )}
+      </div>
       
       <WinnerDialog 
         winner={winState.winner}

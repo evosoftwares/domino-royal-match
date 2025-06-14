@@ -1,15 +1,12 @@
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import Game2Room from '@/components/Game2Room';
 import { toast } from 'sonner';
 import { Loader2, AlertCircle, RotateCcw, RefreshCw } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { RealtimeChannel } from '@supabase/supabase-js';
-import { GameData, PlayerData } from '@/types/game';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { useRobustGameData } from '@/hooks/useRobustGameData';
 import ErrorBoundary from '@/components/ErrorBoundary';
@@ -27,9 +24,7 @@ const Game2: React.FC = () => {
     isLoading,
     error,
     retryCount,
-    retryManually,
-    setGameData,
-    setPlayers
+    retryManually
   } = useRobustGameData({ gameId: gameId || '' });
 
   useEffect(() => {
@@ -51,75 +46,8 @@ const Game2: React.FC = () => {
     navigate('/');
   };
 
-  // Realtime subscriptions otimizadas
-  useEffect(() => {
-    if (!gameId || !gameData) return;
-
-    let gameChannel: RealtimeChannel | null = null;
-
-    try {
-      gameChannel = supabase.channel(`game2:${gameId}`);
-
-      const gameSubscription = gameChannel.on<GameData>(
-        'postgres_changes',
-        { event: 'UPDATE', schema: 'public', table: 'games', filter: `id=eq.${gameId}` },
-        (payload) => {
-          console.log('Game state updated:', payload.new);
-          setGameData(payload.new as GameData);
-          toast.info("O estado do jogo foi atualizado.");
-        }
-      );
-
-      const playersSubscription = gameChannel.on<PlayerData>(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'game_players', filter: `game_id=eq.${gameId}` },
-        async (payload) => {
-          try {
-            if (payload.eventType === 'INSERT') {
-              const newPlayer = payload.new as PlayerData;
-              if (!newPlayer.profiles) {
-                const { data: profileData } = await supabase
-                  .from('profiles')
-                  .select('full_name, avatar_url')
-                  .eq('id', newPlayer.user_id)
-                  .single();
-                newPlayer.profiles = profileData;
-              }
-              setPlayers(currentPlayers => [...currentPlayers, newPlayer]);
-              toast.info(`${newPlayer.profiles?.full_name || 'Novo jogador'} entrou no jogo.`);
-            } else if (payload.eventType === 'UPDATE') {
-              setPlayers(currentPlayers => 
-                currentPlayers.map(p => p.id === payload.new.id ? payload.new as PlayerData : p)
-              );
-            } else if (payload.eventType === 'DELETE') {
-              setPlayers(currentPlayers => 
-                currentPlayers.filter(p => p.id !== (payload.old as PlayerData).id)
-              );
-            }
-          } catch (error) {
-            console.error('Erro ao processar atualização de jogador:', error);
-          }
-        }
-      );
-
-      gameChannel.subscribe((status) => {
-        if (status === 'SUBSCRIBED') {
-          console.log('Conectado ao canal do jogo 2.');
-        } else if (status === 'CHANNEL_ERROR') {
-          console.error('Erro no canal realtime');
-          toast.error('Erro de conexão em tempo real');
-        }
-      });
-    } catch (error) {
-      console.error('Erro ao configurar realtime:', error);
-    }
-
-    return () => {
-      if (gameChannel) {
-        supabase.removeChannel(gameChannel);
-      }
-    };
-  }, [gameId, gameData, setGameData, setPlayers]);
+  // REMOVIDO: Todas as subscriptions duplicadas do realtime
+  // Agora toda sincronização é centralizada no useHybridGameEngine
 
   // Tela para forçar rotação em mobile
   if (isMobile && !isLandscape) {

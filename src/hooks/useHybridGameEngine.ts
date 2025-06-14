@@ -1,9 +1,10 @@
 
-import { useState, useCallback, useEffect, useMemo } from 'react';
+import { useState, useCallback, useEffect, useMemo, useRef } from 'react';
 import { GameData, PlayerData, DominoPieceType } from '@/types/game';
 import { supabase } from '@/integrations/supabase/client';
 import { validateMove, standardizePiece, toBackendFormat, extractBoardEnds } from '@/utils/pieceValidation';
 import { toast } from 'sonner';
+import { RealtimeChannel } from '@supabase/supabase-js';
 
 interface UseHybridGameEngineProps {
   gameData: GameData;
@@ -32,15 +33,13 @@ export const useHybridGameEngine = ({
   const [currentAction, setCurrentAction] = useState<ActionType>(null);
   const [pendingMoves, setPendingMoves] = useState<PendingMove[]>([]);
   const [retryCount, setRetryCount] = useState(0);
-
-  // Sincronização com dados externos
-  useEffect(() => {
-    setGameState(initialGameData);
-  }, [initialGameData]);
-
-  useEffect(() => {
-    setPlayersState(initialPlayers);
-  }, [initialPlayers]);
+  const [connectionStatus, setConnectionStatus] = useState<'connected' | 'disconnected' | 'reconnecting'>('connected');
+  
+  // Refs para debounce e heartbeat
+  const debounceTimerRef = useRef<NodeJS.Timeout>();
+  const heartbeatRef = useRef<NodeJS.Timeout>();
+  const channelRef = useRef<RealtimeChannel | null>(null);
+  const lastHeartbeatRef = useRef<number>(Date.now());
 
   const isMyTurn = useMemo(() => gameState.current_player_turn === userId, [gameState.current_player_turn, userId]);
 
@@ -50,6 +49,122 @@ export const useHybridGameEngine = ({
     const nextPlayerIndex = (currentPlayerIndex + 1) % sortedPlayers.length;
     return sortedPlayers[nextPlayerIndex]?.user_id;
   }, [playersState, gameState.current_player_turn]);
+
+  // Heartbeat para detectar desconexões
+  const startHeartbeat = useCallback(() => {
+    if (heartbeatRef.current) {
+      clearInterval(heartbeatRef.current);
+    }
+
+    heartbeatRef.current = setInterval(() => {
+      const now = Date.now();
+      const timeSinceLastHeartbeat = now - lastHeartbeatRef.current;
+      
+      if (timeSinceLastHeartbeat > 30000) { // 30 segundos sem heartbeat
+        setConnectionStatus('disconnected');
+        console.warn('Conexão perdida - sem heartbeat há', timeSinceLastHeartbeat, 'ms');
+      } else if (timeSinceLastHeartbeat > 15000) { // 15 segundos - aviso
+        setConnectionStatus('reconnecting');
+      } else {
+        setConnectionStatus('connected');
+      }
+    }, 5000); // Verifica a cada 5 segundos
+  }, []);
+
+  // Debounced update handler
+  const debouncedStateUpdate = useCallback((updateFn: () => void, delay: number = 500) => {
+    if (debounceTimerRef.current) {
+      clearTimeout(debounceTimerRef.current);
+    }
+
+    debounceTimerRef.current = setTimeout(() => {
+      updateFn();
+    }, delay);
+  }, []);
+
+  // Centralizar toda sincronização real-time aqui
+  useEffect(() => {
+    if (!gameState.id) return;
+
+    // Limpar canal anterior se existir
+    if (channelRef.current) {
+      supabase.removeChannel(channelRef.current);
+    }
+
+    try {
+      const gameChannel = supabase.channel(`hybrid-game:${gameState.id}`);
+      channelRef.current = gameChannel;
+
+      // Subscription para mudanças no jogo
+      gameChannel.on<GameData>(
+        'postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'games', filter: `id=eq.${gameState.id}` },
+        (payload) => {
+          console.log('Game state updated via realtime:', payload.new);
+          lastHeartbeatRef.current = Date.now();
+          
+          debouncedStateUpdate(() => {
+            setGameState(payload.new as GameData);
+            toast.info("Estado do jogo atualizado", { duration: 2000 });
+          });
+        }
+      );
+
+      // Subscription para mudanças nos jogadores
+      gameChannel.on<PlayerData>(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'game_players', filter: `game_id=eq.${gameState.id}` },
+        async (payload) => {
+          try {
+            console.log('Player state updated via realtime:', payload);
+            lastHeartbeatRef.current = Date.now();
+
+            debouncedStateUpdate(() => {
+              if (payload.eventType === 'UPDATE') {
+                setPlayersState(currentPlayers => 
+                  currentPlayers.map(p => p.id === payload.new.id ? payload.new as PlayerData : p)
+                );
+              }
+            });
+          } catch (error) {
+            console.error('Erro ao processar atualização de jogador:', error);
+          }
+        }
+      );
+
+      // Subscribe com status tracking
+      gameChannel.subscribe((status) => {
+        console.log('Canal híbrido status:', status);
+        lastHeartbeatRef.current = Date.now();
+        
+        if (status === 'SUBSCRIBED') {
+          setConnectionStatus('connected');
+          startHeartbeat();
+        } else if (status === 'CHANNEL_ERROR') {
+          setConnectionStatus('disconnected');
+          console.error('Erro no canal realtime híbrido');
+          toast.error('Erro de conexão em tempo real');
+        }
+      });
+
+    } catch (error) {
+      console.error('Erro ao configurar realtime híbrido:', error);
+      setConnectionStatus('disconnected');
+    }
+
+    return () => {
+      if (channelRef.current) {
+        supabase.removeChannel(channelRef.current);
+        channelRef.current = null;
+      }
+      if (heartbeatRef.current) {
+        clearInterval(heartbeatRef.current);
+      }
+      if (debounceTimerRef.current) {
+        clearTimeout(debounceTimerRef.current);
+      }
+    };
+  }, [gameState.id, debouncedStateUpdate, startHeartbeat]);
 
   // Aplicar mudança local (optimistic update)
   const applyLocalMove = useCallback((piece: DominoPieceType) => {
@@ -331,6 +446,7 @@ export const useHybridGameEngine = ({
     isProcessingMove,
     currentAction,
     retryCount,
-    pendingMovesCount: pendingMoves.length
+    pendingMovesCount: pendingMoves.length,
+    connectionStatus
   };
 };
