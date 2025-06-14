@@ -177,11 +177,16 @@ export const useCommunicationRobustness = (gameId: string) => {
 
   const robustPlayMove = useCallback(async (piece: DominoPieceType) => {
     return executeWithCircuitBreaker(
-      () => supabase.rpc('play_move', {
-        p_game_id: gameId,
-        p_piece: piece.originalFormat || { top: piece.top, bottom: piece.bottom },
-        p_side: 'left' // Será validado no servidor
-      }),
+      async () => {
+        const { data, error } = await supabase.rpc('play_move', {
+          p_game_id: gameId,
+          p_piece: piece.originalFormat || { l: piece.top, r: piece.bottom },
+          p_side: 'left' // Será validado no servidor
+        });
+        
+        if (error) throw error;
+        return data;
+      },
       'play_move',
       { type: 'play', piece }
     );
@@ -189,7 +194,11 @@ export const useCommunicationRobustness = (gameId: string) => {
 
   const robustPassTurn = useCallback(async () => {
     return executeWithCircuitBreaker(
-      () => supabase.rpc('pass_turn', { p_game_id: gameId }),
+      async () => {
+        const { data, error } = await supabase.rpc('pass_turn', { p_game_id: gameId });
+        if (error) throw error;
+        return data;
+      },
       'pass_turn',
       { type: 'pass' }
     );
@@ -236,7 +245,7 @@ export const useCommunicationRobustness = (gameId: string) => {
       ...healthMetrics,
       isHealthy,
       timeSinceLastSuccess,
-      circuitBreakerStatus: circuitState.isOpen ? 'open' : 'closed',
+      circuitBreakerStatus: (circuitState.isOpen ? 'open' : 'closed') as 'open' | 'closed',
       pendingFallbacks: fallbackQueueRef.current.length
     };
   }, [healthMetrics, circuitState, fallbackQueueRef.current.length]);

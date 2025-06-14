@@ -119,8 +119,12 @@ export const useGameStateRecovery = () => {
       if (corruption.corruptionType === 'empty_board') {
         console.log('🏗️ Tentando reconstruir board vazio...');
         
-        // Tentar forçar uma nova sincronização
-        await supabase.rpc('ensure_game_consistency', { p_game_id: gameId });
+        // Tentar forçar execução da função que joga a primeira peça
+        try {
+          await supabase.rpc('play_highest_piece', { p_game_id: gameId });
+        } catch (error) {
+          console.warn('Não foi possível executar play_highest_piece:', error);
+        }
         
         // Aguardar um pouco e tentar novamente
         await new Promise(resolve => setTimeout(resolve, 1000));
