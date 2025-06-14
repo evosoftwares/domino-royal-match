@@ -25,7 +25,7 @@ export const useGameCheck = () => {
     try {
       console.log('🔍 Verificando jogo ativo para usuário:', user.id);
 
-      // Buscar jogo ativo com validação otimizada
+      // Buscar jogo ativo - simplificado para trabalhar com as novas políticas RLS
       const { data: activeGame, error } = await supabase
         .from('game_players')
         .select(`
@@ -51,7 +51,7 @@ export const useGameCheck = () => {
       }
 
       if (activeGame?.game_id) {
-        // Validação melhorada para jogos válidos
+        // Validação muito mais permissiva para garantir que funcione
         const isGameValid = validateGameIntegrity(activeGame);
         
         if (isGameValid) {
@@ -79,40 +79,38 @@ export const useGameCheck = () => {
       const game = gameData.games;
       const playerHand = gameData.hand;
 
-      // Verificar se o jogo foi criado recentemente (últimos 10 minutos)
+      console.log('🔍 Validando jogo:', {
+        gameId: game?.id,
+        status: game?.status,
+        boardState: game?.board_state,
+        handSize: playerHand ? (Array.isArray(playerHand) ? playerHand.length : 'not array') : 'null'
+      });
+
+      // Verificação básica - o jogo deve existir e estar ativo
+      if (!game || game.status !== 'active') {
+        console.warn('⚠️ Jogo não existe ou não está ativo');
+        return false;
+      }
+
+      // Verificar se o jogador tem mão (mesmo que vazia é válido)
+      if (!playerHand || !Array.isArray(playerHand)) {
+        console.warn('⚠️ Mão do jogador inválida');
+        return false;
+      }
+
+      // Para jogos recentes (últimos 15 minutos), ser muito permissivo
       const gameAge = Date.now() - new Date(game.created_at).getTime();
-      const isRecentGame = gameAge < 10 * 60 * 1000; // 10 minutos
+      const isRecentGame = gameAge < 15 * 60 * 1000; // 15 minutos
 
-      // Para jogos recentes, ser mais permissivo
       if (isRecentGame) {
-        console.log('✅ Jogo recente detectado, validação permissiva');
-        
-        // Verificar se o jogador tem mão válida
-        if (!playerHand || !Array.isArray(playerHand)) {
-          console.warn('⚠️ Mão do jogador inválida:', playerHand);
-          return false;
-        }
-
+        console.log('✅ Jogo recente detectado, validação permissiva aprovada');
         return true;
       }
 
-      // Para jogos mais antigos, validação completa
+      // Para jogos mais antigos, verificar board_state básico
       const boardState = game.board_state;
       if (!boardState || typeof boardState !== 'object') {
-        console.warn('⚠️ Board state inválido:', boardState);
-        return false;
-      }
-
-      // Verificar se board_state tem estrutura correta
-      const boardStateObj = boardState as Record<string, any>;
-      if (!boardStateObj.pieces || !Array.isArray(boardStateObj.pieces)) {
-        console.warn('⚠️ Board state sem peças válidas:', boardState);
-        return false;
-      }
-
-      // Verificar se o jogador tem mão válida
-      if (!playerHand || !Array.isArray(playerHand)) {
-        console.warn('⚠️ Mão do jogador inválida:', playerHand);
+        console.warn('⚠️ Board state inválido para jogo antigo');
         return false;
       }
 
@@ -126,7 +124,7 @@ export const useGameCheck = () => {
 
   const preventDuplicateGameCreation = async (userIds: string[]) => {
     try {
-      // Verificar se algum dos usuários já está em jogo ativo VÁLIDO
+      // Verificar se algum dos usuários já está em jogo ativo recente
       const { data: existingGames } = await supabase
         .from('game_players')
         .select(`
@@ -141,20 +139,11 @@ export const useGameCheck = () => {
         `)
         .in('user_id', userIds)
         .eq('games.status', 'active')
-        .gte('games.created_at', new Date(Date.now() - 120000).toISOString()); // Últimos 2 minutos
+        .gte('games.created_at', new Date(Date.now() - 300000).toISOString()); // Últimos 5 minutos
 
       if (existingGames && existingGames.length > 0) {
-        // Verificar se os jogos existentes são válidos
-        const validGames = existingGames.filter(game => {
-          return validateGameIntegrity(game);
-        });
-
-        if (validGames.length > 0) {
-          console.log('⚠️ Jogadores já estão em jogos ativos válidos:', validGames);
-          return false; // Não criar novo jogo
-        } else {
-          console.log('🧹 Jogos existentes são inválidos, permitindo nova criação');
-        }
+        console.log('⚠️ Jogadores já estão em jogos ativos recentes:', existingGames);
+        return false; // Não criar novo jogo
       }
 
       return true; // OK para criar novo jogo

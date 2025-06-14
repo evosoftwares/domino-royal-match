@@ -316,10 +316,6 @@ export type Database = {
           created_at: string
         }[]
       }
-      is_current_player: {
-        Args: { p_game_id: string; p_user_id?: string }
-        Returns: boolean
-      }
       join_matchmaking_queue: {
         Args: Record<PropertyKey, never> | { p_id_jogo_pleiteado: number }
         Returns: Json
@@ -347,10 +343,6 @@ export type Database = {
       start_game: {
         Args: { p_player_ids: string[]; p_room_id?: string }
         Returns: Json
-      }
-      user_participates_in_game: {
-        Args: { p_game_id: string; p_user_id?: string }
-        Returns: boolean
       }
     }
     Enums: {
