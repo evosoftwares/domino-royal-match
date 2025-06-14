@@ -1,4 +1,5 @@
-import React, { useState, useEffect, useCallback } from 'react';
+
+import React from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { toast } from 'sonner';
@@ -15,14 +16,15 @@ import WinnerDialog from './WinnerDialog';
 import ActionFeedback from './ActionFeedback';
 import { useGameWinCheck } from '@/hooks/useGameWinCheck';
 import ErrorBoundary from './ErrorBoundary';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { ProcessedPlayer } from '@/types/game';
 
-interface GameRoomProps {
+interface SafeGameRoomProps {
   gameData: GameData;
   players: PlayerData[];
 }
 
-const GameRoom: React.FC<GameRoomProps> = ({ gameData: initialGameData, players: initialPlayers }) => {
+const SafeGameRoom: React.FC<SafeGameRoomProps> = ({ gameData: initialGameData, players: initialPlayers }) => {
   const { user } = useAuth();
   const [gameState, setGameState] = useState(initialGameData);
   const [playersState, setPlayersState] = useState(initialPlayers);
@@ -35,7 +37,8 @@ const GameRoom: React.FC<GameRoomProps> = ({ gameData: initialGameData, players:
     playAutomatic, 
     isProcessingMove, 
     currentAction,
-    retryCount
+    retryCount,
+    isMyTurn 
   } = useOptimizedGameLogic({
     gameId: gameState.id,
     userId: user?.id,
@@ -43,7 +46,6 @@ const GameRoom: React.FC<GameRoomProps> = ({ gameData: initialGameData, players:
     boardState: gameState.board_state
   });
 
-  const isMyTurn = gameState.current_player_turn === user?.id;
   const { timeLeft, isWarning } = useOptimizedGameTimer({
     isMyTurn: isMyTurn && gameState.status === 'active',
     onTimeout: () => {
@@ -63,57 +65,82 @@ const GameRoom: React.FC<GameRoomProps> = ({ gameData: initialGameData, players:
     setPlayersState(initialPlayers);
   }, [initialPlayers]);
 
-  const processedPlayers: ProcessedPlayer[] = playersState.map((player): ProcessedPlayer => {
-    const pieces: DominoPieceType[] = (player.hand && Array.isArray(player.hand))
-      ? player.hand.map((piece: any, index: number): DominoPieceType | null => {
-          if (piece && typeof piece === 'object' && 'l' in piece && 'r' in piece) {
-            return {
-              id: `${player.user_id}-piece-${index}`,
-              top: piece.l,
-              bottom: piece.r,
-              originalFormat: piece
-            };
-          }
+  // Memoização otimizada dos jogadores processados
+  const processedPlayers: ProcessedPlayer[] = useMemo(() => 
+    playersState.map((player): ProcessedPlayer => {
+      const pieces: DominoPieceType[] = (player.hand && Array.isArray(player.hand))
+        ? player.hand.map((piece: any, index: number): DominoPieceType | null => {
+            try {
+              if (piece && typeof piece === 'object' && 'l' in piece && 'r' in piece) {
+                return {
+                  id: `${player.user_id}-piece-${index}`,
+                  top: piece.l,
+                  bottom: piece.r,
+                  originalFormat: piece
+                };
+              }
+              return null;
+            } catch (error) {
+              console.error('Erro ao processar peça:', error);
+              return null;
+            }
+          }).filter((p): p is DominoPieceType => p !== null)
+        : [];
+      
+      return {
+        id: player.user_id,
+        name: player.profiles?.full_name || `Jogador ${player.position}`,
+        pieces,
+        isCurrentPlayer: gameState.current_player_turn === player.user_id,
+        position: player.position,
+        originalData: player
+      };
+    }), [playersState, gameState.current_player_turn]
+  );
+
+  const userPlayer = useMemo(() => 
+    processedPlayers.find(p => p.id === user?.id), 
+    [processedPlayers, user?.id]
+  );
+  
+  const otherPlayers = useMemo(() => 
+    processedPlayers.filter(p => p.id !== user?.id), 
+    [processedPlayers, user?.id]
+  );
+
+  // Memoização das peças do tabuleiro
+  const placedPieces: DominoPieceType[] = useMemo(() => {
+    if (!gameState.board_state?.pieces || !Array.isArray(gameState.board_state.pieces)) {
+      return [];
+    }
+
+    return gameState.board_state.pieces.map((boardPiece: any, index: number) => {
+      try {
+        let piece;
+        if (boardPiece.piece && Array.isArray(boardPiece.piece)) {
+          piece = boardPiece.piece;
+        } else if (Array.isArray(boardPiece)) {
+          piece = boardPiece;
+        } else if (boardPiece && typeof boardPiece === 'object' && 
+                   typeof boardPiece.l === 'number' && typeof boardPiece.r === 'number') {
+          piece = [boardPiece.l, boardPiece.r];
+        } else {
           return null;
-        }).filter((p): p is DominoPieceType => p !== null)
-      : [];
-    
-    return {
-      id: player.user_id,
-      name: player.profiles?.full_name || `Jogador ${player.position}`,
-      pieces,
-      isCurrentPlayer: gameState.current_player_turn === player.user_id,
-      position: player.position,
-      originalData: player
-    };
-  });
+        }
 
-  const userPlayer = processedPlayers.find(p => p.id === user?.id);
-  const otherPlayers = processedPlayers.filter(p => p.id !== user?.id);
-
-  let placedPieces: DominoPieceType[] = [];
-  if (gameState.board_state?.pieces && Array.isArray(gameState.board_state.pieces)) {
-    placedPieces = gameState.board_state.pieces.map((boardPiece: any, index: number) => {
-      let piece;
-      if (boardPiece.piece && Array.isArray(boardPiece.piece)) {
-        piece = boardPiece.piece;
-      } else if (Array.isArray(boardPiece)) {
-        piece = boardPiece;
-      } else if (boardPiece && typeof boardPiece === 'object' && 
-                 typeof boardPiece.l === 'number' && typeof boardPiece.r === 'number') {
-        piece = [boardPiece.l, boardPiece.r];
-      } else {
+        return {
+          id: `board-piece-${index}`,
+          top: piece[0],
+          bottom: piece[1]
+        };
+      } catch (error) {
+        console.error('Erro ao processar peça do tabuleiro:', error);
         return null;
       }
-
-      return {
-        id: `board-piece-${index}`,
-        top: piece[0],
-        bottom: piece[1]
-      };
     }).filter((p): p is DominoPieceType => p !== null);
-  }
+  }, [gameState.board_state]);
 
+  // Validação memoizada
   const canPiecePlay = useCallback((piece: DominoPieceType): boolean => {
     try {
       const standardPiece = standardizePiece(piece);
@@ -125,33 +152,39 @@ const GameRoom: React.FC<GameRoomProps> = ({ gameData: initialGameData, players:
     }
   }, [gameState.board_state]);
 
-  const handlePieceDrag = (piece: DominoPieceType) => {
+  const handlePieceDrag = useCallback((piece: DominoPieceType) => {
     setCurrentDraggedPiece(piece);
-  };
+  }, []);
 
-  const handleDragOver = (e: React.DragEvent) => {
+  const handleDragOver = useCallback((e: React.DragEvent) => {
     e.preventDefault();
     e.dataTransfer.dropEffect = 'move';
-  };
+  }, []);
 
-  const handleDrop = (e: React.DragEvent) => {
+  const handleDrop = useCallback((e: React.DragEvent) => {
     e.preventDefault();
     if (currentDraggedPiece && userPlayer?.isCurrentPlayer && !isProcessingMove) {
       playPiece(currentDraggedPiece);
     }
     setCurrentDraggedPiece(null);
-  };
+  }, [currentDraggedPiece, userPlayer?.isCurrentPlayer, isProcessingMove, playPiece]);
 
-  const handleManualAutoPlay = () => {
-    const playablePieces = userPlayer?.pieces.filter(canPiecePlay);
-    if (!playablePieces || playablePieces.length === 0) {
-      toast.info('Nenhuma peça jogável, passando a vez.');
-      passTurn();
-      return;
+  const handleManualAutoPlay = useCallback(() => {
+    try {
+      const playablePieces = userPlayer?.pieces.filter(canPiecePlay);
+      if (!playablePieces || playablePieces.length === 0) {
+        toast.info('Nenhuma peça jogável, passando a vez.');
+        passTurn();
+        return;
+      }
+      playAutomatic();
+    } catch (error) {
+      console.error('Erro no auto play:', error);
+      toast.error('Erro no jogo automático');
     }
-    playAutomatic();
-  };
+  }, [userPlayer?.pieces, canPiecePlay, passTurn, playAutomatic]);
 
+  // Verificação de vitória
   const winState = useGameWinCheck({
     players: processedPlayers,
     gameStatus: gameState.status
@@ -173,6 +206,7 @@ const GameRoom: React.FC<GameRoomProps> = ({ gameData: initialGameData, players:
     <ErrorBoundary>
       <div className="min-h-screen bg-gradient-to-br from-purple-900 via-purple-800 to-black p-4">
         <div className="max-w-7xl mx-auto">
+          {/* Feedback de ações com retry count */}
           <ActionFeedback 
             isProcessing={isProcessingMove}
             action={currentAction}
@@ -181,11 +215,12 @@ const GameRoom: React.FC<GameRoomProps> = ({ gameData: initialGameData, players:
           {retryCount > 0 && (
             <div className="fixed top-16 right-4 bg-orange-900/90 backdrop-blur-sm rounded-lg p-2 border border-orange-600/50 shadow-lg z-40">
               <p className="text-xs text-orange-200">
-                Reconectando... {retryCount}/3
+                Tentativa {retryCount}/3...
               </p>
             </div>
           )}
           
+          {/* Dialog de vitória */}
           <WinnerDialog 
             winner={winState.winner}
             winType={winState.winType}
@@ -221,4 +256,4 @@ const GameRoom: React.FC<GameRoomProps> = ({ gameData: initialGameData, players:
   );
 };
 
-export default GameRoom;
+export default SafeGameRoom;

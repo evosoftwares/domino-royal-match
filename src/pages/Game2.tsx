@@ -5,23 +5,32 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import Game2Room from '@/components/Game2Room';
 import { toast } from 'sonner';
-import { Loader2, AlertCircle, RotateCcw } from 'lucide-react';
+import { Loader2, AlertCircle, RotateCcw, RefreshCw } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { RealtimeChannel } from '@supabase/supabase-js';
 import { GameData, PlayerData } from '@/types/game';
 import { useIsMobile } from '@/hooks/use-mobile';
+import { useRobustGameData } from '@/hooks/useRobustGameData';
+import ErrorBoundary from '@/components/ErrorBoundary';
 
 const Game2: React.FC = () => {
   const { gameId } = useParams<{ gameId: string; }>();
   const navigate = useNavigate();
   const { user } = useAuth();
   const isMobile = useIsMobile();
-  const [gameData, setGameData] = useState<GameData | null>(null);
-  const [players, setPlayers] = useState<PlayerData[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const [isLandscape, setIsLandscape] = useState(false);
+
+  const {
+    gameData,
+    players,
+    isLoading,
+    error,
+    retryCount,
+    retryManually,
+    setGameData,
+    setPlayers
+  } = useRobustGameData({ gameId: gameId || '' });
 
   useEffect(() => {
     const checkOrientation = () => {
@@ -42,115 +51,75 @@ const Game2: React.FC = () => {
     navigate('/');
   };
 
-  const fetchInitialData = useCallback(async () => {
-    if (!gameId || !user) {
-      setError('ID do jogo ou usuário inválido.');
-      setIsLoading(false);
-      return;
-    }
+  // Realtime subscriptions otimizadas
+  useEffect(() => {
+    if (!gameId || !gameData) return;
 
-    setIsLoading(true);
-    setError(null);
+    let gameChannel: RealtimeChannel | null = null;
 
     try {
-      // Fetch games table with prize_pool (not prize_amount)
-      const { data: game, error: gameError } = await supabase
-        .from('games')
-        .select('id, status, current_player_turn, board_state, prize_pool, created_at, updated_at')
-        .eq('id', gameId)
-        .single();
+      gameChannel = supabase.channel(`game2:${gameId}`);
 
-      if (gameError || !game) {
-        toast.error('Jogo não encontrado ou acesso negado.');
-        setError('Jogo não encontrado.');
-        return;
-      }
-      
-      // Fetch only existing columns from game_players table (removing status)
-      const { data: gamePlayers, error: playersError } = await supabase
-        .from('game_players')
-        .select(`id, user_id, game_id, position, hand, profiles(full_name, avatar_url)`)
-        .eq('game_id', gameId)
-        .order('position');
-
-      if (playersError) {
-        toast.error('Erro ao carregar os jogadores.');
-        setError('Não foi possível carregar os jogadores.');
-        return;
-      }
-      
-      if (!gamePlayers.some(p => p.user_id === user.id)) {
-        toast.error("Você não faz parte deste jogo.");
-        setError("Acesso negado.");
-        navigate('/');
-        return;
-      }
-      
-      setGameData(game);
-      setPlayers(gamePlayers);
-      toast.success(`Bem-vindo ao jogo!`);
-
-    } catch (e: any) {
-      console.error("Erro ao carregar o jogo:", e);
-      setError('Ocorreu um erro inesperado.');
-      toast.error('Falha ao carregar o jogo.');
-    } finally {
-      setIsLoading(false);
-    }
-  }, [gameId, user, navigate]);
-
-  useEffect(() => {
-    fetchInitialData();
-  }, [fetchInitialData]);
-
-  useEffect(() => {
-    if (!gameId) return;
-
-    const gameChannel: RealtimeChannel = supabase.channel(`game2:${gameId}`);
-
-    const gameSubscription = gameChannel.on<GameData>(
-      'postgres_changes',
-      { event: 'UPDATE', schema: 'public', table: 'games', filter: `id=eq.${gameId}` },
-      (payload) => {
-        setGameData(payload.new as GameData);
-        toast.info("O estado do jogo foi atualizado.");
-      }
-    );
-
-    const playersSubscription = gameChannel.on<PlayerData>(
-      'postgres_changes',
-      { event: '*', schema: 'public', table: 'game_players', filter: `game_id=eq.${gameId}` },
-      async (payload) => {
-        if (payload.eventType === 'INSERT') {
-          const newPlayer = payload.new as PlayerData;
-          if (!newPlayer.profiles) {
-            const { data: profileData } = await supabase
-              .from('profiles')
-              .select('full_name, avatar_url')
-              .eq('id', newPlayer.user_id)
-              .single();
-            newPlayer.profiles = profileData;
-          }
-          setPlayers(currentPlayers => [...currentPlayers, newPlayer]);
-          toast.info(`${newPlayer.profiles?.full_name || 'Novo jogador'} entrou no jogo.`);
-        } else if (payload.eventType === 'UPDATE') {
-          setPlayers(currentPlayers => currentPlayers.map(p => p.id === payload.new.id ? payload.new as PlayerData : p));
-        } else if (payload.eventType === 'DELETE') {
-           setPlayers(currentPlayers => currentPlayers.filter(p => p.id !== (payload.old as PlayerData).id));
+      const gameSubscription = gameChannel.on<GameData>(
+        'postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'games', filter: `id=eq.${gameId}` },
+        (payload) => {
+          console.log('Game state updated:', payload.new);
+          setGameData(payload.new as GameData);
+          toast.info("O estado do jogo foi atualizado.");
         }
-      }
-    );
+      );
 
-    gameChannel.subscribe((status) => {
-      if (status === 'SUBSCRIBED') {
-        console.log('Conectado ao canal do jogo 2.');
-      }
-    });
+      const playersSubscription = gameChannel.on<PlayerData>(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'game_players', filter: `game_id=eq.${gameId}` },
+        async (payload) => {
+          try {
+            if (payload.eventType === 'INSERT') {
+              const newPlayer = payload.new as PlayerData;
+              if (!newPlayer.profiles) {
+                const { data: profileData } = await supabase
+                  .from('profiles')
+                  .select('full_name, avatar_url')
+                  .eq('id', newPlayer.user_id)
+                  .single();
+                newPlayer.profiles = profileData;
+              }
+              setPlayers(currentPlayers => [...currentPlayers, newPlayer]);
+              toast.info(`${newPlayer.profiles?.full_name || 'Novo jogador'} entrou no jogo.`);
+            } else if (payload.eventType === 'UPDATE') {
+              setPlayers(currentPlayers => 
+                currentPlayers.map(p => p.id === payload.new.id ? payload.new as PlayerData : p)
+              );
+            } else if (payload.eventType === 'DELETE') {
+              setPlayers(currentPlayers => 
+                currentPlayers.filter(p => p.id !== (payload.old as PlayerData).id)
+              );
+            }
+          } catch (error) {
+            console.error('Erro ao processar atualização de jogador:', error);
+          }
+        }
+      );
+
+      gameChannel.subscribe((status) => {
+        if (status === 'SUBSCRIBED') {
+          console.log('Conectado ao canal do jogo 2.');
+        } else if (status === 'CHANNEL_ERROR') {
+          console.error('Erro no canal realtime');
+          toast.error('Erro de conexão em tempo real');
+        }
+      });
+    } catch (error) {
+      console.error('Erro ao configurar realtime:', error);
+    }
 
     return () => {
-      supabase.removeChannel(gameChannel);
+      if (gameChannel) {
+        supabase.removeChannel(gameChannel);
+      }
     };
-  }, [gameId]);
+  }, [gameId, gameData, setGameData, setPlayers]);
 
   // Tela para forçar rotação em mobile
   if (isMobile && !isLandscape) {
@@ -173,6 +142,23 @@ const Game2: React.FC = () => {
     );
   }
 
+  if (!gameId || !user) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-purple-900 via-purple-800 to-black flex items-center justify-center">
+        <Card className="max-w-md mx-auto bg-slate-900/95 border-red-500/20">
+          <CardContent className="p-8 text-center">
+            <AlertCircle className="w-16 h-16 text-red-400 mx-auto mb-4" />
+            <h3 className="text-xl font-semibold text-slate-100 mb-2">Erro de Configuração</h3>
+            <p className="text-red-300 mb-6">ID do jogo ou usuário inválido</p>
+            <Button onClick={handleBackToLobby} variant="destructive">
+              Voltar ao Lobby
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
   if (isLoading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-purple-900 via-purple-800 to-black flex items-center justify-center">
@@ -181,6 +167,11 @@ const Game2: React.FC = () => {
             <Loader2 className="w-16 h-16 text-purple-400 mx-auto mb-4 animate-spin" />
             <h3 className="text-xl font-semibold text-slate-100 mb-2">Carregando Jogo</h3>
             <p className="text-purple-200">Preparando o tabuleiro...</p>
+            {retryCount > 0 && (
+              <p className="text-orange-300 mt-2 text-sm">
+                Tentativa {retryCount}/3...
+              </p>
+            )}
           </CardContent>
         </Card>
       </div>
@@ -195,9 +186,15 @@ const Game2: React.FC = () => {
             <AlertCircle className="w-16 h-16 text-red-400 mx-auto mb-4" />
             <h3 className="text-xl font-semibold text-slate-100 mb-2">Erro no Jogo</h3>
             <p className="text-red-300 mb-6">{error}</p>
-            <Button onClick={handleBackToLobby} variant="destructive" className="bg-red-600 hover:bg-red-700">
-              Voltar ao Lobby
-            </Button>
+            <div className="space-y-3">
+              <Button onClick={retryManually} className="w-full bg-blue-600 hover:bg-blue-700">
+                <RefreshCw className="w-4 h-4 mr-2" />
+                Tentar Novamente
+              </Button>
+              <Button onClick={handleBackToLobby} variant="outline" className="w-full">
+                Voltar ao Lobby
+              </Button>
+            </div>
           </CardContent>
         </Card>
       </div>
@@ -221,11 +218,13 @@ const Game2: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-purple-900 via-purple-800 to-black">
-      <div className="container mx-auto px-4 py-8">
-        <Game2Room gameData={gameData} players={players} />
+    <ErrorBoundary>
+      <div className="min-h-screen bg-gradient-to-br from-purple-900 via-purple-800 to-black">
+        <div className="container mx-auto px-4 py-8">
+          <Game2Room gameData={gameData} players={players} />
+        </div>
       </div>
-    </div>
+    </ErrorBoundary>
   );
 };
 
