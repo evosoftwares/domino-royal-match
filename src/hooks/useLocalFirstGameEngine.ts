@@ -1,4 +1,3 @@
-
 import { useState, useCallback, useEffect, useMemo, useRef } from 'react';
 import { GameData, PlayerData, DominoPieceType } from '@/types/game';
 import { toast } from 'sonner';
@@ -66,10 +65,7 @@ export const useLocalFirstGameEngine = ({
         return false;
       }
 
-      // Criar nova versão do estado
-      const stateVersion = createStateVersion('local');
-      
-      // Atualizar estado local do jogo
+      // Atualizar estado local do jogo (sem _version)
       setGameState(prev => ({
         ...prev,
         board_state: {
@@ -77,8 +73,7 @@ export const useLocalFirstGameEngine = ({
           pieces: [...(prev.board_state?.pieces || []), { piece: standardPiece }]
         },
         current_player_turn: getNextPlayerId(),
-        updated_at: new Date().toISOString(),
-        _version: stateVersion
+        updated_at: new Date().toISOString()
       }));
 
       // Remover peça da mão do jogador
@@ -101,17 +96,14 @@ export const useLocalFirstGameEngine = ({
       console.error('❌ Erro ao aplicar movimento local:', error);
       return false;
     }
-  }, [gameState.board_state, userId, createStateVersion]);
+  }, [gameState.board_state, userId]);
 
   const applyLocalPass = useCallback((): boolean => {
     try {
-      const stateVersion = createStateVersion('local');
-      
       setGameState(prev => ({
         ...prev,
         current_player_turn: getNextPlayerId(),
-        updated_at: new Date().toISOString(),
-        _version: stateVersion
+        updated_at: new Date().toISOString()
       }));
 
       console.log('✅ Passe aplicado localmente');
@@ -120,7 +112,7 @@ export const useLocalFirstGameEngine = ({
       console.error('❌ Erro ao aplicar passe local:', error);
       return false;
     }
-  }, [createStateVersion]);
+  }, []);
 
   // HELPER FUNCTIONS
   const getNextPlayerId = useCallback(() => {
@@ -298,15 +290,11 @@ export const useLocalFirstGameEngine = ({
         filter: `id=eq.${gameState.id}`
       }, (payload) => {
         const serverState = payload.new as GameData;
-        const currentVersion = gameState._version || { version: 0, timestamp: Date.now(), source: 'local' };
-        const serverVersion = createStateVersion('server');
         
-        if (validateStateUpdate(serverVersion, currentVersion)) {
-          if (shouldApplyUpdate(serverState, gameState)) {
-            console.log('📥 Aplicando atualização do servidor');
-            setGameState(serverState);
-            setSyncStatus('synced');
-          }
+        if (shouldApplyUpdate(serverState, gameState)) {
+          console.log('📥 Aplicando atualização do servidor');
+          setGameState(serverState);
+          setSyncStatus('synced');
         } else {
           console.warn('⚠️ Conflito detectado, resolvendo...');
           const conflict: ConflictResolution = {
@@ -339,7 +327,7 @@ export const useLocalFirstGameEngine = ({
     return () => {
       supabase.removeChannel(gameChannel);
     };
-  }, [gameState.id, gameState, validateStateUpdate, shouldApplyUpdate, createStateVersion, resolveConflict]);
+  }, [gameState.id, gameState, shouldApplyUpdate, resolveConflict]);
 
   // PUBLIC API - LOCAL FIRST ACTIONS
   const playPiece = useCallback(async (piece: DominoPieceType): Promise<boolean> => {

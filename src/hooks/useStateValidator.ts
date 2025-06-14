@@ -1,7 +1,6 @@
-
 import { useCallback, useRef, useEffect } from 'react';
 import { GameData, PlayerData } from '@/types/game';
-import { validateGameData } from '@/hooks/useGameDataValidator';
+import { useGameDataValidator } from '@/hooks/useGameDataValidator';
 
 interface StateValidationResult {
   isValid: boolean;
@@ -30,6 +29,9 @@ export const useStateValidator = ({
   const validationCountRef = useRef<number>(0);
   const errorHistoryRef = useRef<string[]>([]);
   const corruptionThresholdRef = useRef<number>(3);
+
+  // Usar o hook para obter a função de validação
+  const { validateGameData } = useGameDataValidator();
 
   // Validação principal
   const validateCurrentState = useCallback((): StateValidationResult => {
@@ -153,7 +155,7 @@ export const useStateValidator = ({
         confidence: 0
       };
     }
-  }, [gameState, playersState]);
+  }, [gameState, playersState, validateGameData]);
 
   // Validação automática periódica
   const runPeriodicValidation = useCallback(() => {
