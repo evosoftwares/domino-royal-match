@@ -1,3 +1,4 @@
+
 import { useState, useCallback, useEffect, useMemo } from 'react';
 import { GameData, PlayerData, DominoPieceType } from '@/types/game';
 import { useRealtimeSync } from './useRealtimeSync';
@@ -9,7 +10,7 @@ import { useOptimisticLocking } from './useOptimisticLocking';
 import { standardizePieceFormat, validateMove } from '@/utils/standardPieceValidation';
 import { getNextPlayerId, calculateNewBoardState, removePieceFromHand } from '@/utils/gameLogic';
 
-interface UseLocalFirstGameEngineProps {
+interface UseGameEngineProps {
   gameData: GameData;
   players: PlayerData[];
   userId?: string;
@@ -18,11 +19,11 @@ interface UseLocalFirstGameEngineProps {
 type SyncStatus = 'synced' | 'pending' | 'conflict' | 'failed';
 type ActionType = 'playing' | 'passing' | 'auto_playing' | 'syncing' | null;
 
-export const useLocalFirstGameEngine = ({
+export const useGameEngine = ({
   gameData: initialGameData,
   players: initialPlayers,
   userId
-}: UseLocalFirstGameEngineProps) => {
+}: UseGameEngineProps) => {
   // Estados locais principais
   const [gameState, setGameState] = useState<GameData>(initialGameData);
   const [playersState, setPlayersState] = useState<PlayerData[]>(initialPlayers);

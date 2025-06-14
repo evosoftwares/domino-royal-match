@@ -4,7 +4,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { GameData, PlayerData } from '@/types/game';
 import GamePlayersHeader from './GamePlayersHeader';
 import { useIsMobile } from '@/hooks/use-mobile';
-import { useLocalFirstGameEngine } from '@/hooks/useLocalFirstGameEngine';
+import { useGameEngine } from '@/hooks/useGameEngine';
 import { useOptimizedGameTimer } from '@/hooks/useOptimizedGameTimer';
 import { useStateValidator } from '@/hooks/useStateValidator';
 import { useSmartReconciliation } from '@/hooks/useSmartReconciliation';
@@ -38,7 +38,7 @@ const Game2Room: React.FC<Game2RoomProps> = ({
   const isMobile = useIsMobile();
   const [showHealthDashboard, setShowHealthDashboard] = useState(false);
   
-  // Engine de jogo local-first completo
+  // Engine de jogo unificado
   const {
     gameState,
     playersState,
@@ -53,7 +53,7 @@ const Game2Room: React.FC<Game2RoomProps> = ({
     getStateHealth,
     forceSync,
     debugInfo
-  } = useLocalFirstGameEngine({
+  } = useGameEngine({
     gameData: initialGameData,
     players: initialPlayers,
     userId: user?.id,
@@ -88,7 +88,7 @@ const Game2Room: React.FC<Game2RoomProps> = ({
   } = useSmartReconciliation({
     onStateReconciled: (reconciledGameState, reconciledPlayersState) => {
       console.log('🔄 Estados reconciliados aplicados automaticamente');
-      // O LocalFirstGameEngine já gerencia a atualização de estado
+      // O useGameEngine já gerencia a atualização de estado
       recordSuccess(50); // Registrar sucesso na reconciliação
     },
     onCriticalConflict: (conflicts) => {
@@ -196,7 +196,7 @@ const Game2Room: React.FC<Game2RoomProps> = ({
       });
     } catch (error) {
       console.error('❌ Erro nos testes de integração:', error);
-      recordError(1000, error);
+      recordError(1000, error as any);
       toast.error('Erro ao executar testes');
     }
   }, [isRunningTests, runIntegrationTests, gameState, playersState, playPiece, syncStatus, recordError, reconcileStates]);
@@ -293,7 +293,7 @@ const Game2Room: React.FC<Game2RoomProps> = ({
       {process.env.NODE_ENV === 'development' && (
         <div className="fixed top-20 right-4 bg-black/90 text-white p-3 rounded text-xs max-w-xs z-30">
           <div className="space-y-1">
-            <div className="text-green-400 font-bold">🎯 Sistema Local-First v2.0</div>
+            <div className="text-green-400 font-bold">🎯 Sistema Unificado v1.0</div>
             <div>Sync: <span className={syncStatus === 'synced' ? 'text-green-400' : 'text-red-400'}>{syncStatus}</span></div>
             <div>Pending: {pendingMovesCount}</div>
             <div>Health: {systemHealth.isHealthy ? '✅' : '⚠️'} ({systemHealth.successRate.toFixed(1)}%)</div>
