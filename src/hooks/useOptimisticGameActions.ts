@@ -66,8 +66,7 @@ export const useOptimisticGameActions = ({
             rotation: 0 
           }]
         },
-        current_player_turn: getNextPlayerId(),
-        updated_at: new Date().toISOString()
+        current_player_turn: getNextPlayerId()
       };
 
       // Remover peça da mão do jogador
@@ -99,8 +98,7 @@ export const useOptimisticGameActions = ({
   const applyPassLocally = useCallback((currentGame: GameData) => {
     const newGameState: GameData = {
       ...currentGame,
-      current_player_turn: getNextPlayerId(),
-      updated_at: new Date().toISOString()
+      current_player_turn: getNextPlayerId()
     };
 
     console.log('✅ Passe aplicado localmente:', {
@@ -128,7 +126,11 @@ export const useOptimisticGameActions = ({
       const localUpdate = applyMoveLocally(piece, gameState, playersState);
       const operationId = applyOptimisticUpdate({
         type: 'play_move',
-        data: { piece }
+        data: { piece },
+        localState: {
+          gameState,
+          playersState
+        }
       });
 
       // Aplicar estado local imediatamente para UX responsiva
@@ -178,7 +180,11 @@ export const useOptimisticGameActions = ({
       // FASE 1: Aplicar otimisticamente
       const localUpdate = applyPassLocally(gameState);
       const operationId = applyOptimisticUpdate({
-        type: 'pass_turn'
+        type: 'pass_turn',
+        localState: {
+          gameState,
+          playersState
+        }
       });
 
       // Aplicar estado local imediatamente
@@ -210,7 +216,7 @@ export const useOptimisticGameActions = ({
       toast.error("Erro ao passar turno");
       return false;
     }
-  }, [gameState, userId, hasPendingOperations, applyPassLocally, applyOptimisticUpdate, onStateUpdate, syncPassTurn, commitOperation, rollbackOperation]);
+  }, [gameState, playersState, userId, hasPendingOperations, applyPassLocally, applyOptimisticUpdate, onStateUpdate, syncPassTurn, commitOperation, rollbackOperation]);
 
   return {
     // Ações principais
