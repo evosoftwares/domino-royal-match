@@ -146,7 +146,7 @@ export const useGameCheck = () => {
         return false;
       }
 
-      // Validação segura das mãos dos jogadores
+      // Validação segura das mãos dos jogadores com verificação de tipo
       for (const player of otherPlayers) {
         if (!player.hand || !Array.isArray(player.hand)) {
           console.warn('⚠️ Jogador tem mão inválida:', player.user_id);
@@ -164,7 +164,10 @@ export const useGameCheck = () => {
       }
 
       // Validação adicional: verificar se o jogo não foi criado por sistema corrompido
-      const totalPieces = playerHand.length + otherPlayers.reduce((sum, p) => sum + (p.hand?.length || 0), 0) + boardState.pieces.length;
+      const totalPieces = playerHand.length + otherPlayers.reduce((sum, p) => {
+        return sum + (Array.isArray(p.hand) ? p.hand.length : 0);
+      }, 0) + boardState.pieces.length;
+      
       if (totalPieces > 28) {
         console.warn('⚠️ Sistema seguro detectou mais peças que o permitido');
         return false;
