@@ -4,7 +4,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { GameData, PlayerData } from '@/types/game';
 import GamePlayersHeader from './GamePlayersHeader';
 import { useIsMobile } from '@/hooks/use-mobile';
-import { useHybridGameEngine } from '@/hooks/useHybridGameEngine';
+import { useSimplifiedGameEngine } from '@/hooks/useSimplifiedGameEngine';
 import { useOptimizedGameTimer } from '@/hooks/useOptimizedGameTimer';
 import { useCommunicationRobustness } from '@/hooks/useCommunicationRobustness';
 import WinnerDialog from './WinnerDialog';
@@ -29,6 +29,7 @@ const Game2Room: React.FC<Game2RoomProps> = ({
   const { user } = useAuth();
   const isMobile = useIsMobile();
   
+  // Engine de jogo simplificado
   const {
     gameState,
     playersState,
@@ -40,12 +41,13 @@ const Game2Room: React.FC<Game2RoomProps> = ({
     currentAction,
     pendingMovesCount,
     connectionStatus
-  } = useHybridGameEngine({
+  } = useSimplifiedGameEngine({
     gameData: initialGameData,
     players: initialPlayers,
     userId: user?.id,
   });
 
+  // Sistema de comunicação robusta
   const {
     robustPlayMove,
     robustPassTurn,
@@ -54,6 +56,7 @@ const Game2Room: React.FC<Game2RoomProps> = ({
     healthMetrics
   } = useCommunicationRobustness(gameState.id);
 
+  // Processamento de dados do jogo
   const {
     processedPlayers,
     currentUserPlayer,
@@ -65,16 +68,20 @@ const Game2Room: React.FC<Game2RoomProps> = ({
     userId: user?.id
   });
 
-  // Wrapper para usar comunicação robusta
+  // Wrapper para comunicação robusta integrada
   const enhancedPlayPiece = async (piece: any) => {
     try {
       if (isCircuitOpen) {
-        console.warn('⛔ Circuit breaker aberto, usando fallback local');
+        console.warn('⛔ Circuit breaker aberto, usando engine local');
         return await playPiece(piece);
       }
       
+      // Tentar comunicação robusta primeiro
       const result = await robustPlayMove(piece);
-      return result !== null;
+      if (result !== null) return true;
+      
+      // Fallback para engine local
+      return await playPiece(piece);
     } catch (error) {
       console.error('Erro em enhancedPlayPiece:', error);
       return await playPiece(piece);
@@ -84,18 +91,23 @@ const Game2Room: React.FC<Game2RoomProps> = ({
   const enhancedPassTurn = async () => {
     try {
       if (isCircuitOpen) {
-        console.warn('⛔ Circuit breaker aberto, usando fallback local');
+        console.warn('⛔ Circuit breaker aberto, usando engine local');
         return await passTurn();
       }
       
+      // Tentar comunicação robusta primeiro
       const result = await robustPassTurn();
-      return result !== null;
+      if (result !== null) return true;
+      
+      // Fallback para engine local
+      return await passTurn();
     } catch (error) {
       console.error('Erro em enhancedPassTurn:', error);
       return await passTurn();
     }
   };
 
+  // Handlers do jogo
   const gameHandlers = useGameHandlers({
     gameState,
     currentUserPlayer,
@@ -105,6 +117,7 @@ const Game2Room: React.FC<Game2RoomProps> = ({
     passTurn: enhancedPassTurn
   });
 
+  // Timer otimizado
   const { timeLeft, isWarning } = useOptimizedGameTimer({
     isMyTurn: isMyTurn,
     onTimeout: () => {
@@ -115,6 +128,7 @@ const Game2Room: React.FC<Game2RoomProps> = ({
     isGameActive: gameState.status === 'active',
   });
 
+  // Verificação de vitória
   const winState = useGameWinCheck({
     players: processedPlayers,
     gameStatus: gameState.status

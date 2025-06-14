@@ -2,7 +2,8 @@
 import { useState, useCallback } from 'react';
 import { DominoPieceType } from '@/types/game';
 import { toast } from 'sonner';
-import { usePieceValidationCache } from './usePieceValidationCache';
+import { gameCache, createPieceValidationKey } from '@/utils/gameCache';
+import { canPieceConnect, extractBoardEnds } from '@/utils/standardPieceValidation';
 
 interface UseGameHandlersProps {
   gameState: any;
@@ -24,18 +25,30 @@ export const useGameHandlers = ({
   playAutomatic
 }: UseGameHandlersProps) => {
   const [currentDraggedPiece, setCurrentDraggedPiece] = useState<DominoPieceType | null>(null);
-  
-  // Hook de cache de validações
-  const validationCache = usePieceValidationCache();
 
+  // Verificação otimizada se peça pode jogar usando cache centralizado
   const canPiecePlay = useCallback((piece: DominoPieceType): boolean => {
     try {
-      return validationCache.canPiecePlay(piece, gameState.board_state);
+      const boardEnds = extractBoardEnds(gameState.board_state);
+      const boardHash = `${boardEnds.left || 'null'}-${boardEnds.right || 'null'}`;
+      const cacheKey = createPieceValidationKey(piece, boardHash);
+      
+      // Verificar cache primeiro
+      const cached = gameCache.getPieceValidation(cacheKey);
+      if (cached !== null) {
+        return cached;
+      }
+      
+      // Calcular e armazenar no cache
+      const result = canPieceConnect({ top: piece.top, bottom: piece.bottom }, boardEnds);
+      gameCache.setPieceValidation(cacheKey, result);
+      
+      return result;
     } catch (error) {
       console.error('Erro ao verificar jogabilidade da peça:', error);
       return false;
     }
-  }, [gameState.board_state, validationCache]);
+  }, [gameState.board_state]);
 
   const handlePassClick = useCallback(() => {
     if (!isMyTurn || isProcessingMove || !currentUserPlayer) return;
