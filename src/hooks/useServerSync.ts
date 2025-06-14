@@ -2,7 +2,7 @@
 import { useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { DominoPieceType } from '@/types/game';
-import { validateMove, standardizePiece, toBackendFormat } from '@/utils/pieceValidation';
+import { validateMove, toBackendFormat } from '@/utils/pieceValidation';
 
 interface UseServerSyncProps {
   gameId: string;
@@ -12,8 +12,14 @@ interface UseServerSyncProps {
 export const useServerSync = ({ gameId, boardState }: UseServerSyncProps) => {
   const syncPlayMove = useCallback(async (piece: DominoPieceType) => {
     try {
-      const pieceForRPC = piece.originalFormat || toBackendFormat(standardizePiece(piece));
+      // Usa peça já padronizada e converte para formato do backend
+      const pieceForRPC = piece.originalFormat || toBackendFormat({ top: piece.top, bottom: piece.bottom });
       const validation = validateMove(piece, boardState);
+      
+      if (!validation.isValid || !validation.side) {
+        console.error('Validação falhou no servidor:', validation.error);
+        return false;
+      }
       
       const { error } = await supabase.rpc('play_move', {
         p_game_id: gameId,
@@ -21,7 +27,10 @@ export const useServerSync = ({ gameId, boardState }: UseServerSyncProps) => {
         p_side: validation.side
       });
 
-      if (error) throw error;
+      if (error) {
+        console.error('Erro RPC play_move:', error);
+        throw error;
+      }
       return true;
     } catch (error) {
       console.error('Erro na sincronização de jogada:', error);
@@ -35,7 +44,10 @@ export const useServerSync = ({ gameId, boardState }: UseServerSyncProps) => {
         p_game_id: gameId
       });
 
-      if (error) throw error;
+      if (error) {
+        console.error('Erro RPC pass_turn:', error);
+        throw error;
+      }
       return true;
     } catch (error) {
       console.error('Erro na sincronização de passe:', error);
@@ -49,7 +61,10 @@ export const useServerSync = ({ gameId, boardState }: UseServerSyncProps) => {
         p_game_id: gameId,
       });
       
-      if (error) throw error;
+      if (error) {
+        console.error('Erro RPC auto_play:', error);
+        throw error;
+      }
       return true;
     } catch (error) {
       console.error('Erro no auto play:', error);

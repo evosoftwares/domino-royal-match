@@ -7,7 +7,7 @@ export interface PlayerProfile {
 export interface GameData {
   id: string;
   status: string;
-  prize_pool: number; // Mudança: era prize_amount, agora prize_pool para corresponder ao banco
+  prize_pool: number;
   current_player_turn: string | null;
   board_state: any;
   created_at: string;
@@ -18,16 +18,28 @@ export interface PlayerData {
   user_id: string;
   position: number;
   hand: any;
-  // Removendo status pois não existe na tabela game_players
   profiles?: PlayerProfile;
 }
 
+// Interface padronizada para peças de dominó - usando top/bottom consistentemente
 export interface DominoPieceType {
   id: string;
   top: number;
   bottom: number;
   orientation?: 'vertical' | 'horizontal';
-  originalFormat?: any;
+  originalFormat?: any; // Mantém referência ao formato original para compatibilidade
+}
+
+// Interface para formato interno padronizado
+export interface StandardPieceFormat {
+  top: number;
+  bottom: number;
+}
+
+// Interface para formato do backend
+export interface BackendPieceFormat {
+  l: number;
+  r: number;
 }
 
 export interface ProcessedPlayer {
@@ -37,4 +49,15 @@ export interface ProcessedPlayer {
   isCurrentPlayer: boolean;
   position: number;
   originalData: PlayerData;
+}
+
+export interface BoardEnds {
+  left: number | null;
+  right: number | null;
+}
+
+export interface ValidationResult {
+  isValid: boolean;
+  error?: string;
+  side?: 'left' | 'right';
 }

@@ -20,12 +20,8 @@ export const usePieceValidationCache = (): PieceValidationCache => {
   const statsRef = useRef({ hits: 0, misses: 0 });
 
   const createPieceKey = (piece: DominoPieceType): string => {
-    try {
-      const standard = standardizePiece(piece);
-      return `${standard.left}-${standard.right}`;
-    } catch {
-      return `${piece.top}-${piece.bottom}`;
-    }
+    // Usa valores padronizados diretamente para maior consistência
+    return `${piece.top}-${piece.bottom}`;
   };
 
   const createBoardHash = (boardState: any): string => {
@@ -51,11 +47,12 @@ export const usePieceValidationCache = (): PieceValidationCache => {
       return cached.result;
     }
 
-    // Cache miss - calcular resultado
+    // Cache miss - calcular resultado usando peça já padronizada
     statsRef.current.misses++;
     
     try {
-      const standardPiece = standardizePiece(piece);
+      // Como DominoPieceType já está padronizado, usamos diretamente
+      const standardPiece = { top: piece.top, bottom: piece.bottom };
       const boardEnds = extractBoardEnds(boardState);
       const result = canPieceConnect(standardPiece, boardEnds);
       

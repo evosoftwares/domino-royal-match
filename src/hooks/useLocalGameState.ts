@@ -1,7 +1,7 @@
 
 import { useState, useCallback } from 'react';
 import { GameData, PlayerData, DominoPieceType } from '@/types/game';
-import { validateMove, standardizePiece, toBackendFormat, extractBoardEnds } from '@/utils/pieceValidation';
+import { validateMove, standardizePiece, toBackendFormat, extractBoardEnds, arePiecesEqual } from '@/utils/pieceValidation';
 
 interface UseLocalGameStateProps {
   initialGameData: GameData;
@@ -31,14 +31,16 @@ export const useLocalGameState = ({
         return false;
       }
 
+      // Usar peça já padronizada
       const validation = validateMove(piece, gameState.board_state);
       if (!validation.isValid || !validation.side) {
+        console.error('Movimento inválido:', validation.error);
         return false;
       }
 
-      const standardPieceToPlay = standardizePiece(piece);
+      const standardPieceToPlay = { top: piece.top, bottom: piece.bottom };
       
-      // Update Player's Hand
+      // Update Player's Hand - busca mais robusta
       const updatedPlayers = playersState.map(p => {
         if (p.user_id === userId) {
           if (!p.hand || !Array.isArray(p.hand)) {
@@ -50,10 +52,8 @@ export const useLocalGameState = ({
           const newHand = p.hand.filter((p_piece: any) => {
             if (found) return true;
             try {
-              const standard = standardizePiece(p_piece);
-              const isMatch = (standard.left === standardPieceToPlay.left && standard.right === standardPieceToPlay.right) ||
-                              (standard.left === standardPieceToPlay.right && standard.right === standardPieceToPlay.left);
-              if (isMatch) {
+              // Usa função de comparação robusta
+              if (arePiecesEqual(p_piece, standardPieceToPlay)) {
                 found = true;
                 return false;
               }
@@ -69,7 +69,7 @@ export const useLocalGameState = ({
       });
       setPlayersState(updatedPlayers);
 
-      // Update Board State
+      // Update Board State - lógica aprimorada
       const currentBoardPieces = gameState.board_state?.pieces || [];
       const boardEnds = extractBoardEnds(gameState.board_state);
       const side = validation.side;
@@ -79,27 +79,30 @@ export const useLocalGameState = ({
       let newRightEnd = boardEnds.right;
 
       if (newPieces.length === 0) {
+        // Primeira peça do jogo
         newPieces.push({ piece: toBackendFormat(standardPieceToPlay), rotation: 0 });
-        newLeftEnd = standardPieceToPlay.left;
-        newRightEnd = standardPieceToPlay.right;
+        newLeftEnd = standardPieceToPlay.top;
+        newRightEnd = standardPieceToPlay.bottom;
       } else if (side === 'left') {
+        // Adicionar à esquerda
         let pieceForBoard;
-        if (standardPieceToPlay.right === boardEnds.left) {
-          newLeftEnd = standardPieceToPlay.left;
-          pieceForBoard = { l: standardPieceToPlay.left, r: standardPieceToPlay.right };
+        if (standardPieceToPlay.bottom === boardEnds.left) {
+          newLeftEnd = standardPieceToPlay.top;
+          pieceForBoard = toBackendFormat(standardPieceToPlay);
         } else {
-          newLeftEnd = standardPieceToPlay.right;
-          pieceForBoard = { l: standardPieceToPlay.right, r: standardPieceToPlay.left };
+          newLeftEnd = standardPieceToPlay.bottom;
+          pieceForBoard = { l: standardPieceToPlay.bottom, r: standardPieceToPlay.top };
         }
         newPieces.unshift({ piece: pieceForBoard, rotation: 0 });
       } else {
+        // Adicionar à direita
         let pieceForBoard;
-        if (standardPieceToPlay.left === boardEnds.right) {
-          newRightEnd = standardPieceToPlay.right;
-          pieceForBoard = { l: standardPieceToPlay.left, r: standardPieceToPlay.right };
+        if (standardPieceToPlay.top === boardEnds.right) {
+          newRightEnd = standardPieceToPlay.bottom;
+          pieceForBoard = toBackendFormat(standardPieceToPlay);
         } else {
-          newRightEnd = standardPieceToPlay.left;
-          pieceForBoard = { l: standardPieceToPlay.right, r: standardPieceToPlay.left };
+          newRightEnd = standardPieceToPlay.top;
+          pieceForBoard = { l: standardPieceToPlay.bottom, r: standardPieceToPlay.top };
         }
         newPieces.push({ piece: pieceForBoard, rotation: 0 });
       }
