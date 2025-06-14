@@ -291,9 +291,23 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      check_user_in_active_game: {
+        Args: { p_user_id: string }
+        Returns: {
+          game_id: string
+        }[]
+      }
       create_game_when_ready: {
         Args: Record<PropertyKey, never>
         Returns: Json
+      }
+      get_matchmaking_queue: {
+        Args: Record<PropertyKey, never>
+        Returns: {
+          user_id: string
+          status: string
+          created_at: string
+        }[]
       }
       join_matchmaking_queue: {
         Args: Record<PropertyKey, never> | { p_id_jogo_pleiteado: number }
