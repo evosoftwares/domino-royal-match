@@ -1,7 +1,8 @@
+
 import { useState, useCallback, useEffect, useMemo, useRef } from 'react';
 import { GameData, PlayerData, DominoPieceType } from '@/types/game';
 import { supabase } from '@/integrations/supabase/client';
-import { validateMove, standardizePiece, toBackendFormat, extractBoardEnds, canPlayerPass } from '@/utils/pieceValidation';
+import { validateMove, standardizePiece, toBackendFormat, extractBoardEnds } from '@/utils/pieceValidation';
 import { toast } from 'sonner';
 import { RealtimeChannel } from '@supabase/supabase-js';
 
@@ -49,7 +50,7 @@ export const useHybridGameEngine = ({
     return sortedPlayers[nextPlayerIndex]?.user_id;
   }, [playersState, gameState.current_player_turn]);
 
-  // Heartbeat para detectar desconexões
+  // Heartbeat melhorado para detectar desconexões
   const startHeartbeat = useCallback(() => {
     if (heartbeatRef.current) {
       clearInterval(heartbeatRef.current);
@@ -59,19 +60,19 @@ export const useHybridGameEngine = ({
       const now = Date.now();
       const timeSinceLastHeartbeat = now - lastHeartbeatRef.current;
       
-      if (timeSinceLastHeartbeat > 30000) { // 30 segundos sem heartbeat
+      if (timeSinceLastHeartbeat > 20000) { // Reduzido de 30s para 20s
         setConnectionStatus('disconnected');
         console.warn('Conexão perdida - sem heartbeat há', timeSinceLastHeartbeat, 'ms');
-      } else if (timeSinceLastHeartbeat > 15000) { // 15 segundos - aviso
+      } else if (timeSinceLastHeartbeat > 10000) { // Reduzido de 15s para 10s
         setConnectionStatus('reconnecting');
       } else {
         setConnectionStatus('connected');
       }
-    }, 5000); // Verifica a cada 5 segundos
+    }, 3000); // Reduzido de 5s para 3s
   }, []);
 
-  // Debounced update handler
-  const debouncedStateUpdate = useCallback((updateFn: () => void, delay: number = 500) => {
+  // Debounced update handler com timeout reduzido
+  const debouncedStateUpdate = useCallback((updateFn: () => void, delay: number = 300) => {
     if (debounceTimerRef.current) {
       clearTimeout(debounceTimerRef.current);
     }
@@ -104,7 +105,8 @@ export const useHybridGameEngine = ({
           
           debouncedStateUpdate(() => {
             setGameState(payload.new as GameData);
-            toast.info("Estado do jogo atualizado", { duration: 2000 });
+            // Reduzir toast notifications excessivos
+            console.info("Estado do jogo atualizado via realtime");
           });
         }
       );
@@ -131,7 +133,7 @@ export const useHybridGameEngine = ({
         }
       );
 
-      // Subscribe com status tracking
+      // Subscribe com status tracking melhorado
       gameChannel.subscribe((status) => {
         console.log('Canal híbrido status:', status);
         lastHeartbeatRef.current = Date.now();
@@ -142,7 +144,7 @@ export const useHybridGameEngine = ({
         } else if (status === 'CHANNEL_ERROR') {
           setConnectionStatus('disconnected');
           console.error('Erro no canal realtime híbrido');
-          toast.error('Erro de conexão em tempo real');
+          // Não mostrar toast aqui para evitar spam
         }
       });
 
@@ -158,93 +160,116 @@ export const useHybridGameEngine = ({
       }
       if (heartbeatRef.current) {
         clearInterval(heartbeatRef.current);
+        heartbeatRef.current = null;
       }
       if (debounceTimerRef.current) {
         clearTimeout(debounceTimerRef.current);
+        debounceTimerRef.current = null;
       }
     };
   }, [gameState.id, debouncedStateUpdate, startHeartbeat]);
 
-  // Aplicar mudança local (optimistic update)
+  // Aplicar mudança local (optimistic update) com validação defensiva
   const applyLocalMove = useCallback((piece: DominoPieceType) => {
-    const validation = validateMove(piece, gameState.board_state);
-    if (!validation.isValid || !validation.side) {
+    try {
+      // Validação defensiva do estado do jogo
+      if (!gameState?.board_state) {
+        console.error('Estado do tabuleiro inválido');
+        return false;
+      }
+
+      const validation = validateMove(piece, gameState.board_state);
+      if (!validation.isValid || !validation.side) {
+        return false;
+      }
+
+      const standardPieceToPlay = standardizePiece(piece);
+      
+      // 1. Update Player's Hand com validação
+      const updatedPlayers = playersState.map(p => {
+        if (p.user_id === userId) {
+          if (!p.hand || !Array.isArray(p.hand)) {
+            console.error('Hand do jogador inválida:', p.hand);
+            return p;
+          }
+
+          let found = false;
+          const newHand = p.hand.filter((p_piece: any) => {
+            if (found) return true;
+            try {
+              const standard = standardizePiece(p_piece);
+              const isMatch = (standard.left === standardPieceToPlay.left && standard.right === standardPieceToPlay.right) ||
+                              (standard.left === standardPieceToPlay.right && standard.right === standardPieceToPlay.left);
+              if (isMatch) {
+                found = true;
+                return false;
+              }
+              return true;
+            } catch (e) {
+              console.error('Erro ao processar peça na mão:', p_piece, e);
+              return true; // Manter peça se houver erro
+            }
+          });
+          return { ...p, hand: newHand };
+        }
+        return p;
+      });
+      setPlayersState(updatedPlayers);
+
+      // 2. Update Board State com fallbacks
+      const currentBoardPieces = gameState.board_state?.pieces || [];
+      const boardEnds = extractBoardEnds(gameState.board_state);
+      const side = validation.side;
+
+      let newPieces = [...currentBoardPieces];
+      let newLeftEnd = boardEnds.left;
+      let newRightEnd = boardEnds.right;
+
+      if (newPieces.length === 0) {
+        newPieces.push({ piece: toBackendFormat(standardPieceToPlay), rotation: 0 });
+        newLeftEnd = standardPieceToPlay.left;
+        newRightEnd = standardPieceToPlay.right;
+      } else if (side === 'left') {
+        let pieceForBoard;
+        if (standardPieceToPlay.right === boardEnds.left) {
+          newLeftEnd = standardPieceToPlay.left;
+          pieceForBoard = { l: standardPieceToPlay.left, r: standardPieceToPlay.right };
+        } else {
+          newLeftEnd = standardPieceToPlay.right;
+          pieceForBoard = { l: standardPieceToPlay.right, r: standardPieceToPlay.left };
+        }
+        newPieces.unshift({ piece: pieceForBoard, rotation: 0 });
+      } else {
+        let pieceForBoard;
+        if (standardPieceToPlay.left === boardEnds.right) {
+          newRightEnd = standardPieceToPlay.right;
+          pieceForBoard = { l: standardPieceToPlay.left, r: standardPieceToPlay.right };
+        } else {
+          newRightEnd = standardPieceToPlay.left;
+          pieceForBoard = { l: standardPieceToPlay.right, r: standardPieceToPlay.left };
+        }
+        newPieces.push({ piece: pieceForBoard, rotation: 0 });
+      }
+
+      const newBoardState = {
+        pieces: newPieces,
+        left_end: newLeftEnd,
+        right_end: newRightEnd,
+      };
+
+      // 3. Update Game State (turn)
+      const nextPlayerId = getNextPlayerId();
+      setGameState(prev => ({
+        ...prev,
+        board_state: newBoardState,
+        current_player_turn: nextPlayerId,
+      }));
+
+      return true;
+    } catch (error) {
+      console.error('Erro ao aplicar movimento local:', error);
       return false;
     }
-
-    const standardPieceToPlay = standardizePiece(piece);
-    
-    // 1. Update Player's Hand
-    const updatedPlayers = playersState.map(p => {
-      if (p.user_id === userId) {
-        let found = false;
-        const newHand = p.hand.filter((p_piece: any) => {
-          if (found) return true;
-          const standard = standardizePiece(p_piece);
-          const isMatch = (standard.left === standardPieceToPlay.left && standard.right === standardPieceToPlay.right) ||
-                          (standard.left === standardPieceToPlay.right && standard.right === standardPieceToPlay.left);
-          if (isMatch) {
-            found = true;
-            return false;
-          }
-          return true;
-        });
-        return { ...p, hand: newHand };
-      }
-      return p;
-    });
-    setPlayersState(updatedPlayers);
-
-    // 2. Update Board State
-    const currentBoardPieces = gameState.board_state?.pieces || [];
-    const boardEnds = extractBoardEnds(gameState.board_state);
-    const side = validation.side;
-
-    let newPieces = [...currentBoardPieces];
-    let newLeftEnd = boardEnds.left;
-    let newRightEnd = boardEnds.right;
-
-    if (newPieces.length === 0) {
-      newPieces.push({ piece: toBackendFormat(standardPieceToPlay), rotation: 0 });
-      newLeftEnd = standardPieceToPlay.left;
-      newRightEnd = standardPieceToPlay.right;
-    } else if (side === 'left') {
-      let pieceForBoard;
-      if (standardPieceToPlay.right === boardEnds.left) {
-        newLeftEnd = standardPieceToPlay.left;
-        pieceForBoard = { l: standardPieceToPlay.left, r: standardPieceToPlay.right };
-      } else {
-        newLeftEnd = standardPieceToPlay.right;
-        pieceForBoard = { l: standardPieceToPlay.right, r: standardPieceToPlay.left };
-      }
-      newPieces.unshift({ piece: pieceForBoard, rotation: 0 });
-    } else {
-      let pieceForBoard;
-      if (standardPieceToPlay.left === boardEnds.right) {
-        newRightEnd = standardPieceToPlay.right;
-        pieceForBoard = { l: standardPieceToPlay.left, r: standardPieceToPlay.right };
-      } else {
-        newRightEnd = standardPieceToPlay.left;
-        pieceForBoard = { l: standardPieceToPlay.right, r: standardPieceToPlay.left };
-      }
-      newPieces.push({ piece: pieceForBoard, rotation: 0 });
-    }
-
-    const newBoardState = {
-      pieces: newPieces,
-      left_end: newLeftEnd,
-      right_end: newRightEnd,
-    };
-
-    // 3. Update Game State (turn)
-    const nextPlayerId = getNextPlayerId();
-    setGameState(prev => ({
-      ...prev,
-      board_state: newBoardState,
-      current_player_turn: nextPlayerId,
-    }));
-
-    return true;
   }, [gameState, playersState, userId, getNextPlayerId]);
 
   // Aplicar passe local
@@ -327,7 +352,8 @@ export const useHybridGameEngine = ({
 
   const playPiece = useCallback(async (piece: DominoPieceType) => {
     if (isProcessingMove) {
-      toast.error("Aguarde, processando jogada anterior.");
+      // Não mostrar toast para evitar spam
+      console.warn("Tentativa de jogar enquanto processando movimento anterior");
       return false;
     }
 
@@ -358,7 +384,8 @@ export const useHybridGameEngine = ({
         retryCount: 0
       }]);
 
-      toast.success('Peça jogada!');
+      // Reduzir toasts de sucesso para evitar spam
+      console.info('Peça jogada com sucesso:', piece);
       return true;
     } catch (error) {
       console.error('Erro ao jogar peça:', error);
@@ -372,7 +399,7 @@ export const useHybridGameEngine = ({
 
   const passTurn = useCallback(async () => {
     if (isProcessingMove) {
-      toast.error("Aguarde, processando ação anterior.");
+      console.warn("Tentativa de passar enquanto processando ação anterior");
       return false;
     }
 
@@ -380,9 +407,6 @@ export const useHybridGameEngine = ({
       toast.error("Não é sua vez de passar.");
       return false;
     }
-
-    // A validação de "canPlayerPass" foi movida para useGameHandlers
-    // para centralizar as regras do jogo do lado do cliente.
 
     setIsProcessingMove(true);
     setCurrentAction('passing');
@@ -400,7 +424,7 @@ export const useHybridGameEngine = ({
         retryCount: 0
       }]);
 
-      toast.info('Vez passada!');
+      console.info('Vez passada com sucesso');
       return true;
     } catch (error) {
       console.error('Erro ao passar a vez:', error);
