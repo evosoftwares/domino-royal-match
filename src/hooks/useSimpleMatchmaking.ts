@@ -1,4 +1,3 @@
-
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
@@ -23,6 +22,8 @@ export interface SimpleMatchmakingState {
 export const useSimpleMatchmaking = () => {
   const navigate = useNavigate();
   const { checkUserActiveGame } = useGameCheck();
+  
+  // CORRIGIDO: Reorganizar hooks para evitar ordem condicional
   const [state, setState] = useState<SimpleMatchmakingState>({
     isInQueue: false,
     queueCount: 0,
@@ -33,7 +34,7 @@ export const useSimpleMatchmaking = () => {
   const mountedRef = useRef(true);
   const gameCreationLockRef = useRef(false);
 
-  const createGameFromQueue = async (playersInQueue: QueuePlayer[]) => {
+  const createGameFromQueue = useCallback(async (playersInQueue: QueuePlayer[]) => {
     // Lock para evitar criação duplicada
     if (gameCreationLockRef.current || playersInQueue.length < 4) {
       return;
@@ -143,9 +144,9 @@ export const useSimpleMatchmaking = () => {
     } finally {
       gameCreationLockRef.current = false;
     }
-  };
+  }, []);
 
-  const fetchQueuePlayers = async () => {
+  const fetchQueuePlayers = useCallback(async () => {
     if (!mountedRef.current) return;
     
     try {
@@ -208,9 +209,9 @@ export const useSimpleMatchmaking = () => {
     } catch (error) {
       console.error('❌ Erro ao buscar fila:', error);
     }
-  };
+  }, []);
 
-  const joinQueue = async () => {
+  const joinQueue = useCallback(async () => {
     setState(prev => ({ ...prev, isLoading: true }));
     
     const { data: { user } } = await supabase.auth.getUser();
@@ -259,9 +260,9 @@ export const useSimpleMatchmaking = () => {
         setState(prev => ({ ...prev, isLoading: false }));
       }
     }
-  };
+  }, [checkUserActiveGame, fetchQueuePlayers]);
 
-  const leaveQueue = async () => {
+  const leaveQueue = useCallback(async () => {
     setState(prev => ({ ...prev, isLoading: true }));
     
     const { data: { user } } = await supabase.auth.getUser();
@@ -303,7 +304,7 @@ export const useSimpleMatchmaking = () => {
         setState(prev => ({ ...prev, isLoading: false }));
       }
     }
-  };
+  }, [fetchQueuePlayers]);
 
   useEffect(() => {
     mountedRef.current = true;
@@ -371,7 +372,7 @@ export const useSimpleMatchmaking = () => {
       supabase.removeChannel(queueChannel);
       supabase.removeChannel(gamesChannel);
     };
-  }, [navigate, checkUserActiveGame]);
+  }, [navigate, checkUserActiveGame, fetchQueuePlayers]);
 
   return {
     ...state,

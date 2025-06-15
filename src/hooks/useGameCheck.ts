@@ -18,7 +18,7 @@ export const useGameCheck = () => {
 
       console.log('👤 Verificando jogos para usuário:', user.id);
 
-      // Verificar se usuário está em jogo ativo
+      // Verificar se usuário está em jogo ativo - CORRIGIDO: removido .order() problemático
       const { data: gameData, error } = await supabase
         .from('game_players')
         .select(`
@@ -31,7 +31,6 @@ export const useGameCheck = () => {
         `)
         .eq('user_id', user.id)
         .eq('games.status', 'active')
-        .order('games.created_at', { ascending: false })
         .limit(1);
 
       if (error) {
