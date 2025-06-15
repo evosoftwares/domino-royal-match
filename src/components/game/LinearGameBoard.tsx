@@ -64,6 +64,42 @@ const LinearGameBoard: React.FC<LinearGameBoardProps> = ({
     scrollTo(newScrollX);
   };
 
+  // Função para renderizar informações das extremidades com spinners
+  const renderBoardEndsInfo = () => {
+    const { leftEnd, rightEnd, topEnds, bottomEnds } = boardEnds;
+    
+    return (
+      <div className="flex items-center gap-4">
+        <div className="text-green-200 text-sm">
+          <span className="font-semibold">Extremidades principais:</span>
+          <span className="ml-2 px-3 py-1 bg-red-500/20 rounded-full text-red-200 font-mono">
+            {leftEnd ?? '?'}
+          </span>
+          <span className="mx-2 text-green-400">←→</span>
+          <span className="px-3 py-1 bg-blue-500/20 rounded-full text-blue-200 font-mono">
+            {rightEnd ?? '?'}
+          </span>
+        </div>
+        
+        {(topEnds.length > 0 || bottomEnds.length > 0) && (
+          <div className="text-yellow-200 text-xs">
+            <span className="font-semibold">Spinners:</span>
+            {topEnds.map((end, idx) => (
+              <span key={`top-${idx}`} className="ml-1 px-2 py-1 bg-yellow-500/20 rounded text-yellow-200">
+                ↑{end.value}
+              </span>
+            ))}
+            {bottomEnds.map((end, idx) => (
+              <span key={`bottom-${idx}`} className="ml-1 px-2 py-1 bg-yellow-500/20 rounded text-yellow-200">
+                ↓{end.value}
+              </span>
+            ))}
+          </div>
+        )}
+      </div>
+    );
+  };
+
   return (
     <div className={cn("flex flex-col justify-center items-center w-full", className)}>
       <div className={cn(
@@ -76,25 +112,14 @@ const LinearGameBoard: React.FC<LinearGameBoardProps> = ({
         {/* Header com informações das extremidades */}
         {showControls && (
           <div className="flex justify-between items-center p-4 border-b border-green-600/20">
-            <div className="flex items-center gap-4">
-              <div className="text-green-200 text-sm">
-                <span className="font-semibold">Extremidades:</span>
-                <span className="ml-2 px-3 py-1 bg-red-500/20 rounded-full text-red-200 font-mono">
-                  {boardEnds.leftEnd ?? '?'}
-                </span>
-                <span className="mx-2 text-green-400">←→</span>
-                <span className="px-3 py-1 bg-blue-500/20 rounded-full text-blue-200 font-mono">
-                  {boardEnds.rightEnd ?? '?'}
-                </span>
+            {renderBoardEndsInfo()}
+            
+            {!validation.isValid && (
+              <div className="flex items-center gap-1 text-red-400 text-xs">
+                <Zap className="w-3 h-3" />
+                <span>{validation.errors.length} erro(s) de conexão</span>
               </div>
-              
-              {!validation.isValid && (
-                <div className="flex items-center gap-1 text-red-400 text-xs">
-                  <Zap className="w-3 h-3" />
-                  <span>{validation.errors.length} erro(s) de conexão</span>
-                </div>
-              )}
-            </div>
+            )}
             
             {/* Controles de navegação */}
             {layout.needsScroll && (
@@ -146,15 +171,21 @@ const LinearGameBoard: React.FC<LinearGameBoardProps> = ({
                 <div className="text-6xl mb-4">🎯</div>
                 <p className="text-xl font-semibold mb-2">Arraste a primeira peça aqui</p>
                 <p className="text-sm opacity-75">O jogo começará com sua jogada</p>
+                <div className="mt-4 text-xs text-green-300">
+                  <p className="font-semibold">Regras do Layout:</p>
+                  <p>• Corrente única e contínua</p>
+                  <p>• Peças duplas ficam cruzadas (transversais)</p>
+                  <p>• Peças duplas funcionam como "spinners"</p>
+                </div>
               </div>
             ) : (
               <div className="domino-board w-full">
                 <div className="domino-sequence">
                   {placedPieces.map((piece, index) => {
-                    // Determinar se é uma peça dupla
+                    // REGRA 4: Peças duplas ficam transversais (cruzadas)
                     const isDupla = piece.top === piece.bottom && piece.top > 0;
                     
-                    // Para peças duplas, usar orientação vertical para criar o efeito "cruzado"
+                    // Orientação baseada nas regras do dominó
                     const orientation: 'vertical' | 'horizontal' = isDupla ? 'vertical' : 'horizontal';
                     
                     return (
@@ -165,7 +196,8 @@ const LinearGameBoard: React.FC<LinearGameBoardProps> = ({
                         isPlayable={false} 
                         className={cn(
                           "transition-all duration-200",
-                          isDupla && "dupla" // Classe CSS especial para peças duplas
+                          isDupla && "dupla spinner", // Classe especial para peças duplas (spinners)
+                          "domino-piece-in-sequence"
                         )} 
                         orientation={orientation}
                       />
@@ -177,15 +209,20 @@ const LinearGameBoard: React.FC<LinearGameBoardProps> = ({
           </div>
         </div>
 
-        {/* Debug info simplificado */}
+        {/* Debug info com validação das regras */}
         {process.env.NODE_ENV === 'development' && showControls && (
           <div className="p-3 border-t border-green-600/20 bg-black/20 rounded-b-xl">
             <div className="text-xs text-green-200 space-y-1">
-              <div className="font-bold text-green-400">🎯 Mesa de Dominó Linear</div>
+              <div className="font-bold text-green-400">🎯 Mesa de Dominó - Regras Aplicadas</div>
               <div className="flex flex-wrap gap-4">
                 <span>Peças: {debugInfo.totalPieces}</span>
-                <span>Sequência: {debugInfo.isSequenceValid ? '✅ Válida' : '❌ Inválida'}</span>
+                <span>Corrente única: {debugInfo.isSequenceValid ? '✅ Válida' : '❌ Inválida'}</span>
                 <span className="font-mono">Extremidades: {boardEnds.leftEnd} ↔ {boardEnds.rightEnd}</span>
+                {(boardEnds.topEnds.length > 0 || boardEnds.bottomEnds.length > 0) && (
+                  <span className="text-yellow-200">
+                    Spinners ativos: {boardEnds.topEnds.length + boardEnds.bottomEnds.length}
+                  </span>
+                )}
               </div>
               {!debugInfo.isSequenceValid && (
                 <div className="text-red-300 text-xs">

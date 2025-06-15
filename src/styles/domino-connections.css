@@ -1,4 +1,5 @@
-/* Mesa de Dominó Realista com Layout Linear Otimizado */
+
+/* Mesa de Dominó Realista com Regras Oficiais */
 
 /* Estilo da Mesa */
 .domino-board {
@@ -19,7 +20,7 @@
   overflow: hidden;
 }
 
-/* Container principal das peças - layout linear otimizado */
+/* Container principal das peças - corrente única */
 .domino-sequence {
   display: flex;
   align-items: center;
@@ -53,7 +54,7 @@
   background: rgba(139, 69, 19, 0.7);
 }
 
-/* Estrutura Principal da Peça - Tamanhos Otimizados */
+/* Estrutura Principal da Peça */
 .domino {
   width: 80px;
   height: 40px;
@@ -99,7 +100,7 @@
   border-right: 2px solid #333;
 }
 
-/* Pontos (dots) - Melhorados */
+/* Pontos (dots) */
 .dot {
   width: 6px;
   height: 6px;
@@ -111,7 +112,7 @@
   position: relative;
 }
 
-/* Padrões dos Pontos usando CSS Grid - Otimizados */
+/* Padrões dos Pontos usando CSS Grid */
 
 /* Face vazia (0 pontos) */
 .face-0 .dot {
@@ -193,13 +194,18 @@
   grid-area: 3 / 3; 
 }
 
-/* Peças Duplas (Cruzadas) - Layout Melhorado */
+/* REGRA 4: Peças Duplas (Transversais/Cruzadas) */
 .domino.dupla {
   transform: rotate(90deg);
   margin: 0 20px;
   width: 40px;
   height: 80px;
   flex-direction: column;
+  /* Destaque especial para peças duplas */
+  box-shadow: 
+    0 4px 8px rgba(0, 0, 0, 0.3),
+    0 0 8px rgba(255, 215, 0, 0.3),
+    inset 0 1px 2px rgba(255, 255, 255, 0.4);
 }
 
 .domino.dupla .face {
@@ -210,6 +216,30 @@
 .domino.dupla .face:first-child {
   border-right: none;
   border-bottom: 2px solid #333;
+}
+
+/* REGRA 5: Destaque para Spinners (Peças Duplas que permitem 4 conexões) */
+.domino.spinner {
+  position: relative;
+}
+
+.domino.spinner::before {
+  content: '⚡';
+  position: absolute;
+  top: -15px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 12px;
+  z-index: 15;
+  background: rgba(255, 215, 0, 0.8);
+  border-radius: 50%;
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid #FFD700;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
 }
 
 /* Orientação Vertical */
@@ -229,7 +259,7 @@
   border-bottom: 2px solid #333;
 }
 
-/* Conectores visuais melhorados */
+/* Conectores visuais da corrente única */
 .domino-sequence .domino:not(:last-child):not(.dupla)::after {
   content: '';
   position: absolute;
@@ -259,7 +289,7 @@
   box-shadow: 0 1px 1px rgba(0, 0, 0, 0.2);
 }
 
-/* Marcadores de início e fim melhorados */
+/* Marcadores de início e fim da corrente */
 .domino-sequence .domino:first-child::before {
   content: '🎯';
   position: absolute;
@@ -286,7 +316,27 @@
   text-shadow: 0 2px 3px rgba(0, 0, 0, 0.4);
 }
 
-/* Responsividade otimizada */
+/* Indicadores visuais para conexões de spinners */
+.domino.spinner .face::after {
+  content: '';
+  position: absolute;
+  width: 8px;
+  height: 2px;
+  background: rgba(255, 215, 0, 0.6);
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 1;
+}
+
+.domino.spinner .face:first-child::after {
+  left: -6px;
+}
+
+.domino.spinner .face:last-child::after {
+  right: -6px;
+}
+
+/* Responsividade */
 @media (max-width: 768px) {
   .domino-board {
     padding: 15px 8px;
@@ -330,6 +380,13 @@
     font-size: 12px;
     top: -20px;
   }
+  
+  .domino.spinner::before {
+    font-size: 10px;
+    width: 16px;
+    height: 16px;
+    top: -12px;
+  }
 }
 
 @media (max-width: 480px) {
@@ -369,4 +426,15 @@
     0 4px 8px rgba(0, 0, 0, 0.3),
     inset 0 1px 2px rgba(255, 255, 255, 0.5);
   border-color: #ff0000;
+}
+
+/* Animações para corrente válida */
+.domino-piece-in-sequence {
+  animation: sequenceValidation 0.3s ease-in-out;
+}
+
+@keyframes sequenceValidation {
+  0% { transform: scale(1); }
+  50% { transform: scale(1.05); }
+  100% { transform: scale(1); }
 }
