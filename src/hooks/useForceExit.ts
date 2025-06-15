@@ -1,5 +1,6 @@
 
 import { useCallback } from 'react';
+import { supabase } from '@/integrations/supabase/client';
 
 export const useForceExit = () => {
   const setForceExit = useCallback(() => {
@@ -38,14 +39,66 @@ export const useForceExit = () => {
     return false;
   }, [clearForceExit]);
 
-  const forceExitToLobby = useCallback(() => {
+  const forceExitToLobby = useCallback(async () => {
     console.log('🎯 Executando saída forçada para o lobby');
+    
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        console.warn('⚠️ Usuário não autenticado para saída forçada');
+        return;
+      }
+
+      console.log('🗑️ Removendo usuário de jogos ativos...');
+      
+      // Primeiro, encontrar jogos ativos do usuário
+      const { data: activeGames, error: fetchError } = await supabase
+        .from('game_players')
+        .select(`
+          game_id,
+          games!inner(
+            id,
+            status
+          )
+        `)
+        .eq('user_id', user.id)
+        .eq('games.status', 'active');
+
+      if (fetchError) {
+        console.error('❌ Erro ao buscar jogos ativos:', fetchError);
+      } else if (activeGames && activeGames.length > 0) {
+        console.log(`🎮 Encontrados ${activeGames.length} jogos ativos, finalizando...`);
+        
+        // Finalizar cada jogo ativo
+        for (const gamePlayer of activeGames) {
+          const { error: updateError } = await supabase
+            .from('games')
+            .update({ 
+              status: 'abandoned',
+              updated_at: new Date().toISOString()
+            })
+            .eq('id', gamePlayer.game_id);
+
+          if (updateError) {
+            console.error('❌ Erro ao finalizar jogo:', updateError);
+          } else {
+            console.log(`✅ Jogo ${gamePlayer.game_id} finalizado com sucesso`);
+          }
+        }
+      } else {
+        console.log('ℹ️ Nenhum jogo ativo encontrado para finalizar');
+      }
+    } catch (error) {
+      console.error('❌ Erro crítico ao executar saída forçada:', error);
+    }
+
+    // Marcar flag e redirecionar
     setForceExit();
     
-    // Pequeno delay para garantir que a flag seja definida
+    // Pequeno delay para garantir que as operações do banco sejam concluídas
     setTimeout(() => {
       window.location.href = '/';
-    }, 100);
+    }, 500);
   }, [setForceExit]);
 
   return {
