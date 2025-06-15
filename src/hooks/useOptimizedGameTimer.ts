@@ -6,27 +6,34 @@ interface UseOptimizedGameTimerProps {
   onTimeout: () => void;
   timerDuration?: number;
   isGameActive?: boolean;
+  onTimeoutWarning?: (timeLeft: number) => void; // Novo callback para avisos
 }
 
 export const useOptimizedGameTimer = ({ 
   isMyTurn, 
   onTimeout, 
-  timerDuration = 10, // Reduzido de 15 para 10 segundos
-  isGameActive = true 
+  timerDuration = 10,
+  isGameActive = true,
+  onTimeoutWarning
 }: UseOptimizedGameTimerProps) => {
   const [timeLeft, setTimeLeft] = useState(timerDuration);
   const [isWarning, setIsWarning] = useState(false);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const onTimeoutRef = useRef(onTimeout);
+  const onTimeoutWarningRef = useRef(onTimeoutWarning);
 
-  // Atualizar ref sem causar re-render
+  // Atualizar refs sem causar re-render
   useEffect(() => {
     onTimeoutRef.current = onTimeout;
   }, [onTimeout]);
 
+  useEffect(() => {
+    onTimeoutWarningRef.current = onTimeoutWarning;
+  }, [onTimeoutWarning]);
+
   // Callback memoizado para timeout
   const handleTimeout = useCallback(() => {
-    console.log('⏰ Timer expirado - executando jogada automática');
+    console.log('⏰ Timer expirado - executando callback de timeout');
     onTimeoutRef.current();
     setTimeLeft(timerDuration);
     setIsWarning(false);
@@ -58,7 +65,12 @@ export const useOptimizedGameTimer = ({
       setTimeLeft(prev => {
         const newTime = prev - 1;
         
-        // Aviso quando restam 3 segundos (modificado de 5 para 3)
+        // Chamar callback de warning quando necessário
+        if (onTimeoutWarningRef.current) {
+          onTimeoutWarningRef.current(newTime);
+        }
+        
+        // Aviso quando restam 3 segundos
         if (newTime <= 3 && !isWarning) {
           setIsWarning(true);
           console.log('⚠️ Aviso: restam apenas 3 segundos!');

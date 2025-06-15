@@ -1,7 +1,7 @@
 
 import React from 'react';
 import { Progress } from '@/components/ui/progress';
-import { Clock, Zap } from 'lucide-react';
+import { Clock, Zap, FileText } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 interface VisualGameTimerProps {
@@ -11,6 +11,8 @@ interface VisualGameTimerProps {
   isWarning: boolean;
   onAutoPlay?: () => void;
   className?: string;
+  pendingSolicitations?: number; // Novo prop
+  isProcessingSolicitation?: boolean; // Novo prop
 }
 
 const VisualGameTimer: React.FC<VisualGameTimerProps> = ({
@@ -19,11 +21,13 @@ const VisualGameTimer: React.FC<VisualGameTimerProps> = ({
   isMyTurn,
   isWarning,
   onAutoPlay,
-  className
+  className,
+  pendingSolicitations = 0,
+  isProcessingSolicitation = false
 }) => {
   const progressPercent = (timeLeft / totalTime) * 100;
   
-  if (!isMyTurn) {
+  if (!isMyTurn && pendingSolicitations === 0 && !isProcessingSolicitation) {
     return null;
   }
 
@@ -45,8 +49,18 @@ const VisualGameTimer: React.FC<VisualGameTimerProps> = ({
             "text-sm font-semibold",
             isWarning ? "text-red-400" : "text-yellow-400"
           )}>
-            Sua Vez
+            {isMyTurn ? "Sua Vez" : "Aguardando"}
           </span>
+          
+          {/* Indicador de solicitações */}
+          {(pendingSolicitations > 0 || isProcessingSolicitation) && (
+            <div className="flex items-center gap-1">
+              <FileText className="w-3 h-3 text-blue-400" />
+              <span className="text-xs text-blue-400">
+                {isProcessingSolicitation ? "Processando..." : `${pendingSolicitations} pendente(s)`}
+              </span>
+            </div>
+          )}
         </div>
         
         <div className={cn(
@@ -59,44 +73,55 @@ const VisualGameTimer: React.FC<VisualGameTimerProps> = ({
         </div>
       </div>
 
-      <div className="space-y-2">
-        <Progress 
-          value={progressPercent} 
-          className={cn(
-            "h-2 transition-all duration-1000",
-            isWarning && "animate-pulse"
-          )}
-        />
-        
-        <div className="flex items-center justify-between text-xs">
-          <span className={cn(
-            isWarning ? "text-red-300" : "text-yellow-300"
-          )}>
-            {isWarning ? "⚠️ Jogada automática em breve!" : "Tempo para jogar"}
-          </span>
+      {isMyTurn && (
+        <div className="space-y-2">
+          <Progress 
+            value={progressPercent} 
+            className={cn(
+              "h-2 transition-all duration-1000",
+              isWarning && "animate-pulse"
+            )}
+          />
           
-          {onAutoPlay && (
-            <button
-              onClick={onAutoPlay}
-              className={cn(
-                "flex items-center gap-1 px-2 py-1 rounded text-xs font-medium transition-all",
-                "hover:scale-105 active:scale-95",
-                isWarning 
-                  ? "bg-red-400/20 text-red-300 hover:bg-red-400/30" 
-                  : "bg-yellow-400/20 text-yellow-300 hover:bg-yellow-400/30"
-              )}
-            >
-              <Zap className="w-3 h-3" />
-              Auto
-            </button>
-          )}
+          <div className="flex items-center justify-between text-xs">
+            <span className={cn(
+              isWarning ? "text-red-300" : "text-yellow-300"
+            )}>
+              {isWarning ? "⚠️ Sistema ativará jogada automática!" : "Tempo para jogar"}
+            </span>
+            
+            {onAutoPlay && (
+              <button
+                onClick={onAutoPlay}
+                className={cn(
+                  "flex items-center gap-1 px-2 py-1 rounded text-xs font-medium transition-all",
+                  "hover:scale-105 active:scale-95",
+                  isWarning 
+                    ? "bg-red-400/20 text-red-300 hover:bg-red-400/30" 
+                    : "bg-yellow-400/20 text-yellow-300 hover:bg-yellow-400/30"
+                )}
+              >
+                <Zap className="w-3 h-3" />
+                Auto
+              </button>
+            )}
+          </div>
         </div>
-      </div>
+      )}
+
+      {/* Feedback visual para solicitações */}
+      {!isMyTurn && pendingSolicitations > 0 && (
+        <div className="mt-2 text-center">
+          <span className="text-blue-400 text-xs font-semibold animate-pulse">
+            🤖 Sistema monitorando timeout...
+          </span>
+        </div>
+      )}
       
-      {timeLeft <= 0 && (
+      {timeLeft <= 0 && (isMyTurn || pendingSolicitations > 0) && (
         <div className="mt-2 text-center">
           <span className="text-red-400 text-xs font-semibold animate-pulse">
-            🤖 Executando jogada automática...
+            🤖 Sistema executando jogada automática...
           </span>
         </div>
       )}

@@ -1,3 +1,4 @@
+
 import React from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { GameData, PlayerData } from '@/types/game';
@@ -7,6 +8,8 @@ import { useSimpleGameEngine } from '@/hooks/useSimpleGameEngine';
 import { useOptimizedGameTimer } from '@/hooks/useOptimizedGameTimer';
 import { usePlayerPresence } from '@/hooks/usePlayerPresence';
 import { useOfflinePlayerMonitor } from '@/hooks/useOfflinePlayerMonitor';
+import { useAutoPlaySolicitations } from '@/hooks/useAutoPlaySolicitations';
+import { useSolicitationsMonitor } from '@/hooks/useSolicitationsMonitor';
 import WinnerDialog from './WinnerDialog';
 import ActionFeedback from './ActionFeedback';
 import { useGameWinCheck } from '@/hooks/useGameWinCheck';
@@ -74,6 +77,24 @@ const Game2Room: React.FC<Game2RoomProps> = ({
     userId: user?.id
   });
 
+  // Sistema de solicitações automáticas - NOVO
+  const allPlayerIds = React.useMemo(() => 
+    playersState.map(p => p.user_id), 
+    [playersState]
+  );
+
+  const { createSolicitation } = useAutoPlaySolicitations({
+    gameId: gameState.id,
+    isGameActive: gameState.status === 'active',
+    timeLeft: 10, // Será atualizado pelo timer
+    allPlayerIds
+  });
+
+  const solicitationsMonitor = useSolicitationsMonitor({
+    gameId: gameState.id,
+    isActive: gameState.status === 'active'
+  });
+
   // Handlers do jogo simplificados
   const gameHandlers = useSimpleGameHandlers({
     gameState,
@@ -85,12 +106,24 @@ const Game2Room: React.FC<Game2RoomProps> = ({
     playAutomatic
   });
 
-  // Timer otimizado
+  // Timer otimizado com integração de solicitações
   const { timeLeft, isWarning } = useOptimizedGameTimer({
     isMyTurn: isMyTurn,
     onTimeout: () => {
       if (!isProcessingMove) {
-        gameHandlers.handleAutoPlay();
+        console.log('⏰ Timer callback - criando solicitação para jogador atual');
+        if (gameState.current_player_turn) {
+          createSolicitation(gameState.current_player_turn);
+        }
+      }
+    },
+    onTimeoutWarning: (timeLeft) => {
+      // Criar solicitações preventivas quando restam 2 segundos
+      if (timeLeft === 2) {
+        console.log('⚠️ Criando solicitações preventivas para todos os jogadores');
+        allPlayerIds.forEach(playerId => {
+          createSolicitation(playerId);
+        });
       }
     },
     isGameActive: gameState.status === 'active',
@@ -102,17 +135,17 @@ const Game2Room: React.FC<Game2RoomProps> = ({
     gameStatus: gameState.status
   });
 
-  // Health do sistema simplificado
+  // Health do sistema com solicitações
   const systemHealth = React.useMemo(() => ({
-    isHealthy: syncStatus === 'synced',
+    isHealthy: syncStatus === 'synced' && solicitationsMonitor.totalPendingCount < 5,
     successRate: syncStatus === 'synced' ? 100 : 0,
     serverResponseTime: 150,
     timeSinceLastSuccess: Date.now(),
     circuitBreakerStatus: 'closed' as const,
-    pendingFallbacks: 0,
+    pendingFallbacks: solicitationsMonitor.totalPendingCount,
     reconciliationStatus: 'stable',
     conflictsResolved: 0
-  }), [syncStatus]);
+  }), [syncStatus, solicitationsMonitor.totalPendingCount]);
   
   if (gameState.status !== 'active') {
     return (
@@ -128,27 +161,29 @@ const Game2Room: React.FC<Game2RoomProps> = ({
       <GamePlayersHeader gameId={gameState.id} />
       
       <ActionFeedback 
-        isProcessing={isProcessingMove}
+        isProcessing={isProcessingMove || solicitationsMonitor.processingCount > 0}
         action={currentAction as ActionType}
       />
 
       <GameHealthIndicator
         connectionStatus={syncStatus === 'synced' ? 'connected' : syncStatus === 'pending' ? 'reconnecting' : 'disconnected'}
         serverHealth={systemHealth}
-        pendingMovesCount={0}
+        pendingMovesCount={solicitationsMonitor.totalPendingCount}
         onHealthClick={() => {}}
       />
       
-      {/* Debug info atualizado */}
+      {/* Debug info atualizado com solicitações */}
       {process.env.NODE_ENV === 'development' && (
         <div className="fixed top-20 right-4 bg-black/90 text-white p-3 rounded text-xs max-w-xs z-30">
           <div className="space-y-1">
-            <div className="text-green-400 font-bold">🎯 Sistema com Presença v4.0</div>
+            <div className="text-green-400 font-bold">🎯 Sistema Solicitações v1.0</div>
             <div>Sync: <span className={syncStatus === 'synced' ? 'text-green-400' : 'text-red-400'}>{syncStatus}</span></div>
             <div>My Turn: {isMyTurn ? '✅' : '❌'}</div>
             <div>Processing: {isProcessingMove ? '⏳' : '✅'}</div>
-            <div className="text-blue-400">🟢 Presença ativa</div>
-            <div className="text-blue-400">👥 Monitor offline ativo</div>
+            <div className="text-blue-400">📝 Pendentes: {solicitationsMonitor.pendingSolicitations.length}</div>
+            <div className="text-yellow-400">⚙️ Processando: {solicitationsMonitor.processingCount}</div>
+            <div className="text-green-400">✅ Completas: {solicitationsMonitor.recentlyCompleted.length}</div>
+            <div className="text-purple-400">👥 Monitor offline ativo</div>
           </div>
           
           <div className="flex gap-1 mt-2">
@@ -157,6 +192,12 @@ const Game2Room: React.FC<Game2RoomProps> = ({
               className="bg-blue-600 px-2 py-1 rounded text-xs"
             >
               Sync
+            </button>
+            <button 
+              onClick={solicitationsMonitor.refresh}
+              className="bg-green-600 px-2 py-1 rounded text-xs"
+            >
+              Refresh
             </button>
           </div>
         </div>

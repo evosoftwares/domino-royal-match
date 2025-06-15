@@ -244,6 +244,42 @@ export type Database = {
         }
         Relationships: []
       }
+      solicitacoes: {
+        Row: {
+          created_at: string
+          error_message: string | null
+          game_id: string
+          id: string
+          processed_at: string | null
+          status: string
+          timeout_duration: number | null
+          tipo: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          error_message?: string | null
+          game_id: string
+          id?: string
+          processed_at?: string | null
+          status?: string
+          timeout_duration?: number | null
+          tipo: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          error_message?: string | null
+          game_id?: string
+          id?: string
+          processed_at?: string | null
+          status?: string
+          timeout_duration?: number | null
+          tipo?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       transactions: {
         Row: {
           amount: number
@@ -312,6 +348,10 @@ export type Database = {
         Args: Record<PropertyKey, never>
         Returns: undefined
       }
+      cleanup_old_solicitacoes: {
+        Args: Record<PropertyKey, never>
+        Returns: number
+      }
       cleanup_timed_out_games: {
         Args: Record<PropertyKey, never>
         Returns: undefined
@@ -347,6 +387,10 @@ export type Database = {
       play_piece_periodically: {
         Args: { p_game_id: string }
         Returns: undefined
+      }
+      process_auto_play_request: {
+        Args: { request_id: string }
+        Returns: boolean
       }
       start_game: {
         Args: { p_player_ids: string[]; p_room_id?: string }
