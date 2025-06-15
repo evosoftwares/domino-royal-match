@@ -3,6 +3,7 @@ import React from 'react';
 import DominoPiece from './DominoPiece';
 import { DominoPieceType } from '@/types/game';
 import { cn } from '@/lib/utils';
+import { chunkPiecesIntoColumns, findPiecePosition } from '@/utils/boardLayoutUtils';
 
 interface GameBoardProps {
   placedPieces: DominoPieceType[];
@@ -29,6 +30,9 @@ const GameBoard: React.FC<GameBoardProps> = ({
     onDragOver(e);
   };
 
+  // Dividir as peças em colunas de 5
+  const piecesColumns = chunkPiecesIntoColumns(placedPieces, 5);
+
   return (
     <div className={cn("flex justify-center", className)}>
       <div className={cn("w-full max-w-4xl min-h-[250px] bg-gradient-to-br from-green-800/30 to-green-900/30 rounded-3xl border-4 border-green-600/30 backdrop-blur-sm")}>
@@ -36,7 +40,7 @@ const GameBoard: React.FC<GameBoardProps> = ({
           <div 
             className={cn(
               "w-full h-full rounded-2xl border-2 border-dashed transition-all duration-300",
-              "flex items-center justify-center flex-col gap-2 p-4 overflow-auto min-h-[200px]",
+              "flex items-center justify-center p-4 overflow-auto min-h-[200px]",
               placedPieces.length === 0 ? "border-yellow-400/50 bg-yellow-400/5" : "border-green-400/50"
             )}
             onDrop={handleDrop}
@@ -50,28 +54,46 @@ const GameBoard: React.FC<GameBoardProps> = ({
                 <p className="text-sm opacity-75 mt-2">O jogo começará com sua jogada</p>
               </div>
             ) : (
-              <div className="flex items-center gap-1 max-w-full">
-                {placedPieces.map((piece, index) => (
-                  <div key={`${piece.id}-${index}`} className="relative">
-                    <DominoPiece 
-                      topValue={piece.top} 
-                      bottomValue={piece.bottom} 
-                      isPlayable={false} 
-                      className="shadow-xl" 
-                      orientation="horizontal" 
-                    />
-                    {index === 0 && (
-                      <div 
-                        className="absolute -left-2 top-1/2 transform -translate-y-1/2 w-2 h-2 bg-red-400 rounded-full animate-pulse" 
-                        title="Extremidade esquerda" 
-                      />
-                    )}
-                    {index === placedPieces.length - 1 && (
-                      <div 
-                        className="absolute -right-2 top-1/2 transform -translate-y-1/2 w-2 h-2 bg-blue-400 rounded-full animate-pulse" 
-                        title="Extremidade direita" 
-                      />
-                    )}
+              <div className="flex gap-4 items-start justify-center max-w-full overflow-x-auto">
+                {piecesColumns.map((column, columnIndex) => (
+                  <div key={`column-${columnIndex}`} className="flex flex-col gap-1">
+                    {column.map((piece, pieceIndexInColumn) => {
+                      const globalIndex = columnIndex * 5 + pieceIndexInColumn;
+                      const piecePosition = findPiecePosition(placedPieces, piece, 5);
+                      
+                      return (
+                        <div key={`${piece.id}-${globalIndex}`} className="relative">
+                          <DominoPiece 
+                            topValue={piece.top} 
+                            bottomValue={piece.bottom} 
+                            isPlayable={false} 
+                            className="shadow-xl" 
+                            orientation="horizontal" 
+                          />
+                          
+                          {/* Indicador da primeira peça (extremidade esquerda) */}
+                          {piecePosition?.isFirstPiece && (
+                            <div 
+                              className="absolute -left-2 top-1/2 transform -translate-y-1/2 w-2 h-2 bg-red-400 rounded-full animate-pulse" 
+                              title="Extremidade esquerda - Primeira peça" 
+                            />
+                          )}
+                          
+                          {/* Indicador da última peça (extremidade direita) */}
+                          {piecePosition?.isLastPiece && (
+                            <div 
+                              className="absolute -right-2 top-1/2 transform -translate-y-1/2 w-2 h-2 bg-blue-400 rounded-full animate-pulse" 
+                              title="Extremidade direita - Última peça" 
+                            />
+                          )}
+                          
+                          {/* Indicador do número da peça para debug */}
+                          <div className="absolute -top-1 -right-1 w-4 h-4 bg-gray-700 text-white text-xs rounded-full flex items-center justify-center opacity-60">
+                            {globalIndex + 1}
+                          </div>
+                        </div>
+                      );
+                    })}
                   </div>
                 ))}
               </div>
