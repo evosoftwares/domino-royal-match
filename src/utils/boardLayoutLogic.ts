@@ -6,7 +6,7 @@ export interface LayoutDimensions {
   pieceWidth: number;
   pieceHeight: number;
   spacing: number;
-  maxRowWidth: number;
+  maxPiecesPerRow: number;
 }
 
 export interface LayoutRow {
@@ -26,11 +26,11 @@ const DEFAULT_DIMENSIONS: LayoutDimensions = {
   pieceWidth: 64,  // 16 * 4 (w-16)
   pieceHeight: 32, // 8 * 4 (h-8)
   spacing: 8,      // gap-2
-  maxRowWidth: 800 // Largura máxima antes de quebrar linha
+  maxPiecesPerRow: 5 // 5 peças por linha
 };
 
 /**
- * Calcula o layout linear das peças com quebra de linha inteligente
+ * Calcula o layout das peças em múltiplas linhas com 5 peças por linha
  */
 export const calculateLinearLayout = (
   pieces: DominoPieceType[],
@@ -48,53 +48,36 @@ export const calculateLinearLayout = (
 
   const connections = calculateAllConnections(pieces);
   const rows: LayoutRow[] = [];
-  let currentRow: PieceConnection[] = [];
-  let currentRowWidth = 0;
-  let yOffset = 0;
-
-  for (const connection of connections) {
-    const pieceWidth = connection.orientation === 'horizontal' ? dimensions.pieceWidth : dimensions.pieceHeight;
-    const pieceHeight = connection.orientation === 'horizontal' ? dimensions.pieceHeight : dimensions.pieceWidth;
+  
+  // Dividir as peças em linhas de 5
+  for (let i = 0; i < connections.length; i += dimensions.maxPiecesPerRow) {
+    const rowPieces = connections.slice(i, i + dimensions.maxPiecesPerRow);
+    const rowIndex = Math.floor(i / dimensions.maxPiecesPerRow);
     
-    // Verificar se a peça cabe na linha atual
-    const newWidth = currentRowWidth + pieceWidth + (currentRow.length > 0 ? dimensions.spacing : 0);
+    let rowWidth = 0;
     
-    if (newWidth > containerWidth && currentRow.length > 0) {
-      // Quebrar linha
-      rows.push({
-        pieces: [...currentRow],
-        width: currentRowWidth,
-        yOffset
-      });
+    // Calcular posições das peças na linha
+    rowPieces.forEach((connection, index) => {
+      const pieceWidth = connection.orientation === 'horizontal' ? dimensions.pieceWidth : dimensions.pieceHeight;
       
-      // Começar nova linha
-      currentRow = [connection];
-      currentRowWidth = pieceWidth;
-      yOffset += Math.max(dimensions.pieceHeight, dimensions.pieceWidth) + dimensions.spacing;
-    } else {
-      // Adicionar à linha atual
-      currentRow.push(connection);
-      currentRowWidth = newWidth;
-    }
+      connection.position = {
+        x: rowWidth,
+        y: rowIndex * (Math.max(dimensions.pieceHeight, dimensions.pieceWidth) + dimensions.spacing)
+      };
+      
+      rowWidth += pieceWidth + (index < rowPieces.length - 1 ? dimensions.spacing : 0);
+    });
     
-    // Atualizar posição da peça
-    connection.position = {
-      x: currentRowWidth - pieceWidth,
-      y: yOffset
-    };
-  }
-
-  // Adicionar última linha se houver peças
-  if (currentRow.length > 0) {
     rows.push({
-      pieces: currentRow,
-      width: currentRowWidth,
-      yOffset
+      pieces: rowPieces,
+      width: rowWidth,
+      yOffset: rowIndex * (Math.max(dimensions.pieceHeight, dimensions.pieceWidth) + dimensions.spacing)
     });
   }
 
   const totalWidth = Math.max(...rows.map(row => row.width));
-  const totalHeight = yOffset + Math.max(dimensions.pieceHeight, dimensions.pieceWidth);
+  const totalHeight = rows.length > 0 ? 
+    rows[rows.length - 1].yOffset + Math.max(dimensions.pieceHeight, dimensions.pieceWidth) : 0;
 
   return {
     rows,
@@ -105,7 +88,7 @@ export const calculateLinearLayout = (
 };
 
 /**
- * Calcula a posição de scroll ideal para mostrar as extremidades
+ * Calcula a posição de scroll ideal
  */
 export const calculateOptimalScroll = (
   layout: LinearLayout,
@@ -180,39 +163,4 @@ export const getVisibleEnds = (
     leftEnd: leftmostPiece.leftConnection,
     rightEnd: rightmostPiece.rightConnection
   };
-};
-
-/**
- * Gera dados para animação de transição
- */
-export const generateLayoutTransition = (
-  oldLayout: LinearLayout,
-  newLayout: LinearLayout
-): Array<{
-  pieceId: string;
-  from: { x: number; y: number };
-  to: { x: number; y: number };
-}> => {
-  const transitions: Array<{
-    pieceId: string;
-    from: { x: number; y: number };
-    to: { x: number; y: number };
-  }> = [];
-
-  // Mapear peças antigas para novas posições
-  const oldPieces = oldLayout.rows.flatMap(row => row.pieces);
-  const newPieces = newLayout.rows.flatMap(row => row.pieces);
-
-  for (const oldPiece of oldPieces) {
-    const newPiece = newPieces.find(p => p.piece.id === oldPiece.piece.id);
-    if (newPiece) {
-      transitions.push({
-        pieceId: oldPiece.piece.id,
-        from: oldPiece.position,
-        to: newPiece.position
-      });
-    }
-  }
-
-  return transitions;
 };
