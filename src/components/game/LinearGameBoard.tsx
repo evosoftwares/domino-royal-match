@@ -150,9 +150,10 @@ const LinearGameBoard: React.FC<LinearGameBoardProps> = ({
               <div className="domino-board">
                 <div className="domino-sequence">
                   {placedPieces.map((piece, index) => {
-                    // Determinar orientação da peça
+                    // Determinar orientação da peça - peças duplas ficam verticais (cruzadas)
                     const isDupla = piece.top === piece.bottom && piece.top > 0;
-                    const orientation = isDupla ? 'dupla' : 'horizontal';
+                    // Para TypeScript, usar apenas 'vertical' ou 'horizontal'
+                    const orientation: 'vertical' | 'horizontal' = isDupla ? 'vertical' : 'horizontal';
                     
                     return (
                       <DominoPiece 
@@ -160,7 +161,10 @@ const LinearGameBoard: React.FC<LinearGameBoardProps> = ({
                         topValue={piece.top} 
                         bottomValue={piece.bottom} 
                         isPlayable={false} 
-                        className="transition-all duration-200" 
+                        className={cn(
+                          "transition-all duration-200",
+                          isDupla && "dupla" // Adicionar classe CSS dupla para estilo
+                        )} 
                         orientation={orientation}
                       />
                     );

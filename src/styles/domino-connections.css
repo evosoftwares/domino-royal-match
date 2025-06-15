@@ -16,15 +16,17 @@
   box-shadow: inset 0 0 20px rgba(0, 0, 0, 0.3);
 }
 
-/* Container principal das peças - layout linear */
+/* Container principal das peças - layout linear em uma única linha */
 .domino-sequence {
   display: flex;
   align-items: center;
   justify-content: center;
-  flex-wrap: wrap;
+  flex-wrap: nowrap; /* Forçar uma única linha */
   gap: 4px;
   min-height: 120px;
   width: 100%;
+  overflow-x: auto; /* Scroll horizontal se necessário */
+  padding: 20px 0; /* Espaço para peças duplas rotacionadas */
 }
 
 /* Estrutura Principal da Peça */
@@ -41,6 +43,7 @@
   position: relative;
   z-index: 5;
   margin: 0 2px;
+  flex-shrink: 0; /* Evita que as peças encolham */
 }
 
 .domino:hover {
@@ -158,10 +161,10 @@
   grid-area: 3 / 3; 
 }
 
-/* Peças Duplas (Cruzadas) - Rotação de 90° */
+/* Peças Duplas (Cruzadas) - Rotação de 90° conforme regras do dominó */
 .domino.dupla {
   transform: rotate(90deg);
-  margin: 0 30px;
+  margin: 0 30px; /* Compensar a rotação */
   width: 60px;
   height: 120px;
 }
@@ -176,7 +179,7 @@
   border-bottom: 3px solid #333;
 }
 
-/* Orientação Vertical */
+/* Orientação Vertical para compatibilidade */
 .domino.vertical {
   width: 60px;
   height: 120px;
@@ -193,13 +196,13 @@
   border-bottom: 3px solid #333;
 }
 
-/* Conectores visuais entre peças adjacentes */
-.domino-sequence .domino:not(:last-child)::after {
+/* Conectores visuais entre peças adjacentes na sequência linear */
+.domino-sequence .domino:not(:last-child):not(.dupla)::after {
   content: '';
   position: absolute;
-  width: 6px;
-  height: 3px;
-  right: -5px;
+  width: 4px;
+  height: 2px;
+  right: -4px;
   top: 50%;
   transform: translateY(-50%);
   background: linear-gradient(90deg, #8B4513, #A0522D);
@@ -207,7 +210,21 @@
   z-index: 3;
 }
 
-/* Efeitos especiais para primeira e última peça */
+/* Conectores especiais para peças duplas */
+.domino-sequence .domino.dupla:not(:last-child)::after {
+  content: '';
+  position: absolute;
+  width: 2px;
+  height: 4px;
+  right: -30px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: linear-gradient(180deg, #8B4513, #A0522D);
+  border-radius: 2px;
+  z-index: 3;
+}
+
+/* Marcadores de início e fim */
 .domino-sequence .domino:first-child::before {
   content: '🎯';
   position: absolute;
@@ -219,10 +236,15 @@
 }
 
 .domino-sequence .domino:last-child::after {
+  content: '';
+  position: relative;
+}
+
+.domino-sequence .domino:last-child::before {
   content: '🏁';
   position: absolute;
   top: -25px;
-  right: -20px;
+  right: -10px;
   font-size: 16px;
   z-index: 20;
 }
@@ -251,5 +273,10 @@
   
   .domino-sequence {
     gap: 2px;
+    padding: 15px 0;
+  }
+  
+  .domino.dupla {
+    margin: 0 20px;
   }
 }
