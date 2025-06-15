@@ -105,7 +105,7 @@ const MatchmakingQueue: React.FC = () => {
                         #{index + 1}
                       </span>
                       {index === 0 && (
-                        <Crown className="h-4 w-4 text-yellow-500" title="Líder da fila" />
+                        <Crown className="h-4 w-4 text-yellow-500" />
                       )}
                     </div>
                     
@@ -120,7 +120,7 @@ const MatchmakingQueue: React.FC = () => {
                       <div className="font-medium text-sm">{player.displayName}</div>
                     </div>
                     
-                    <Badge variant="outline" size="sm">
+                    <Badge variant="outline">
                       Esperando
                     </Badge>
                   </div>

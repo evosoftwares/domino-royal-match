@@ -61,12 +61,12 @@ export const useSimpleMatchmaking = () => {
         right_end: startingPiece.r,
       };
 
-      // Criar jogo
+      // Criar jogo - convertendo para JSON compatível
       const { data: newGame, error: gameError } = await supabase
         .from('games')
         .insert({
           status: 'active',
-          board_state: initialBoardState,
+          board_state: initialBoardState as any,
           current_player_turn: startingPlayerId,
           turn_start_time: new Date().toISOString(),
           prize_pool: 4.00,
@@ -79,12 +79,12 @@ export const useSimpleMatchmaking = () => {
         throw gameError || new Error("Falha ao criar o registro do jogo.");
       }
 
-      // Adicionar jogadores
+      // Adicionar jogadores - convertendo hands para JSON compatível
       const gamePlayersData = playersToStart.map((player, index) => ({
         game_id: newGame.id,
         user_id: player.id,
         position: index + 1,
-        hand: hands[index]
+        hand: hands[index] as any
       }));
 
       const { error: playersError } = await supabase.from('game_players').insert(gamePlayersData);

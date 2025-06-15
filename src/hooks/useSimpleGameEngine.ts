@@ -46,9 +46,14 @@ export const useSimpleGameEngine = ({
     }
   });
 
-  // Ações do jogo com mock simples para as dependências
+  // Mocks simplificados para compatibilidade
   const mockPersistentQueue = {
-    addItem: () => {},
+    items: [],
+    addItem: () => 'mock-id',
+    removeItem: () => {},
+    updateItem: () => {},
+    getNextItem: () => null,
+    clearQueue: () => {},
     cleanupExpired: () => {},
     size: 0,
     getStats: () => ({ total: 0 })
@@ -56,9 +61,24 @@ export const useSimpleGameEngine = ({
 
   const mockGameMetrics = {
     recordGameAction: (action: string) => console.log(`Action: ${action}`),
-    recordGameSuccess: (operation: string, time?: number) => console.log(`Success: ${operation}`),
-    recordGameError: (operation: string, error: any, time?: number) => console.error(`Error: ${operation}`, error),
-    getHealthStatus: () => ({ status: 'healthy' as const })
+    recordGameSuccess: (operation: string, responseTime?: number) => console.log(`Success: ${operation}`),
+    recordGameError: (operation: string, error: any, responseTime?: number) => console.error(`Error: ${operation}`, error),
+    getHealthStatus: () => ({ 
+      status: 'healthy' as const,
+      metrics: {
+        successRate: 100,
+        averageResponseTime: 150,
+        errorRate: 0,
+        lastSuccessTime: Date.now(),
+        lastErrorTime: 0
+      },
+      alerts: {
+        critical: [],
+        warnings: [],
+        info: []
+      },
+      recommendations: []
+    })
   };
 
   const { playPiece, passTurn, playAutomatic } = useGameActions({
