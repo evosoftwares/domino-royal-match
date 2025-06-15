@@ -33,6 +33,11 @@ const GameBoard: React.FC<GameBoardProps> = ({
   // Dividir as peças em colunas de 5
   const piecesColumns = chunkPiecesIntoColumns(placedPieces, 5);
 
+  // Função para determinar a orientação da peça
+  const getPieceOrientation = (piece: DominoPieceType): 'vertical' | 'horizontal' => {
+    return piece.top === piece.bottom ? 'vertical' : 'horizontal';
+  };
+
   return (
     <div className={cn("flex justify-center", className)}>
       <div className={cn("w-full max-w-4xl min-h-[250px] bg-gradient-to-br from-green-800/30 to-green-900/30 rounded-3xl border-4 border-green-600/30 backdrop-blur-sm")}>
@@ -60,6 +65,7 @@ const GameBoard: React.FC<GameBoardProps> = ({
                     {column.map((piece, pieceIndexInColumn) => {
                       const globalIndex = columnIndex * 5 + pieceIndexInColumn;
                       const piecePosition = findPiecePosition(placedPieces, piece, 5);
+                      const orientation = getPieceOrientation(piece);
                       
                       return (
                         <div key={`${piece.id}-${globalIndex}`} className="relative">
@@ -68,7 +74,7 @@ const GameBoard: React.FC<GameBoardProps> = ({
                             bottomValue={piece.bottom} 
                             isPlayable={false} 
                             className="shadow-xl" 
-                            orientation="horizontal" 
+                            orientation={orientation}
                           />
                           
                           {/* Indicador da primeira peça (extremidade esquerda) */}
@@ -91,6 +97,13 @@ const GameBoard: React.FC<GameBoardProps> = ({
                           <div className="absolute -top-1 -right-1 w-4 h-4 bg-gray-700 text-white text-xs rounded-full flex items-center justify-center opacity-60">
                             {globalIndex + 1}
                           </div>
+                          
+                          {/* Indicador visual da orientação para debug */}
+                          {process.env.NODE_ENV === 'development' && (
+                            <div className="absolute -bottom-1 -left-1 text-xs bg-blue-600 text-white px-1 rounded opacity-75">
+                              {orientation === 'vertical' ? 'V' : 'H'}
+                            </div>
+                          )}
                         </div>
                       );
                     })}
