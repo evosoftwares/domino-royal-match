@@ -56,7 +56,13 @@ export const useSimpleGameEngine = ({
     clearQueue: () => {},
     cleanupExpired: () => {},
     size: 0,
-    getStats: () => ({ total: 0 })
+    getStats: () => ({ 
+      total: 0,
+      byType: {} as Record<string, number>,
+      byPriority: {} as Record<number, number>,
+      oldestItem: 0,
+      retryCount: 0
+    })
   };
 
   const mockGameMetrics = {
@@ -70,7 +76,12 @@ export const useSimpleGameEngine = ({
         averageResponseTime: 150,
         errorRate: 0,
         lastSuccessTime: Date.now(),
-        lastErrorTime: 0
+        lastErrorTime: 0,
+        memoryUsage: 50,
+        cpuTime: 100,
+        networkLatency: 50,
+        uptime: Date.now(),
+        lastHealthCheck: Date.now()
       },
       alerts: {
         critical: [],
