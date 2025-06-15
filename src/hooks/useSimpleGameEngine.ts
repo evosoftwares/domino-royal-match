@@ -86,7 +86,11 @@ export const useSimpleGameEngine = ({
       alerts: {
         critical: [],
         warnings: [],
-        info: []
+        info: [],
+        highMemoryUsage: false,
+        highErrorRate: false,
+        networkIssues: false,
+        performanceDegradation: false
       },
       recommendations: []
     })
