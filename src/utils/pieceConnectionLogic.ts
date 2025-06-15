@@ -8,7 +8,8 @@ export interface PieceConnection {
   rightConnection: number | null;
   orientation: 'vertical' | 'horizontal';
   position: { x: number; y: number };
-  isFlipped: boolean; // Nova propriedade para indicar se a peça foi invertida
+  isFlipped: boolean;
+  isDupla: boolean; // Nova propriedade para identificar peças duplas
 }
 
 export interface BoardEnds {
@@ -20,7 +21,7 @@ export interface BoardEnds {
 
 /**
  * Calcula a orientação correta de uma peça baseada nos valores
- * Regra: Peças com valores iguais ficam verticais, diferentes ficam horizontais
+ * Regra: Peças duplas (valores iguais) ficam verticais (cruzadas), outras ficam horizontais
  */
 export const calculatePieceOrientation = (
   piece: DominoPieceType,
@@ -28,7 +29,8 @@ export const calculatePieceOrientation = (
   pieces: DominoPieceType[],
   connectionValue?: number
 ): 'vertical' | 'horizontal' => {
-  return piece.top === piece.bottom ? 'vertical' : 'horizontal';
+  // Peças duplas sempre ficam verticais (cruzadas)
+  return piece.top === piece.bottom && piece.top > 0 ? 'vertical' : 'horizontal';
 };
 
 /**
@@ -44,6 +46,9 @@ export const calculateAllConnections = (pieces: DominoPieceType[]): PieceConnect
     let leftConnection: number | null = null;
     let rightConnection: number | null = null;
     let isFlipped = false;
+    
+    // Verificar se é uma peça dupla
+    const isDupla = piece.top === piece.bottom && piece.top > 0;
     
     // Aplicar a regra de orientação
     const orientation = calculatePieceOrientation(piece, i, pieces);
@@ -84,7 +89,8 @@ export const calculateAllConnections = (pieces: DominoPieceType[]): PieceConnect
       rightConnection,
       orientation,
       position: { x: 0, y: 0 }, // Será calculado no layout
-      isFlipped
+      isFlipped,
+      isDupla
     });
   }
 

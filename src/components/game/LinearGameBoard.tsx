@@ -133,7 +133,7 @@ const LinearGameBoard: React.FC<LinearGameBoardProps> = ({
               "flex items-center justify-center",
               placedPieces.length === 0 
                 ? "min-h-[300px]" 
-                : "min-h-[250px]"
+                : "min-h-[200px]"
             )}
             onDrop={handleDrop}
             onDragOver={handleDragOver}
@@ -148,12 +148,13 @@ const LinearGameBoard: React.FC<LinearGameBoardProps> = ({
                 <p className="text-sm opacity-75">O jogo começará com sua jogada</p>
               </div>
             ) : (
-              <div className="domino-board">
+              <div className="domino-board w-full">
                 <div className="domino-sequence">
                   {placedPieces.map((piece, index) => {
-                    // Determinar orientação da peça - peças duplas ficam verticais (cruzadas)
+                    // Determinar se é uma peça dupla
                     const isDupla = piece.top === piece.bottom && piece.top > 0;
-                    // Para TypeScript, usar apenas 'vertical' ou 'horizontal'
+                    
+                    // Para peças duplas, usar orientação vertical para criar o efeito "cruzado"
                     const orientation: 'vertical' | 'horizontal' = isDupla ? 'vertical' : 'horizontal';
                     
                     return (
@@ -164,7 +165,7 @@ const LinearGameBoard: React.FC<LinearGameBoardProps> = ({
                         isPlayable={false} 
                         className={cn(
                           "transition-all duration-200",
-                          isDupla && "dupla" // Adicionar classe CSS dupla para estilo
+                          isDupla && "dupla" // Classe CSS especial para peças duplas
                         )} 
                         orientation={orientation}
                       />

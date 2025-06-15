@@ -1,21 +1,20 @@
-
-/* Mesa de Dominó Realista com Layout Linear Melhorado */
+/* Mesa de Dominó Realista com Layout Linear Otimizado */
 
 /* Estilo da Mesa */
 .domino-board {
-  background: linear-gradient(135deg, #2d5a2d 0%, #1a4a1a 50%, #0d3d0d 100%);
-  border: 8px solid #8B4513;
-  border-radius: 20px;
-  padding: 40px 20px;
-  margin: 20px auto;
+  background: linear-gradient(135deg, #1e5e1e 0%, #2d5a2d 50%, #1a4a1a 100%);
+  border: 6px solid #8B4513;
+  border-radius: 16px;
+  padding: 30px 15px;
+  margin: 15px auto;
   position: relative;
   display: flex;
   flex-direction: column;
   align-items: center;
-  min-height: 180px;
+  min-height: 140px;
   box-shadow: 
-    inset 0 0 30px rgba(0, 0, 0, 0.4),
-    0 8px 25px rgba(0, 0, 0, 0.3);
+    inset 0 0 25px rgba(0, 0, 0, 0.3),
+    0 6px 20px rgba(0, 0, 0, 0.25);
   max-width: 100%;
   overflow: hidden;
 }
@@ -26,46 +25,46 @@
   align-items: center;
   justify-content: flex-start;
   flex-wrap: nowrap;
-  gap: 2px;
-  min-height: 80px;
+  gap: 3px;
+  min-height: 60px;
   width: 100%;
   overflow-x: auto;
   overflow-y: visible;
-  padding: 15px 0;
+  padding: 10px 0;
   scroll-behavior: smooth;
 }
 
 /* Scrollbar personalizada */
 .domino-sequence::-webkit-scrollbar {
-  height: 8px;
+  height: 6px;
 }
 
 .domino-sequence::-webkit-scrollbar-track {
-  background: rgba(139, 69, 19, 0.2);
-  border-radius: 4px;
+  background: rgba(139, 69, 19, 0.15);
+  border-radius: 3px;
 }
 
 .domino-sequence::-webkit-scrollbar-thumb {
-  background: rgba(139, 69, 19, 0.6);
-  border-radius: 4px;
+  background: rgba(139, 69, 19, 0.5);
+  border-radius: 3px;
 }
 
 .domino-sequence::-webkit-scrollbar-thumb:hover {
-  background: rgba(139, 69, 19, 0.8);
+  background: rgba(139, 69, 19, 0.7);
 }
 
 /* Estrutura Principal da Peça - Tamanhos Otimizados */
 .domino {
-  width: 100px;
-  height: 50px;
-  background: linear-gradient(145deg, #ffffff 0%, #f0f0f0 50%, #e0e0e0 100%);
-  border: 2px solid #2c2c2c;
-  border-radius: 6px;
+  width: 80px;
+  height: 40px;
+  background: linear-gradient(145deg, #ffffff 0%, #f5f5f5 50%, #e8e8e8 100%);
+  border: 2px solid #333;
+  border-radius: 5px;
   box-shadow: 
-    0 4px 8px rgba(0, 0, 0, 0.3),
-    inset 0 1px 2px rgba(255, 255, 255, 0.5);
+    0 3px 6px rgba(0, 0, 0, 0.25),
+    inset 0 1px 2px rgba(255, 255, 255, 0.4);
   display: flex;
-  padding: 4px;
+  padding: 3px;
   transition: all 0.2s ease-in-out;
   position: relative;
   z-index: 5;
@@ -75,11 +74,11 @@
 
 .domino:hover {
   box-shadow: 
-    0 6px 12px rgba(0, 0, 0, 0.4),
-    0 0 8px rgba(0, 200, 255, 0.3),
-    inset 0 1px 2px rgba(255, 255, 255, 0.5);
+    0 5px 10px rgba(0, 0, 0, 0.35),
+    0 0 6px rgba(0, 200, 255, 0.25),
+    inset 0 1px 2px rgba(255, 255, 255, 0.4);
   z-index: 10;
-  transform: translateY(-2px);
+  transform: translateY(-1px);
 }
 
 /* Faces da Peça */
@@ -90,7 +89,7 @@
   display: grid;
   grid-template-columns: repeat(3, 1fr);
   grid-template-rows: repeat(3, 1fr);
-  padding: 4px;
+  padding: 3px;
   gap: 1px;
   place-items: center;
 }
@@ -102,12 +101,12 @@
 
 /* Pontos (dots) - Melhorados */
 .dot {
-  width: 7px;
-  height: 7px;
+  width: 6px;
+  height: 6px;
   background: radial-gradient(circle, #1a1a1a 0%, #2c2c2c 70%);
   border-radius: 50%;
   box-shadow: 
-    0 1px 2px rgba(0, 0, 0, 0.4),
+    0 1px 2px rgba(0, 0, 0, 0.3),
     inset 0 1px 1px rgba(255, 255, 255, 0.1);
   position: relative;
 }
@@ -197,9 +196,9 @@
 /* Peças Duplas (Cruzadas) - Layout Melhorado */
 .domino.dupla {
   transform: rotate(90deg);
-  margin: 0 25px;
-  width: 50px;
-  height: 100px;
+  margin: 0 20px;
+  width: 40px;
+  height: 80px;
   flex-direction: column;
 }
 
@@ -215,8 +214,8 @@
 
 /* Orientação Vertical */
 .domino.vertical {
-  width: 50px;
-  height: 100px;
+  width: 40px;
+  height: 80px;
   flex-direction: column;
 }
 
@@ -234,42 +233,42 @@
 .domino-sequence .domino:not(:last-child):not(.dupla)::after {
   content: '';
   position: absolute;
-  width: 3px;
-  height: 3px;
+  width: 2px;
+  height: 2px;
   right: -2px;
   top: 50%;
   transform: translateY(-50%);
   background: radial-gradient(circle, #8B4513 0%, #A0522D 100%);
   border-radius: 50%;
   z-index: 3;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+  box-shadow: 0 1px 1px rgba(0, 0, 0, 0.2);
 }
 
 /* Conectores especiais para peças duplas */
 .domino-sequence .domino.dupla:not(:last-child)::after {
   content: '';
   position: absolute;
-  width: 3px;
-  height: 3px;
-  right: -25px;
+  width: 2px;
+  height: 2px;
+  right: -20px;
   top: 50%;
   transform: translateY(-50%);
   background: radial-gradient(circle, #8B4513 0%, #A0522D 100%);
   border-radius: 50%;
   z-index: 3;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+  box-shadow: 0 1px 1px rgba(0, 0, 0, 0.2);
 }
 
 /* Marcadores de início e fim melhorados */
 .domino-sequence .domino:first-child::before {
   content: '🎯';
   position: absolute;
-  top: -30px;
+  top: -25px;
   left: 50%;
   transform: translateX(-50%);
-  font-size: 18px;
+  font-size: 16px;
   z-index: 20;
-  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.5);
+  text-shadow: 0 2px 3px rgba(0, 0, 0, 0.4);
 }
 
 .domino-sequence .domino:last-child::after {
@@ -280,60 +279,21 @@
 .domino-sequence .domino:last-child::before {
   content: '🏁';
   position: absolute;
-  top: -30px;
+  top: -25px;
   right: -5px;
-  font-size: 18px;
+  font-size: 16px;
   z-index: 20;
-  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.5);
+  text-shadow: 0 2px 3px rgba(0, 0, 0, 0.4);
 }
 
 /* Responsividade otimizada */
 @media (max-width: 768px) {
   .domino-board {
-    padding: 20px 10px;
-    margin: 10px;
-    border-width: 6px;
+    padding: 15px 8px;
+    margin: 8px;
+    border-width: 4px;
   }
   
-  .domino {
-    width: 70px;
-    height: 35px;
-  }
-  
-  .domino.vertical,
-  .domino.dupla {
-    width: 35px;
-    height: 70px;
-  }
-  
-  .dot {
-    width: 5px;
-    height: 5px;
-  }
-  
-  .face {
-    padding: 2px;
-    gap: 0.5px;
-  }
-  
-  .domino-sequence {
-    gap: 1px;
-    padding: 10px 0;
-    min-height: 60px;
-  }
-  
-  .domino.dupla {
-    margin: 0 18px;
-  }
-  
-  .domino-sequence .domino:first-child::before,
-  .domino-sequence .domino:last-child::before {
-    font-size: 14px;
-    top: -25px;
-  }
-}
-
-@media (max-width: 480px) {
   .domino {
     width: 60px;
     height: 30px;
@@ -350,8 +310,47 @@
     height: 4px;
   }
   
+  .face {
+    padding: 2px;
+    gap: 0.5px;
+  }
+  
+  .domino-sequence {
+    gap: 2px;
+    padding: 8px 0;
+    min-height: 50px;
+  }
+  
   .domino.dupla {
     margin: 0 15px;
+  }
+  
+  .domino-sequence .domino:first-child::before,
+  .domino-sequence .domino:last-child::before {
+    font-size: 12px;
+    top: -20px;
+  }
+}
+
+@media (max-width: 480px) {
+  .domino {
+    width: 50px;
+    height: 25px;
+  }
+  
+  .domino.vertical,
+  .domino.dupla {
+    width: 25px;
+    height: 50px;
+  }
+  
+  .dot {
+    width: 3px;
+    height: 3px;
+  }
+  
+  .domino.dupla {
+    margin: 0 12px;
   }
 }
 
