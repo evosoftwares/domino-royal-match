@@ -2,17 +2,9 @@
 import { useEffect, useState, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { RealtimeChannel } from '@supabase/supabase-js';
+import { Tables } from '@/integrations/supabase/types';
 
-interface Solicitacao {
-  id: string;
-  game_id: string;
-  user_id: string;
-  tipo: 'auto_play' | 'pass_turn';
-  status: 'pending' | 'processing' | 'completed' | 'failed';
-  created_at: string;
-  processed_at?: string;
-  error_message?: string;
-}
+type Solicitacao = Tables<'solicitacoes'>;
 
 interface UseSolicitationsMonitorProps {
   gameId: string;

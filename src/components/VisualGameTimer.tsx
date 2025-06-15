@@ -11,8 +11,8 @@ interface VisualGameTimerProps {
   isWarning: boolean;
   onAutoPlay?: () => void;
   className?: string;
-  pendingSolicitations?: number; // Novo prop
-  isProcessingSolicitation?: boolean; // Novo prop
+  pendingSolicitations?: number;
+  isProcessingSolicitation?: boolean;
 }
 
 const VisualGameTimer: React.FC<VisualGameTimerProps> = ({
@@ -52,7 +52,7 @@ const VisualGameTimer: React.FC<VisualGameTimerProps> = ({
             {isMyTurn ? "Sua Vez" : "Aguardando"}
           </span>
           
-          {/* Indicador de solicitações */}
+          {/* Indicador de solicitações melhorado */}
           {(pendingSolicitations > 0 || isProcessingSolicitation) && (
             <div className="flex items-center gap-1">
               <FileText className="w-3 h-3 text-blue-400" />
@@ -109,11 +109,11 @@ const VisualGameTimer: React.FC<VisualGameTimerProps> = ({
         </div>
       )}
 
-      {/* Feedback visual para solicitações */}
+      {/* Feedback visual aprimorado para solicitações */}
       {!isMyTurn && pendingSolicitations > 0 && (
         <div className="mt-2 text-center">
           <span className="text-blue-400 text-xs font-semibold animate-pulse">
-            🤖 Sistema monitorando timeout...
+            🤖 Sistema monitorando timeout ({pendingSolicitations} na fila)
           </span>
         </div>
       )}

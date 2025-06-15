@@ -2,6 +2,9 @@
 import { useEffect, useCallback, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
+import { Tables } from '@/integrations/supabase/types';
+
+type SolicitacaoInsert = Tables<'solicitacoes'>['Insert'];
 
 interface UseAutoPlaySolicitationsProps {
   gameId: string;
@@ -34,14 +37,16 @@ export const useAutoPlaySolicitations = ({
     try {
       console.log('📝 Criando solicitação de jogada automática para:', targetUserId);
       
+      const solicitacao: SolicitacaoInsert = {
+        game_id: gameId,
+        user_id: targetUserId,
+        tipo: 'auto_play',
+        timeout_duration: 10
+      };
+
       const { error } = await supabase
         .from('solicitacoes')
-        .insert({
-          game_id: gameId,
-          user_id: targetUserId,
-          tipo: 'auto_play',
-          timeout_duration: 10
-        });
+        .insert(solicitacao);
 
       if (error) {
         console.error('❌ Erro ao criar solicitação:', error);
