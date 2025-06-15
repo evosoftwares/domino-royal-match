@@ -3,6 +3,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { useNavigate } from 'react-router-dom';
 import { useGameCheck } from './useGameCheck';
+import { generateDeck, shuffleDeck, dealHands, findStartingPlayer } from '@/utils/dominoSetup';
 
 export interface QueuePlayer {
   id: string;
@@ -15,7 +16,6 @@ export interface MatchmakingState {
   isInQueue: boolean;
   queueCount: number;
   isLoading: boolean;
-  gameId: string | null;
   queuePlayers: QueuePlayer[];
   isGameCreating: boolean;
 }
@@ -36,16 +36,127 @@ export const useMatchmaking = () => {
     isInQueue: false,
     queueCount: 0,
     isLoading: false,
-    gameId: null,
     queuePlayers: [],
     isGameCreating: false
   });
 
-  const [retryCount, setRetryCount] = useState(0);
-  const [lastQueueCount, setLastQueueCount] = useState(0);
-  const [debounceTimer, setDebounceTimer] = useState<NodeJS.Timeout | null>(null);
-  const maxRetries = 12;
   const mountedRef = useRef(true);
+
+  const createGameFromQueue = async (playersInQueue: QueuePlayer[]) => {
+    // Apenas o primeiro jogador da fila (o líder) cria o jogo.
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user || playersInQueue.length < 4 || playersInQueue[0].id !== user.id) {
+      if (playersInQueue.length >= 4) {
+        console.log('... Não é o líder, aguardando criação do jogo.');
+      }
+      return;
+    }
+
+    // Previne tentativas duplicadas de criação do mesmo cliente.
+    if (state.isGameCreating) {
+      console.log('... Criação de jogo já em progresso por este cliente.');
+      return;
+    }
+
+    // Checa se um jogo já foi criado para este usuário para evitar race conditions.
+    const gameFound = await checkUserActiveGame();
+    if (gameFound) {
+      console.log('... Jogo já encontrado, cancelando criação.');
+      return;
+    }
+
+    console.log('👑 Você é o líder! Criando o jogo...');
+    setState(prev => ({ ...prev, isGameCreating: true }));
+    toast.info('Você é o líder da sala! Criando o jogo...');
+
+    try {
+      const playersToStart = playersInQueue.slice(0, 4);
+      const playerIds = playersToStart.map(p => p.id);
+
+      // 1. Lógica do jogo (distribuir cartas, achar jogador inicial)
+      const deck = generateDeck();
+      const shuffledDeck = shuffleDeck(deck);
+      const hands = dealHands(shuffledDeck);
+      const startingInfo = findStartingPlayer(hands);
+
+      if (!startingInfo) {
+        throw new Error("Não foi possível determinar o jogador inicial.");
+      }
+
+      const { playerIndex: startingPlayerIndex, startingPiece, newHand } = startingInfo;
+      const startingPlayerId = playerIds[startingPlayerIndex];
+      hands[startingPlayerIndex] = newHand; // Atualiza a mão do jogador inicial
+
+      const initialBoardState = {
+        pieces: [{ piece: startingPiece, orientation: startingPiece.l === startingPiece.r ? 'vertical' : 'horizontal' }],
+        left_end: startingPiece.l,
+        right_end: startingPiece.r,
+      };
+      
+      console.log('⚙️ Lógica do jogo preparada. Peça inicial:', startingPiece);
+
+      // 2. Criar registro do jogo no DB
+      const { data: newGame, error: gameError } = await supabase
+        .from('games')
+        .insert({
+          status: 'active',
+          board_state: initialBoardState,
+          current_player_turn: startingPlayerId,
+          turn_start_time: new Date().toISOString(),
+          prize_pool: 4.00,
+          entry_fee: 1.10
+        })
+        .select()
+        .single();
+
+      if (gameError || !newGame) {
+        throw gameError || new Error("Falha ao criar o registro do jogo.");
+      }
+      
+      console.log('✅ Jogo criado no banco de dados:', newGame.id);
+
+      // 3. Adicionar jogadores ao jogo
+      const gamePlayersData = playersToStart.map((player, index) => ({
+        game_id: newGame.id,
+        user_id: player.id,
+        position: index + 1,
+        hand: hands[index]
+      }));
+
+      const { error: playersError } = await supabase.from('game_players').insert(gamePlayersData);
+
+      if (playersError) {
+        // Tenta limpar o jogo órfão em caso de falha
+        console.error('❌ Erro ao adicionar jogadores. Tentando limpar...', playersError);
+        await supabase.from('games').delete().eq('id', newGame.id);
+        throw playersError;
+      }
+
+      console.log('👥 Jogadores adicionados ao jogo com sucesso.');
+
+      // 4. Atualizar status na fila de matchmaking
+      const { error: queueError } = await supabase
+        .from('matchmaking_queue')
+        .update({ status: 'matched' })
+        .in('user_id', playerIds);
+
+      if (queueError) {
+        // Falha não-crítica, apenas registrar.
+        console.warn('⚠️ Erro ao atualizar o status na fila de matchmaking:', queueError);
+      }
+
+      console.log('🏁 Processo de criação de jogo finalizado com sucesso.');
+      toast.success('Jogo criado! Você será redirecionado em breve.');
+
+    } catch (error: any) {
+      console.error('❌ Erro crítico durante a criação do jogo:', error);
+      toast.error(`Falha ao criar o jogo: ${error.message}`);
+      // Reseta o estado para permitir nova tentativa.
+      if (mountedRef.current) {
+        setState(prev => ({ ...prev, isGameCreating: false }));
+      }
+    }
+  };
 
   const fetchQueuePlayers = async () => {
     if (!mountedRef.current) return;
@@ -88,8 +199,6 @@ export const useMatchmaking = () => {
           }));
           
           if (!state.isInQueue) {
-            setLastQueueCount(0);
-            setRetryCount(0);
           }
         }
         return;
@@ -107,8 +216,6 @@ export const useMatchmaking = () => {
         name: p.displayName 
       })));
 
-      // Detectar quando chegamos a 4 jogadores
-      const wasLessThan4 = lastQueueCount < 4;
       const isNow4OrMore = players.length >= 4;
       
       if (mountedRef.current) {
@@ -121,86 +228,25 @@ export const useMatchmaking = () => {
       }
 
       // Verificar se o usuário atual está na fila
-      const { data: user } = await supabase.auth.getUser();
-      if (user.user && mountedRef.current) {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user?.user && mountedRef.current) {
         const isUserInQueue = players.some(player => player.id === user.user.id);
         console.log(`👤 Usuário ${user.user.id} na fila:`, isUserInQueue);
         
         setState(prev => ({ ...prev, isInQueue: isUserInQueue }));
         
-        // Se chegamos a 4 jogadores e usuário está na fila
-        if (wasLessThan4 && isNow4OrMore && isUserInQueue) {
-          console.log('🎯 4 jogadores detectados! Iniciando criação de jogo...');
-          console.log('📝 Estado atual: wasLessThan4:', wasLessThan4, 'isNow4OrMore:', isNow4OrMore);
-          
-          if (debounceTimer) {
-            clearTimeout(debounceTimer);
-          }
-          
-          if (mountedRef.current) {
-            const newTimer = setTimeout(() => {
-              if (mountedRef.current) {
-                console.log('⏰ Timer executado, iniciando verificação de jogo...');
-                setRetryCount(0);
-                checkForGameCreation(true);
-              }
-            }, 800);
-            
-            setDebounceTimer(newTimer);
-          }
+        // Se chegamos a 4 jogadores e usuário está na fila, iniciar criação.
+        if (isNow4OrMore && isUserInQueue) {
+          console.log('🎯 4+ jogadores detectados. Iniciando processo de criação do lado do cliente...');
+          // A eleição de líder ocorre dentro da função createGameFromQueue
+          await createGameFromQueue(players);
         }
       }
-
-      setLastQueueCount(players.length);
 
     } catch (error) {
       console.error('❌ Erro crítico ao buscar participantes da fila:', error);
     }
   };
-
-  const checkForGameCreation = useCallback(async (isInitialCheck = false) => {
-    if (!mountedRef.current || retryCount >= maxRetries) {
-      if (retryCount >= maxRetries) {
-        console.warn('⚠️ Máximo de tentativas atingido para criação de jogo');
-        setState(prev => ({ ...prev, isGameCreating: false }));
-      }
-      return;
-    }
-
-    console.log(`🔍 Verificando criação de jogo... (tentativa ${retryCount + 1}/${maxRetries})`);
-    
-    // Verificar se usuário foi redirecionado para jogo
-    const gameFound = await checkUserActiveGame();
-    
-    if (gameFound) {
-      console.log('✅ Jogo encontrado e usuário redirecionado!');
-      setRetryCount(0);
-      if (mountedRef.current) {
-        setState(prev => ({ ...prev, isGameCreating: false }));
-      }
-      return;
-    }
-    
-    // Continuar verificando se não atingiu limite
-    if (retryCount < maxRetries && mountedRef.current) {
-      setRetryCount(prev => prev + 1);
-      
-      // Intervalos progressivos mais inteligentes
-      const delay = retryCount < 3 ? 600 : retryCount < 8 ? 1200 : 2000;
-      console.log(`⏳ Próxima verificação em ${delay}ms`);
-      
-      setTimeout(() => {
-        if (mountedRef.current) {
-          checkForGameCreation(false);
-        }
-      }, delay);
-    } else if (retryCount >= maxRetries && mountedRef.current) {
-      console.warn('⚠️ Sistema bloqueado após tentativas máximas');
-      toast.warning('Sistema seguro bloqueou após várias tentativas. Saia e entre na fila novamente.');
-      setState(prev => ({ ...prev, isGameCreating: false }));
-      setRetryCount(0);
-    }
-  }, [checkUserActiveGame, retryCount, maxRetries]);
 
   const checkUserBalance = async (): Promise<boolean> => {
     try {
@@ -272,7 +318,6 @@ export const useMatchmaking = () => {
         }));
         toast.success(response.message || 'Adicionado à fila');
         
-        setRetryCount(0);
         await fetchQueuePlayers();
       } else {
         console.error('❌ Falha na entrada da fila:', response.error);
@@ -311,13 +356,7 @@ export const useMatchmaking = () => {
           isGameCreating: false
         }));
         toast.success(response.message || 'Removido da fila');
-        setRetryCount(0);
-        setLastQueueCount(0);
         
-        if (debounceTimer) {
-          clearTimeout(debounceTimer);
-          setDebounceTimer(null);
-        }
       } else {
         console.error('❌ Falha na saída da fila:', response.error);
         toast.error(response.error || 'Erro ao sair da fila');
@@ -350,7 +389,7 @@ export const useMatchmaking = () => {
 
     checkInitialStatus();
 
-    // Polling otimizado
+    // O polling continua sendo um backup importante caso o realtime falhe.
     const queueInterval = setInterval(() => {
       if (mountedRef.current) {
         fetchQueuePlayers();
@@ -361,7 +400,7 @@ export const useMatchmaking = () => {
     console.log('📡 Configurando canais realtime...');
     
     const queueChannel = supabase
-      .channel('secure-matchmaking-v4')
+      .channel('secure-matchmaking-v5')
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'matchmaking_queue' },
@@ -382,7 +421,7 @@ export const useMatchmaking = () => {
 
     // Canal para criação de jogos
     const gameChannel = supabase
-      .channel('secure-game-creation-v4')
+      .channel('secure-game-creation-v5')
       .on(
         'postgres_changes',
         { event: 'INSERT', schema: 'public', table: 'games' },
@@ -395,7 +434,6 @@ export const useMatchmaking = () => {
                 if (gameFound) {
                   console.log('✅ Redirecionamento bem-sucedido!');
                   setState(prev => ({ ...prev, isGameCreating: false }));
-                  setRetryCount(0);
                 }
               }
             }, 400);
@@ -408,7 +446,7 @@ export const useMatchmaking = () => {
 
     // Canal para game_players
     const gamePlayersChannel = supabase
-      .channel('secure-game-players-v4')
+      .channel('secure-game-players-v5')
       .on(
         'postgres_changes',
         { event: 'INSERT', schema: 'public', table: 'game_players' },
@@ -422,7 +460,6 @@ export const useMatchmaking = () => {
                 const gameFound = await checkUserActiveGame();
                 if (gameFound) {
                   setState(prev => ({ ...prev, isGameCreating: false }));
-                  setRetryCount(0);
                 }
               }
             }, 200);
@@ -433,7 +470,7 @@ export const useMatchmaking = () => {
         console.log('📡 Status canal jogadores:', status);
       });
 
-    console.log('📡 Sistema v4.0 ativado - Canais realtime configurados');
+    console.log('📡 Sistema v5.0 ativado - Criação de jogo no cliente');
 
     return () => {
       console.log('🧹 Limpando sistema de matchmaking...');
@@ -443,20 +480,14 @@ export const useMatchmaking = () => {
       supabase.removeChannel(gameChannel);
       supabase.removeChannel(gamePlayersChannel);
       
-      if (debounceTimer) {
-        clearTimeout(debounceTimer);
-      }
-      
       console.log('🧹 Cleanup concluído');
     };
-  }, [navigate, debounceTimer]);
+  }, [navigate]);
 
   return {
     ...state,
     joinQueue,
     leaveQueue,
     refreshQueue: fetchQueuePlayers,
-    retryCount,
-    maxRetries
   };
 };

@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
@@ -69,8 +68,6 @@ const MatchmakingQueue: React.FC = () => {
     leaveQueue,
     refreshQueue,
     isGameCreating,
-    retryCount,
-    maxRetries
   } = useMatchmaking();
 
   const handleJoinQueue = async () => {
@@ -99,12 +96,6 @@ const MatchmakingQueue: React.FC = () => {
     toast.success('Fila atualizada!');
   };
 
-  // Indicadores visuais melhorados com sistema seguro
-  const shouldShowGameStarting = queueCount >= 4;
-  const showRetryIndicator = retryCount > 0 && retryCount < maxRetries;
-  const showFailureIndicator = retryCount >= maxRetries;
-  const isSystemSecure = queueCount >= 4 && retryCount < 10;
-
   // Se está carregando inicialmente
   if (isLoading && queuePlayers.length === 0) {
     return (
@@ -124,7 +115,7 @@ const MatchmakingQueue: React.FC = () => {
       <CardHeader className="text-center p-4 border-b border-slate-700/50">
         <CardTitle className="text-slate-100 flex items-center justify-center gap-2 text-xl font-bold">
           <Users className="w-6 h-6 text-blue-400" />
-          {shouldShowGameStarting ? 'Sistema Seguro Ativo' : 'Procurando Partida'}
+          {isGameCreating ? 'Criando Partida...' : 'Procurando Partida'}
           <Button
             onClick={handleRefresh}
             variant="ghost"
@@ -137,64 +128,24 @@ const MatchmakingQueue: React.FC = () => {
         </CardTitle>
         <p className="text-slate-300 text-sm font-medium">
           {queueCount}/4 jogadores na fila
-          {isSystemSecure && (
-            <span className="ml-2 text-emerald-400 animate-pulse flex items-center gap-1">
+          {isGameCreating && (
+            <span className="ml-2 text-emerald-400 animate-pulse flex items-center justify-center gap-1">
               <Shield className="w-3 h-3" />
-              Sistema seguro v3.0 ativo
+              Sistema v5.0 ativo
             </span>
-          )}
-          {showRetryIndicator && (
-            <span className="ml-2 text-yellow-400 flex items-center gap-1">
-              <Timer className="w-3 h-3" />
-              Verificação segura {retryCount}/{maxRetries}
-            </span>
-          )}
-          {showFailureIndicator && (
-            <span className="ml-2 text-red-400">• Sistema bloqueado - saia e entre novamente</span>
           )}
         </p>
       </CardHeader>
       <CardContent className="space-y-6 p-6">
-        {/* Indicadores de status com sistema seguro */}
-        {shouldShowGameStarting && !showFailureIndicator && (
-          <div className="bg-emerald-900/30 border border-emerald-500/50 rounded-lg p-4 text-center">
-            <div className="flex items-center justify-center gap-2 text-emerald-400 font-medium">
-              <Shield className="w-4 h-4 animate-pulse" />
-              Sistema Seguro v3.0: Criando jogo com proteção total...
-              {showRetryIndicator && (
-                <span className="text-xs ml-2">
-                  (Verificação {retryCount}/{maxRetries})
-                </span>
-              )}
-            </div>
-            <div className="text-emerald-300 text-xs mt-2 flex items-center justify-center gap-1">
-              <CheckCircle className="w-3 h-3" />
-              Lock transacional • Validação rigorosa • Anti-duplicação • Debounce inteligente
-            </div>
-          </div>
-        )}
-        
-        {showFailureIndicator && (
-          <div className="bg-red-900/30 border border-red-500/50 rounded-lg p-4 text-center">
-            <div className="flex items-center justify-center gap-2 text-red-400 font-medium">
-              <AlertCircle className="w-4 h-4" />
-              Sistema seguro bloqueado após {maxRetries} tentativas
-            </div>
-            <div className="text-red-300 text-xs mt-2">
-              O sistema se protegeu automaticamente. Saia da fila e entre novamente.
-            </div>
-          </div>
-        )}
-
-        {isGameCreating && !showFailureIndicator && retryCount < 8 && (
+        {/* Indicador de status simplificado */}
+        {isGameCreating && (
           <div className="bg-blue-900/30 border border-blue-500/50 rounded-lg p-4 text-center">
             <div className="flex items-center justify-center gap-2 text-blue-400 font-medium">
-              <Shield className="w-4 h-4 animate-pulse" />
-              Sistema Seguro v3.0 em operação
+              <Zap className="w-4 h-4 animate-pulse" />
+              Sala cheia! Criando jogo seguro...
             </div>
-            <div className="text-blue-300 text-xs mt-2 flex items-center justify-center gap-1">
-              <Zap className="w-3 h-3" />
-              Proteção máxima: Lock • Validação • Prevenção • Monitoramento
+            <div className="text-blue-300 text-xs mt-2">
+              Aguarde, o líder da sala está preparando tudo.
             </div>
           </div>
         )}
@@ -230,11 +181,11 @@ const MatchmakingQueue: React.FC = () => {
 
         <Button
           onClick={isInQueue ? handleLeaveQueue : handleJoinQueue}
-          disabled={!user || isLoading || (queueCount >= 4 && !isInQueue && !showFailureIndicator)}
+          disabled={!user || isLoading || (isGameCreating && !isInQueue)}
           className={`w-full transition-all duration-300 font-semibold text-base py-3 ${
             isInQueue 
               ? 'bg-red-600 hover:bg-red-700 text-white shadow-lg' 
-              : shouldShowGameStarting && !isInQueue && !showFailureIndicator
+              : isGameCreating
               ? 'bg-slate-600 text-slate-400 cursor-not-allowed'
               : 'bg-blue-600 hover:bg-blue-700 text-white shadow-lg'
           }`}
@@ -248,21 +199,15 @@ const MatchmakingQueue: React.FC = () => {
           )}
           {isLoading ? (isInQueue ? 'Saindo...' : 'Entrando...') : 
            isInQueue ? 'Sair da Fila' : 
-           shouldShowGameStarting && !isInQueue && !showFailureIndicator ? 'Sistema Seguro Ativo...' : 'Entrar na Fila'}
+           isGameCreating ? 'Criando Partida...' : 'Entrar na Fila'}
         </Button>
 
         {queueCount > 0 && (
           <div className="text-center text-xs text-slate-400">
-            {shouldShowGameStarting 
-              ? '🛡️ Sistema Seguro v3.0: Proteção máxima com lock transacional + validação rigorosa + anti-duplicação'
-              : '🔄 Realtime ativo + debounce inteligente + validação contínua'
+            {isGameCreating 
+              ? '🛡️ Algoritmo v5.0: Lógica de criação no cliente com líder eleito.'
+              : '🔄 Realtime ativo + polling de segurança para garantir a integridade.'
             }
-            {showRetryIndicator && (
-              <div className="mt-1 text-yellow-400 flex items-center justify-center gap-1">
-                <Shield className="w-3 h-3" />
-                Verificação segura em andamento... ({retryCount}/{maxRetries})
-              </div>
-            )}
           </div>
         )}
       </CardContent>

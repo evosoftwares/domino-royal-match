@@ -304,10 +304,6 @@ export type Database = {
         Args: Record<PropertyKey, never>
         Returns: Json
       }
-      create_game_when_ready: {
-        Args: Record<PropertyKey, never>
-        Returns: Json
-      }
       get_matchmaking_queue: {
         Args: Record<PropertyKey, never>
         Returns: {
@@ -328,10 +324,6 @@ export type Database = {
         Args: { p_game_id: string }
         Returns: undefined
       }
-      play_highest_piece: {
-        Args: { p_game_id: string }
-        Returns: undefined
-      }
       play_move: {
         Args: { p_game_id: string; p_piece: Json; p_side: string }
         Returns: undefined
@@ -339,10 +331,6 @@ export type Database = {
       play_piece_periodically: {
         Args: { p_game_id: string }
         Returns: undefined
-      }
-      safe_create_game_when_ready: {
-        Args: Record<PropertyKey, never>
-        Returns: Json
       }
       start_game: {
         Args: { p_player_ids: string[]; p_room_id?: string }
