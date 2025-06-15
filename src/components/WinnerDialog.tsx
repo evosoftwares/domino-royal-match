@@ -1,5 +1,5 @@
 
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { ProcessedPlayer } from '@/types/game';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -19,6 +19,32 @@ const WinnerDialog: React.FC<WinnerDialogProps> = ({
   currentUserId
 }) => {
   const { forceExitToLobby } = useForceExit();
+  const [countdown, setCountdown] = useState(10);
+  
+  // Timer automático de 10 segundos
+  useEffect(() => {
+    if (!isVisible || !winner) {
+      setCountdown(10);
+      return;
+    }
+
+    console.log('⏰ Iniciando timer automático de 10 segundos para finalizar jogo');
+    
+    const timer = setInterval(() => {
+      setCountdown(prev => {
+        if (prev <= 1) {
+          console.log('🕒 Timer expirado, redirecionando automaticamente');
+          forceExitToLobby();
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+
+    return () => {
+      clearInterval(timer);
+    };
+  }, [isVisible, winner, forceExitToLobby]);
   
   if (!isVisible || !winner) return null;
 
@@ -83,6 +109,18 @@ const WinnerDialog: React.FC<WinnerDialogProps> = ({
               Peças restantes: {winner.pieces.length}
             </p>
           </div>
+
+          {/* Timer de contagem regressiva */}
+          <div className={cn(
+            "p-3 rounded-lg border-2",
+            countdown <= 3 
+              ? "bg-red-800/30 border-red-400/50" 
+              : "bg-yellow-800/30 border-yellow-400/50"
+          )}>
+            <p className="text-sm font-semibold">
+              Redirecionando em {countdown} segundos...
+            </p>
+          </div>
           
           <Button 
             onClick={handleBackToLobby}
@@ -93,7 +131,7 @@ const WinnerDialog: React.FC<WinnerDialogProps> = ({
                 : "bg-purple-600 hover:bg-purple-700"
             )}
           >
-            Voltar ao Lobby
+            Voltar ao Lobby Agora
           </Button>
         </div>
       </div>

@@ -142,10 +142,11 @@ const Game2Room: React.FC<Game2RoomProps> = ({
     playAutomatic
   });
 
-  // Verificação de vitória
+  // Verificação de vitória - agora passa o gameId
   const winState = useGameWinCheck({
     players: processedPlayers,
-    gameStatus: gameState.status
+    gameStatus: gameState.status,
+    gameId: gameState.id
   });
 
   // Health do sistema com solicitações
