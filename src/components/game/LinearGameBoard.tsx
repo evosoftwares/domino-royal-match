@@ -65,11 +65,12 @@ const LinearGameBoard: React.FC<LinearGameBoardProps> = ({
   };
 
   return (
-    <div className={cn("flex flex-col justify-center", className)}>
+    <div className={cn("flex flex-col justify-center items-center w-full", className)}>
       <div className={cn(
-        "w-full max-w-6xl min-h-[500px]",
-        "bg-gradient-to-br from-green-800/20 to-green-900/20",
-        "rounded-3xl border-4 border-green-600/30 backdrop-blur-sm"
+        "w-full max-w-7xl min-h-[400px]",
+        "bg-gradient-to-br from-green-800/10 to-green-900/20",
+        "rounded-2xl border-2 border-green-600/20 backdrop-blur-sm",
+        "shadow-xl"
       )}>
         
         {/* Header com informações das extremidades */}
@@ -78,11 +79,11 @@ const LinearGameBoard: React.FC<LinearGameBoardProps> = ({
             <div className="flex items-center gap-4">
               <div className="text-green-200 text-sm">
                 <span className="font-semibold">Extremidades:</span>
-                <span className="ml-2 px-2 py-1 bg-red-500/20 rounded text-red-200">
+                <span className="ml-2 px-3 py-1 bg-red-500/20 rounded-full text-red-200 font-mono">
                   {boardEnds.leftEnd ?? '?'}
                 </span>
                 <span className="mx-2 text-green-400">←→</span>
-                <span className="px-2 py-1 bg-blue-500/20 rounded text-blue-200">
+                <span className="px-3 py-1 bg-blue-500/20 rounded-full text-blue-200 font-mono">
                   {boardEnds.rightEnd ?? '?'}
                 </span>
               </div>
@@ -100,21 +101,21 @@ const LinearGameBoard: React.FC<LinearGameBoardProps> = ({
               <div className="flex items-center gap-2">
                 <button
                   onClick={() => scrollToEnd('left')}
-                  className="p-1 rounded bg-green-600/20 hover:bg-green-600/40 text-green-200"
+                  className="p-2 rounded-lg bg-green-600/20 hover:bg-green-600/40 text-green-200 transition-colors"
                   title="Ir para início"
                 >
                   <ChevronLeft className="w-4 h-4" />
                 </button>
                 <button
                   onClick={scrollToCenter}
-                  className="p-1 rounded bg-green-600/20 hover:bg-green-600/40 text-green-200"
+                  className="p-2 rounded-lg bg-green-600/20 hover:bg-green-600/40 text-green-200 transition-colors"
                   title="Centralizar"
                 >
                   <RotateCcw className="w-4 h-4" />
                 </button>
                 <button
                   onClick={() => scrollToEnd('right')}
-                  className="p-1 rounded bg-green-600/20 hover:bg-green-600/40 text-green-200"
+                  className="p-2 rounded-lg bg-green-600/20 hover:bg-green-600/40 text-green-200 transition-colors"
                   title="Ir para fim"
                 >
                   <ChevronRight className="w-4 h-4" />
@@ -125,14 +126,14 @@ const LinearGameBoard: React.FC<LinearGameBoardProps> = ({
         )}
 
         {/* Área principal do tabuleiro */}
-        <div className="h-full p-6">
+        <div className="p-6">
           <div 
             className={cn(
-              "w-full h-full rounded-2xl transition-all duration-300",
-              "flex items-center justify-center overflow-auto",
+              "w-full rounded-xl transition-all duration-300",
+              "flex items-center justify-center",
               placedPieces.length === 0 
-                ? "min-h-[400px]" 
-                : "min-h-[350px]"
+                ? "min-h-[300px]" 
+                : "min-h-[250px]"
             )}
             onDrop={handleDrop}
             onDragOver={handleDragOver}
@@ -141,10 +142,10 @@ const LinearGameBoard: React.FC<LinearGameBoardProps> = ({
             data-testid="linear-game-board"
           >
             {placedPieces.length === 0 ? (
-              <div className="text-center text-green-200 bg-green-800/30 p-8 rounded-xl border-2 border-dashed border-green-400/50">
-                <div className="text-5xl mb-3">🎯</div>
-                <p className="text-lg font-semibold">Arraste a primeira peça aqui</p>
-                <p className="text-sm opacity-75 mt-2">O jogo começará com sua jogada</p>
+              <div className="text-center text-green-200 bg-green-800/20 p-8 rounded-xl border-2 border-dashed border-green-400/50">
+                <div className="text-6xl mb-4">🎯</div>
+                <p className="text-xl font-semibold mb-2">Arraste a primeira peça aqui</p>
+                <p className="text-sm opacity-75">O jogo começará com sua jogada</p>
               </div>
             ) : (
               <div className="domino-board">
@@ -177,13 +178,13 @@ const LinearGameBoard: React.FC<LinearGameBoardProps> = ({
 
         {/* Debug info simplificado */}
         {process.env.NODE_ENV === 'development' && showControls && (
-          <div className="p-3 border-t border-green-600/20 bg-black/30 rounded-b-3xl">
+          <div className="p-3 border-t border-green-600/20 bg-black/20 rounded-b-xl">
             <div className="text-xs text-green-200 space-y-1">
               <div className="font-bold text-green-400">🎯 Mesa de Dominó Linear</div>
               <div className="flex flex-wrap gap-4">
                 <span>Peças: {debugInfo.totalPieces}</span>
                 <span>Sequência: {debugInfo.isSequenceValid ? '✅ Válida' : '❌ Inválida'}</span>
-                <span>Extremidades: {boardEnds.leftEnd} ↔ {boardEnds.rightEnd}</span>
+                <span className="font-mono">Extremidades: {boardEnds.leftEnd} ↔ {boardEnds.rightEnd}</span>
               </div>
               {!debugInfo.isSequenceValid && (
                 <div className="text-red-300 text-xs">

@@ -1,54 +1,85 @@
 
-/* Mesa de Dominó Realista com Layout Linear */
+/* Mesa de Dominó Realista com Layout Linear Melhorado */
 
 /* Estilo da Mesa */
 .domino-board {
-  background-color: #006400; /* Verde de mesa de jogos */
-  border: 10px solid #8B4513; /* Borda de madeira */
-  border-radius: 15px;
-  padding: 30px;
-  margin: 20px;
+  background: linear-gradient(135deg, #2d5a2d 0%, #1a4a1a 50%, #0d3d0d 100%);
+  border: 8px solid #8B4513;
+  border-radius: 20px;
+  padding: 40px 20px;
+  margin: 20px auto;
   position: relative;
   display: flex;
   flex-direction: column;
   align-items: center;
-  min-height: 200px;
-  box-shadow: inset 0 0 20px rgba(0, 0, 0, 0.3);
+  min-height: 180px;
+  box-shadow: 
+    inset 0 0 30px rgba(0, 0, 0, 0.4),
+    0 8px 25px rgba(0, 0, 0, 0.3);
+  max-width: 100%;
+  overflow: hidden;
 }
 
-/* Container principal das peças - layout linear em uma única linha */
+/* Container principal das peças - layout linear otimizado */
 .domino-sequence {
   display: flex;
   align-items: center;
-  justify-content: center;
-  flex-wrap: nowrap; /* Forçar uma única linha */
-  gap: 4px;
-  min-height: 120px;
+  justify-content: flex-start;
+  flex-wrap: nowrap;
+  gap: 2px;
+  min-height: 80px;
   width: 100%;
-  overflow-x: auto; /* Scroll horizontal se necessário */
-  padding: 20px 0; /* Espaço para peças duplas rotacionadas */
+  overflow-x: auto;
+  overflow-y: visible;
+  padding: 15px 0;
+  scroll-behavior: smooth;
 }
 
-/* Estrutura Principal da Peça */
+/* Scrollbar personalizada */
+.domino-sequence::-webkit-scrollbar {
+  height: 8px;
+}
+
+.domino-sequence::-webkit-scrollbar-track {
+  background: rgba(139, 69, 19, 0.2);
+  border-radius: 4px;
+}
+
+.domino-sequence::-webkit-scrollbar-thumb {
+  background: rgba(139, 69, 19, 0.6);
+  border-radius: 4px;
+}
+
+.domino-sequence::-webkit-scrollbar-thumb:hover {
+  background: rgba(139, 69, 19, 0.8);
+}
+
+/* Estrutura Principal da Peça - Tamanhos Otimizados */
 .domino {
-  width: 120px;
-  height: 60px;
-  background-color: #f7f7f7;
-  border: 2px solid #333;
-  border-radius: 8px;
-  box-shadow: 2px 2px 8px rgba(0, 0, 0, 0.4);
+  width: 100px;
+  height: 50px;
+  background: linear-gradient(145deg, #ffffff 0%, #f0f0f0 50%, #e0e0e0 100%);
+  border: 2px solid #2c2c2c;
+  border-radius: 6px;
+  box-shadow: 
+    0 4px 8px rgba(0, 0, 0, 0.3),
+    inset 0 1px 2px rgba(255, 255, 255, 0.5);
   display: flex;
   padding: 4px;
-  transition: transform 0.3s ease-in-out, box-shadow 0.2s ease;
+  transition: all 0.2s ease-in-out;
   position: relative;
   z-index: 5;
-  margin: 0 2px;
-  flex-shrink: 0; /* Evita que as peças encolham */
+  margin: 0 1px;
+  flex-shrink: 0;
 }
 
 .domino:hover {
-  box-shadow: 2px 2px 12px rgba(0, 0, 0, 0.6);
+  box-shadow: 
+    0 6px 12px rgba(0, 0, 0, 0.4),
+    0 0 8px rgba(0, 200, 255, 0.3),
+    inset 0 1px 2px rgba(255, 255, 255, 0.5);
   z-index: 10;
+  transform: translateY(-2px);
 }
 
 /* Faces da Peça */
@@ -59,27 +90,29 @@
   display: grid;
   grid-template-columns: repeat(3, 1fr);
   grid-template-rows: repeat(3, 1fr);
-  padding: 6px;
-  gap: 2px;
+  padding: 4px;
+  gap: 1px;
+  place-items: center;
 }
 
 /* Linha divisória entre as faces */
 .face:first-child {
-  border-right: 3px solid #333;
+  border-right: 2px solid #333;
 }
 
-/* Pontos (dots) */
+/* Pontos (dots) - Melhorados */
 .dot {
-  width: 8px;
-  height: 8px;
-  background-color: #333;
+  width: 7px;
+  height: 7px;
+  background: radial-gradient(circle, #1a1a1a 0%, #2c2c2c 70%);
   border-radius: 50%;
-  align-self: center;
-  justify-self: center;
-  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.3);
+  box-shadow: 
+    0 1px 2px rgba(0, 0, 0, 0.4),
+    inset 0 1px 1px rgba(255, 255, 255, 0.1);
+  position: relative;
 }
 
-/* Padrões dos Pontos usando CSS Grid */
+/* Padrões dos Pontos usando CSS Grid - Otimizados */
 
 /* Face vazia (0 pontos) */
 .face-0 .dot {
@@ -161,12 +194,13 @@
   grid-area: 3 / 3; 
 }
 
-/* Peças Duplas (Cruzadas) - Rotação de 90° conforme regras do dominó */
+/* Peças Duplas (Cruzadas) - Layout Melhorado */
 .domino.dupla {
   transform: rotate(90deg);
-  margin: 0 30px; /* Compensar a rotação */
-  width: 60px;
-  height: 120px;
+  margin: 0 25px;
+  width: 50px;
+  height: 100px;
+  flex-direction: column;
 }
 
 .domino.dupla .face {
@@ -176,13 +210,13 @@
 
 .domino.dupla .face:first-child {
   border-right: none;
-  border-bottom: 3px solid #333;
+  border-bottom: 2px solid #333;
 }
 
-/* Orientação Vertical para compatibilidade */
+/* Orientação Vertical */
 .domino.vertical {
-  width: 60px;
-  height: 120px;
+  width: 50px;
+  height: 100px;
   flex-direction: column;
 }
 
@@ -193,46 +227,49 @@
 
 .domino.vertical .face:first-child {
   border-right: none;
-  border-bottom: 3px solid #333;
+  border-bottom: 2px solid #333;
 }
 
-/* Conectores visuais entre peças adjacentes na sequência linear */
+/* Conectores visuais melhorados */
 .domino-sequence .domino:not(:last-child):not(.dupla)::after {
   content: '';
   position: absolute;
-  width: 4px;
-  height: 2px;
-  right: -4px;
+  width: 3px;
+  height: 3px;
+  right: -2px;
   top: 50%;
   transform: translateY(-50%);
-  background: linear-gradient(90deg, #8B4513, #A0522D);
-  border-radius: 2px;
+  background: radial-gradient(circle, #8B4513 0%, #A0522D 100%);
+  border-radius: 50%;
   z-index: 3;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
 }
 
 /* Conectores especiais para peças duplas */
 .domino-sequence .domino.dupla:not(:last-child)::after {
   content: '';
   position: absolute;
-  width: 2px;
-  height: 4px;
-  right: -30px;
+  width: 3px;
+  height: 3px;
+  right: -25px;
   top: 50%;
   transform: translateY(-50%);
-  background: linear-gradient(180deg, #8B4513, #A0522D);
-  border-radius: 2px;
+  background: radial-gradient(circle, #8B4513 0%, #A0522D 100%);
+  border-radius: 50%;
   z-index: 3;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
 }
 
-/* Marcadores de início e fim */
+/* Marcadores de início e fim melhorados */
 .domino-sequence .domino:first-child::before {
   content: '🎯';
   position: absolute;
-  top: -25px;
+  top: -30px;
   left: 50%;
   transform: translateX(-50%);
-  font-size: 16px;
+  font-size: 18px;
   z-index: 20;
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.5);
 }
 
 .domino-sequence .domino:last-child::after {
@@ -243,40 +280,94 @@
 .domino-sequence .domino:last-child::before {
   content: '🏁';
   position: absolute;
-  top: -25px;
-  right: -10px;
-  font-size: 16px;
+  top: -30px;
+  right: -5px;
+  font-size: 18px;
   z-index: 20;
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.5);
 }
 
-/* Responsividade para telas menores */
+/* Responsividade otimizada */
 @media (max-width: 768px) {
+  .domino-board {
+    padding: 20px 10px;
+    margin: 10px;
+    border-width: 6px;
+  }
+  
   .domino {
-    width: 80px;
-    height: 40px;
+    width: 70px;
+    height: 35px;
   }
   
   .domino.vertical,
   .domino.dupla {
-    width: 40px;
-    height: 80px;
+    width: 35px;
+    height: 70px;
   }
   
   .dot {
-    width: 6px;
-    height: 6px;
+    width: 5px;
+    height: 5px;
   }
   
   .face {
-    padding: 3px;
+    padding: 2px;
+    gap: 0.5px;
   }
   
   .domino-sequence {
-    gap: 2px;
-    padding: 15px 0;
+    gap: 1px;
+    padding: 10px 0;
+    min-height: 60px;
   }
   
   .domino.dupla {
-    margin: 0 20px;
+    margin: 0 18px;
   }
+  
+  .domino-sequence .domino:first-child::before,
+  .domino-sequence .domino:last-child::before {
+    font-size: 14px;
+    top: -25px;
+  }
+}
+
+@media (max-width: 480px) {
+  .domino {
+    width: 60px;
+    height: 30px;
+  }
+  
+  .domino.vertical,
+  .domino.dupla {
+    width: 30px;
+    height: 60px;
+  }
+  
+  .dot {
+    width: 4px;
+    height: 4px;
+  }
+  
+  .domino.dupla {
+    margin: 0 15px;
+  }
+}
+
+/* Estados especiais */
+.domino.highlighted {
+  box-shadow: 
+    0 0 15px rgba(0, 255, 255, 0.6),
+    0 4px 8px rgba(0, 0, 0, 0.3),
+    inset 0 1px 2px rgba(255, 255, 255, 0.5);
+  border-color: #00ffff;
+}
+
+.domino.invalid {
+  box-shadow: 
+    0 0 15px rgba(255, 0, 0, 0.6),
+    0 4px 8px rgba(0, 0, 0, 0.3),
+    inset 0 1px 2px rgba(255, 255, 255, 0.5);
+  border-color: #ff0000;
 }

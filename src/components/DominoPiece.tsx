@@ -50,9 +50,9 @@ const DominoPiece: React.FC<DominoPieceProps> = ({
         "domino",
         finalOrientation === 'vertical' && "vertical",
         finalOrientation === 'dupla' && "dupla",
-        isDragging && "opacity-70 scale-105 rotate-6",
+        isDragging && "opacity-80 scale-105 rotate-3 z-20",
         !isPlayable && "opacity-60 cursor-not-allowed grayscale",
-        isPlayable && "cursor-pointer hover:shadow-cyan-400/30",
+        isPlayable && "cursor-pointer hover:shadow-cyan-400/40",
         className
       )}
       draggable={isPlayable}
