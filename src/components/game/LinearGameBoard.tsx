@@ -184,32 +184,6 @@ const LinearGameBoard: React.FC<LinearGameBoardProps> = ({
                             className="shadow-xl hover:shadow-2xl transition-shadow" 
                             orientation={connection.orientation}
                           />
-                          
-                          {/* Indicador da primeira peça (extremidade esquerda) */}
-                          {globalIndex === 0 && (
-                            <div 
-                              className="absolute -left-3 top-1/2 transform -translate-y-1/2 w-3 h-3 bg-red-400 rounded-full animate-pulse" 
-                              title={`Extremidade esquerda: ${connection.leftConnection}`}
-                            />
-                          )}
-                          
-                          {/* Indicador da última peça (extremidade direita) */}
-                          {globalIndex === placedPieces.length - 1 && (
-                            <div 
-                              className="absolute -right-3 top-1/2 transform -translate-y-1/2 w-3 h-3 bg-blue-400 rounded-full animate-pulse" 
-                              title={`Extremidade direita: ${connection.rightConnection}`}
-                            />
-                          )}
-                          
-                          {/* Números das peças */}
-                          <div className="absolute -top-2 -right-2 w-5 h-5 bg-gray-700 text-white text-xs rounded-full flex items-center justify-center opacity-70">
-                            {globalIndex + 1}
-                          </div>
-                          
-                          {/* Indicadores de orientação */}
-                          <div className="absolute -bottom-6 left-1/2 transform -translate-x-1/2 text-xs bg-purple-600 text-white px-2 py-1 rounded opacity-75">
-                            {piece.top === piece.bottom ? '🔸' : '💠'}
-                          </div>
                         </div>
                       );
                     })}

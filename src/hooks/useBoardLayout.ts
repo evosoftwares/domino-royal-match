@@ -25,7 +25,7 @@ export const useBoardLayout = ({
     pieceWidth: 64,
     pieceHeight: 32,
     spacing: 8,
-    maxRowWidth: containerWidth,
+    maxPiecesPerRow: 5,
     ...dimensions
   }), [containerWidth, dimensions]);
 
