@@ -8,6 +8,7 @@ export interface PieceConnection {
   rightConnection: number | null;
   orientation: 'vertical' | 'horizontal';
   position: { x: number; y: number };
+  isFlipped: boolean; // Nova propriedade para indicar se a peça foi invertida
 }
 
 export interface BoardEnds {
@@ -27,8 +28,67 @@ export const calculatePieceOrientation = (
   pieces: DominoPieceType[],
   connectionValue?: number
 ): 'vertical' | 'horizontal' => {
-  // Regra principal: valores iguais = vertical, valores diferentes = horizontal
   return piece.top === piece.bottom ? 'vertical' : 'horizontal';
+};
+
+/**
+ * Calcula todas as conexões em sequência correta para dominó
+ */
+export const calculateAllConnections = (pieces: DominoPieceType[]): PieceConnection[] => {
+  if (pieces.length === 0) return [];
+
+  const connections: PieceConnection[] = [];
+  
+  for (let i = 0; i < pieces.length; i++) {
+    const piece = pieces[i];
+    let leftConnection: number | null = null;
+    let rightConnection: number | null = null;
+    let isFlipped = false;
+    
+    // Aplicar a regra de orientação
+    const orientation = calculatePieceOrientation(piece, i, pieces);
+
+    if (i === 0) {
+      // Primeira peça - não precisa conectar com nada
+      leftConnection = piece.top;
+      rightConnection = piece.bottom;
+    } else {
+      // Peças subsequentes devem conectar com a anterior
+      const previousConnection = connections[i - 1];
+      const requiredConnection = previousConnection.rightConnection;
+      
+      // Verificar qual lado da peça atual conecta com a peça anterior
+      if (piece.top === requiredConnection) {
+        // Conecta pelo top - mantém orientação normal
+        leftConnection = piece.top;
+        rightConnection = piece.bottom;
+        isFlipped = false;
+      } else if (piece.bottom === requiredConnection) {
+        // Conecta pelo bottom - inverte a peça logicamente
+        leftConnection = piece.bottom;
+        rightConnection = piece.top;
+        isFlipped = true;
+      } else {
+        // Não há conexão válida - erro na sequência
+        console.warn(`Peça ${i} [${piece.top}|${piece.bottom}] não conecta com valor ${requiredConnection}`);
+        // Tenta usar a peça mesmo assim
+        leftConnection = piece.top;
+        rightConnection = piece.bottom;
+      }
+    }
+
+    connections.push({
+      piece,
+      index: i,
+      leftConnection,
+      rightConnection,
+      orientation,
+      position: { x: 0, y: 0 }, // Será calculado no layout
+      isFlipped
+    });
+  }
+
+  return connections;
 };
 
 /**
@@ -44,29 +104,16 @@ export const calculateBoardEnds = (pieces: DominoPieceType[]): BoardEnds => {
     };
   }
 
-  if (pieces.length === 1) {
-    const piece = pieces[0];
-    const orientation = calculatePieceOrientation(piece, 0, pieces);
-    
-    if (orientation === 'vertical') {
-      return {
-        leftEnd: piece.top,
-        rightEnd: piece.bottom,
-        leftPieceIndex: 0,
-        rightPieceIndex: 0
-      };
-    } else {
-      return {
-        leftEnd: piece.top,
-        rightEnd: piece.bottom,
-        leftPieceIndex: 0,
-        rightPieceIndex: 0
-      };
-    }
+  const connections = calculateAllConnections(pieces);
+  if (connections.length === 0) {
+    return {
+      leftEnd: null,
+      rightEnd: null,
+      leftPieceIndex: null,
+      rightPieceIndex: null
+    };
   }
 
-  // Para múltiplas peças, calcular as extremidades baseado na sequência
-  const connections = calculateAllConnections(pieces);
   const firstConnection = connections[0];
   const lastConnection = connections[connections.length - 1];
 
@@ -76,62 +123,6 @@ export const calculateBoardEnds = (pieces: DominoPieceType[]): BoardEnds => {
     leftPieceIndex: 0,
     rightPieceIndex: pieces.length - 1
   };
-};
-
-/**
- * Calcula todas as conexões em sequência
- */
-export const calculateAllConnections = (pieces: DominoPieceType[]): PieceConnection[] => {
-  if (pieces.length === 0) return [];
-
-  const connections: PieceConnection[] = [];
-  
-  for (let i = 0; i < pieces.length; i++) {
-    const piece = pieces[i];
-    let leftConnection: number | null = null;
-    let rightConnection: number | null = null;
-    
-    // Aplicar a regra de orientação: iguais = vertical, diferentes = horizontal
-    const orientation = calculatePieceOrientation(piece, i, pieces);
-
-    if (i === 0) {
-      // Primeira peça
-      if (orientation === 'vertical') {
-        leftConnection = piece.top;
-        rightConnection = piece.bottom;
-      } else {
-        leftConnection = piece.top;
-        rightConnection = piece.bottom;
-      }
-    } else {
-      // Peças subsequentes - conectar com a anterior
-      const previousConnection = connections[i - 1];
-      const connectingValue = previousConnection.rightConnection;
-      
-      if (piece.top === connectingValue) {
-        leftConnection = connectingValue;
-        rightConnection = piece.bottom;
-      } else if (piece.bottom === connectingValue) {
-        leftConnection = connectingValue;
-        rightConnection = piece.top;
-      } else {
-        // Fallback se não houver conexão clara
-        leftConnection = piece.top;
-        rightConnection = piece.bottom;
-      }
-    }
-
-    connections.push({
-      piece,
-      index: i,
-      leftConnection,
-      rightConnection,
-      orientation,
-      position: { x: i * 70, y: 0 }
-    });
-  }
-
-  return connections;
 };
 
 /**
@@ -174,7 +165,6 @@ export const findPlayablePositions = (
   const positions: Array<{ side: 'left' | 'right'; orientation: 'vertical' | 'horizontal' }> = [];
   const boardEnds = calculateBoardEnds(currentPieces);
 
-  // Calcular orientação baseada na regra: iguais = vertical, diferentes = horizontal
   const pieceOrientation = calculatePieceOrientation(newPiece, 0, []);
 
   // Verificar conexão na extremidade esquerda

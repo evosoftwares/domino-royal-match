@@ -23,14 +23,14 @@ export interface LinearLayout {
 }
 
 const DEFAULT_DIMENSIONS: LayoutDimensions = {
-  pieceWidth: 64,  // 16 * 4 (w-16)
-  pieceHeight: 32, // 8 * 4 (h-8)
-  spacing: 8,      // gap-2
-  maxPiecesPerRow: 5 // 5 peças por linha
+  pieceWidth: 64,  
+  pieceHeight: 32, 
+  spacing: 8,      
+  maxPiecesPerRow: 5 
 };
 
 /**
- * Calcula o layout das peças em múltiplas linhas com 5 peças por linha
+ * Calcula o layout das peças em múltiplas linhas com conexões corretas
  */
 export const calculateLinearLayout = (
   pieces: DominoPieceType[],
@@ -49,14 +49,14 @@ export const calculateLinearLayout = (
   const connections = calculateAllConnections(pieces);
   const rows: LayoutRow[] = [];
   
-  // Dividir as peças em linhas de 5
+  // Dividir as peças em linhas de acordo com maxPiecesPerRow
   for (let i = 0; i < connections.length; i += dimensions.maxPiecesPerRow) {
     const rowPieces = connections.slice(i, i + dimensions.maxPiecesPerRow);
     const rowIndex = Math.floor(i / dimensions.maxPiecesPerRow);
     
     let rowWidth = 0;
     
-    // Calcular posições das peças na linha
+    // Calcular posições das peças na linha considerando orientação
     rowPieces.forEach((connection, index) => {
       const pieceWidth = connection.orientation === 'horizontal' ? dimensions.pieceWidth : dimensions.pieceHeight;
       
@@ -75,7 +75,7 @@ export const calculateLinearLayout = (
     });
   }
 
-  const totalWidth = Math.max(...rows.map(row => row.width));
+  const totalWidth = Math.max(...rows.map(row => row.width), containerWidth * 0.8);
   const totalHeight = rows.length > 0 ? 
     rows[rows.length - 1].yOffset + Math.max(dimensions.pieceHeight, dimensions.pieceWidth) : 0;
 

@@ -40,7 +40,6 @@ const LinearGameBoard: React.FC<LinearGameBoardProps> = ({
     autoScroll
   });
 
-  // Sincronizar scroll do container com o estado
   useEffect(() => {
     if (scrollContainerRef.current) {
       scrollContainerRef.current.scrollLeft = scrollX;
@@ -90,7 +89,7 @@ const LinearGameBoard: React.FC<LinearGameBoardProps> = ({
               {!validation.isValid && (
                 <div className="flex items-center gap-1 text-red-400 text-xs">
                   <Zap className="w-3 h-3" />
-                  <span>{validation.errors.length} erro(s)</span>
+                  <span>{validation.errors.length} erro(s) de conexão</span>
                 </div>
               )}
             </div>
@@ -155,7 +154,7 @@ const LinearGameBoard: React.FC<LinearGameBoardProps> = ({
                   minWidth: '100%'
                 }}
               >
-                {/* Renderizar peças por linha */}
+                {/* Renderizar peças por linha com conexões corretas */}
                 {layout.rows.map((row, rowIndex) => (
                   <div 
                     key={`row-${rowIndex}`}
@@ -169,6 +168,10 @@ const LinearGameBoard: React.FC<LinearGameBoardProps> = ({
                       const piece = connection.piece;
                       const globalIndex = connection.index;
                       
+                      // Determinar os valores a exibir baseado na conexão
+                      const displayTop = connection.isFlipped ? piece.bottom : piece.top;
+                      const displayBottom = connection.isFlipped ? piece.top : piece.bottom;
+                      
                       return (
                         <div 
                           key={`${piece.id}-${globalIndex}`}
@@ -176,12 +179,13 @@ const LinearGameBoard: React.FC<LinearGameBoardProps> = ({
                           style={{
                             marginLeft: pieceIndex === 0 ? '0px' : '8px'
                           }}
+                          title={`Conexão: ${connection.leftConnection} → ${connection.rightConnection}`}
                         >
                           <DominoPiece 
-                            topValue={piece.top} 
-                            bottomValue={piece.bottom} 
+                            topValue={displayTop} 
+                            bottomValue={displayBottom} 
                             isPlayable={false} 
-                            className="shadow-xl hover:shadow-2xl transition-shadow" 
+                            className="shadow-lg hover:shadow-xl transition-shadow" 
                             orientation={connection.orientation}
                           />
                         </div>
@@ -194,20 +198,22 @@ const LinearGameBoard: React.FC<LinearGameBoardProps> = ({
           </div>
         </div>
 
-        {/* Debug info */}
+        {/* Debug info simplificado */}
         {process.env.NODE_ENV === 'development' && showControls && (
           <div className="p-3 border-t border-green-600/20 bg-black/30 rounded-b-3xl">
             <div className="text-xs text-green-200 space-y-1">
-              <div className="font-bold text-green-400">🎯 Layout em Grade (5 por linha)</div>
-              <div className="text-yellow-200">
-                📏 Valores iguais = Vertical | Valores diferentes = Horizontal
-              </div>
+              <div className="font-bold text-green-400">🎯 Tabuleiro de Dominó</div>
               <div className="flex flex-wrap gap-4">
                 <span>Peças: {debugInfo.totalPieces}</span>
                 <span>Linhas: {layout.rows.length}</span>
-                <span>Válido: {debugInfo.isSequenceValid ? '✅' : '❌'}</span>
+                <span>Conexões: {debugInfo.isSequenceValid ? '✅ Válidas' : '❌ Inválidas'}</span>
                 <span>Extremidades: {boardEnds.leftEnd} ↔ {boardEnds.rightEnd}</span>
               </div>
+              {!debugInfo.isSequenceValid && (
+                <div className="text-red-300 text-xs">
+                  Erros: {debugInfo.validationErrors.join(', ')}
+                </div>
+              )}
             </div>
           </div>
         )}
