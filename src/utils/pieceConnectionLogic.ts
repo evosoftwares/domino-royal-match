@@ -18,7 +18,8 @@ export interface BoardEnds {
 }
 
 /**
- * Calcula a orientação correta de uma peça baseada em sua conexão
+ * Calcula a orientação correta de uma peça baseada nos valores
+ * Regra: Peças com valores iguais ficam verticais, diferentes ficam horizontais
  */
 export const calculatePieceOrientation = (
   piece: DominoPieceType,
@@ -26,22 +27,7 @@ export const calculatePieceOrientation = (
   pieces: DominoPieceType[],
   connectionValue?: number
 ): 'vertical' | 'horizontal' => {
-  // Primeira peça: usar regra simples (iguais = vertical, diferentes = horizontal)
-  if (index === 0) {
-    return piece.top === piece.bottom ? 'vertical' : 'horizontal';
-  }
-
-  // Para peças subsequentes, determinar orientação baseada na conexão
-  if (connectionValue !== undefined) {
-    // Se o valor de conexão está no 'top', a peça deve ser orientada para conectar corretamente
-    if (piece.top === connectionValue) {
-      return 'horizontal'; // top conecta com a peça anterior
-    } else if (piece.bottom === connectionValue) {
-      return 'vertical'; // bottom conecta com a peça anterior
-    }
-  }
-
-  // Fallback para regra simples
+  // Regra principal: valores iguais = vertical, valores diferentes = horizontal
   return piece.top === piece.bottom ? 'vertical' : 'horizontal';
 };
 
@@ -104,11 +90,12 @@ export const calculateAllConnections = (pieces: DominoPieceType[]): PieceConnect
     const piece = pieces[i];
     let leftConnection: number | null = null;
     let rightConnection: number | null = null;
-    let orientation: 'vertical' | 'horizontal';
+    
+    // Aplicar a regra de orientação: iguais = vertical, diferentes = horizontal
+    const orientation = calculatePieceOrientation(piece, i, pieces);
 
     if (i === 0) {
       // Primeira peça
-      orientation = calculatePieceOrientation(piece, i, pieces);
       if (orientation === 'vertical') {
         leftConnection = piece.top;
         rightConnection = piece.bottom;
@@ -120,8 +107,6 @@ export const calculateAllConnections = (pieces: DominoPieceType[]): PieceConnect
       // Peças subsequentes - conectar com a anterior
       const previousConnection = connections[i - 1];
       const connectingValue = previousConnection.rightConnection;
-      
-      orientation = calculatePieceOrientation(piece, i, pieces, connectingValue);
       
       if (piece.top === connectingValue) {
         leftConnection = connectingValue;
@@ -142,7 +127,7 @@ export const calculateAllConnections = (pieces: DominoPieceType[]): PieceConnect
       leftConnection,
       rightConnection,
       orientation,
-      position: { x: i * 70, y: 0 } // Posicionamento linear básico
+      position: { x: i * 70, y: 0 }
     });
   }
 
@@ -189,25 +174,26 @@ export const findPlayablePositions = (
   const positions: Array<{ side: 'left' | 'right'; orientation: 'vertical' | 'horizontal' }> = [];
   const boardEnds = calculateBoardEnds(currentPieces);
 
+  // Calcular orientação baseada na regra: iguais = vertical, diferentes = horizontal
+  const pieceOrientation = calculatePieceOrientation(newPiece, 0, []);
+
   // Verificar conexão na extremidade esquerda
   if (boardEnds.leftEnd !== null) {
     if (newPiece.top === boardEnds.leftEnd || newPiece.bottom === boardEnds.leftEnd) {
-      const orientation = newPiece.top === boardEnds.leftEnd ? 'horizontal' : 'vertical';
-      positions.push({ side: 'left', orientation });
+      positions.push({ side: 'left', orientation: pieceOrientation });
     }
   }
 
   // Verificar conexão na extremidade direita
   if (boardEnds.rightEnd !== null) {
     if (newPiece.top === boardEnds.rightEnd || newPiece.bottom === boardEnds.rightEnd) {
-      const orientation = newPiece.top === boardEnds.rightEnd ? 'horizontal' : 'vertical';
-      positions.push({ side: 'right', orientation });
+      positions.push({ side: 'right', orientation: pieceOrientation });
     }
   }
 
   // Se o tabuleiro está vazio, qualquer posição é válida
   if (currentPieces.length === 0) {
-    positions.push({ side: 'left', orientation: newPiece.top === newPiece.bottom ? 'vertical' : 'horizontal' });
+    positions.push({ side: 'left', orientation: pieceOrientation });
   }
 
   return positions;
