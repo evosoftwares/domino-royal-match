@@ -5,6 +5,7 @@ import DominoPiece from '../DominoPiece';
 import { cn } from '@/lib/utils';
 import { useBoardLayout } from '@/hooks/useBoardLayout';
 import { ChevronLeft, ChevronRight, RotateCcw, Zap } from 'lucide-react';
+import '../../styles/domino-connections.css';
 
 interface LinearGameBoardProps {
   placedPieces: DominoPieceType[];
@@ -147,7 +148,7 @@ const LinearGameBoard: React.FC<LinearGameBoardProps> = ({
               </div>
             ) : (
               <div 
-                className="relative p-4"
+                className="domino-board relative p-4"
                 style={{ 
                   width: layout.totalWidth + 'px',
                   height: layout.totalHeight + 'px',
@@ -158,7 +159,7 @@ const LinearGameBoard: React.FC<LinearGameBoardProps> = ({
                 {layout.rows.map((row, rowIndex) => (
                   <div 
                     key={`row-${rowIndex}`}
-                    className="absolute flex items-center gap-2"
+                    className="domino-row absolute"
                     style={{
                       top: row.yOffset + 'px',
                       left: '0px'
@@ -167,6 +168,9 @@ const LinearGameBoard: React.FC<LinearGameBoardProps> = ({
                     {row.pieces.map((connection, pieceIndex) => {
                       const piece = connection.piece;
                       const globalIndex = connection.index;
+                      const isFirstInRow = pieceIndex === 0;
+                      const isLastInRow = pieceIndex === row.pieces.length - 1;
+                      const isLastPiece = globalIndex === placedPieces.length - 1;
                       
                       // Determinar os valores a exibir baseado na conexão
                       const displayTop = connection.isFlipped ? piece.bottom : piece.top;
@@ -175,19 +179,46 @@ const LinearGameBoard: React.FC<LinearGameBoardProps> = ({
                       return (
                         <div 
                           key={`${piece.id}-${globalIndex}`}
-                          className="relative"
-                          style={{
-                            marginLeft: pieceIndex === 0 ? '0px' : '8px'
-                          }}
-                          title={`Conexão: ${connection.leftConnection} → ${connection.rightConnection}`}
+                          className={cn(
+                            "domino-piece-container relative",
+                            connection.orientation === 'vertical' ? 'vertical-piece' : 'horizontal-piece',
+                            isFirstInRow && 'first-piece',
+                            isLastInRow && 'last-piece',
+                            !isLastPiece && 'connected-right'
+                          )}
                         >
                           <DominoPiece 
                             topValue={displayTop} 
                             bottomValue={displayBottom} 
                             isPlayable={false} 
-                            className="shadow-lg hover:shadow-xl transition-shadow" 
+                            className="shadow-lg hover:shadow-xl transition-shadow relative z-10" 
                             orientation={connection.orientation}
                           />
+                          
+                          {/* Conexão visual com a próxima peça */}
+                          {!isLastPiece && (
+                            <>
+                              {/* Conexão horizontal dentro da linha */}
+                              {!isLastInRow && (
+                                <>
+                                  <div className="domino-connection horizontal" />
+                                  <div className="connection-value right">
+                                    {connection.rightConnection}
+                                  </div>
+                                </>
+                              )}
+                              
+                              {/* Conexão para quebra de linha */}
+                              {isLastInRow && rowIndex < layout.rows.length - 1 && (
+                                <>
+                                  <div className="line-break-connector curved" />
+                                  <div className="connection-value bottom">
+                                    {connection.rightConnection}
+                                  </div>
+                                </>
+                              )}
+                            </>
+                          )}
                         </div>
                       );
                     })}

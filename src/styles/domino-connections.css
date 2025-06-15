@@ -1,0 +1,137 @@
+
+/* Estilos para conexões de peças de dominó */
+
+.domino-board {
+  position: relative;
+}
+
+.domino-row {
+  display: flex;
+  align-items: center;
+  margin-bottom: 4px;
+}
+
+.domino-piece-container {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+/* Peça conectada - remove margem direita para grudar na próxima */
+.domino-piece-container.connected-right {
+  margin-right: -2px;
+}
+
+/* Peça conectada - remove margem esquerda para grudar na anterior */
+.domino-piece-container.connected-left {
+  margin-left: -2px;
+}
+
+/* Primeira peça da linha */
+.domino-piece-container.first-piece {
+  margin-left: 0;
+}
+
+/* Última peça da linha */
+.domino-piece-container.last-piece {
+  margin-right: 8px;
+}
+
+/* Conexão visual entre peças */
+.domino-connection {
+  position: absolute;
+  background: linear-gradient(90deg, rgba(75, 85, 99, 0.8), rgba(107, 114, 128, 0.8));
+  z-index: 10;
+  border-radius: 1px;
+}
+
+/* Conexão horizontal */
+.domino-connection.horizontal {
+  width: 4px;
+  height: 8px;
+  right: -2px;
+  top: 50%;
+  transform: translateY(-50%);
+}
+
+/* Conexão vertical - para quebras de linha */
+.domino-connection.vertical {
+  width: 8px;
+  height: 4px;
+  bottom: -2px;
+  left: 50%;
+  transform: translateX(-50%);
+}
+
+/* Indicador de valor de conexão */
+.connection-value {
+  position: absolute;
+  background: rgba(34, 197, 94, 0.9);
+  color: white;
+  font-size: 8px;
+  font-weight: bold;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 20;
+}
+
+.connection-value.right {
+  right: -6px;
+  top: 50%;
+  transform: translateY(-50%);
+}
+
+.connection-value.bottom {
+  bottom: -6px;
+  left: 50%;
+  transform: translateX(-50%);
+}
+
+/* Efeitos de hover para destacar conexões */
+.domino-piece-container:hover .domino-connection {
+  background: linear-gradient(90deg, rgba(34, 197, 94, 0.8), rgba(16, 185, 129, 0.8));
+}
+
+.domino-piece-container:hover .connection-value {
+  background: rgba(34, 197, 94, 1);
+  box-shadow: 0 0 6px rgba(34, 197, 94, 0.5);
+}
+
+/* Animação sutil para conexões */
+.domino-connection, .connection-value {
+  transition: all 0.2s ease-in-out;
+}
+
+/* Ajustes para orientação das peças */
+.domino-piece-container.vertical-piece {
+  align-items: center;
+}
+
+.domino-piece-container.horizontal-piece {
+  align-items: center;
+}
+
+/* Espaçamento entre linhas */
+.domino-row:not(:last-child) {
+  margin-bottom: 12px;
+}
+
+/* Conectores especiais para quebra de linha */
+.line-break-connector {
+  position: absolute;
+  width: 2px;
+  height: 20px;
+  background: linear-gradient(180deg, rgba(75, 85, 99, 0.8), rgba(107, 114, 128, 0.8));
+  right: -1px;
+  bottom: -20px;
+  z-index: 15;
+}
+
+.line-break-connector.curved {
+  border-radius: 0 0 8px 8px;
+  background: linear-gradient(180deg, rgba(75, 85, 99, 0.8), transparent);
+}
