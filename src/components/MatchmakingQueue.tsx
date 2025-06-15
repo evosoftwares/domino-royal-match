@@ -1,217 +1,151 @@
+
 import React from 'react';
-import { useNavigate } from 'react-router-dom';
-import { useAuth } from '@/hooks/useAuth';
-import { useMatchmaking } from '@/hooks/useMatchmaking';
-import { toast } from 'sonner';
-
-// Importação dos componentes de UI e ícones
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { Skeleton } from '@/components/ui/skeleton';
-import { Loader2, Users, Clock, UserPlus, UserMinus, AlertCircle, RefreshCw, CheckCircle, Timer, Zap, Shield } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
+import { Loader2, Users, Clock, Crown } from 'lucide-react';
+import { useSimpleMatchmaking } from '@/hooks/useSimpleMatchmaking';
 
-// --- Sub-componentes para a UI ---
-const PlayerSlot: React.FC<{ 
-  player: { id: string; displayName: string; avatarUrl: string; position: number }; 
-  isCurrentUser: boolean;
-  position: number;
-}> = ({ player, isCurrentUser, position }) => (
-  <div className="animate-fade-in flex flex-col items-center p-4 bg-slate-800/90 rounded-xl border border-slate-700/50 transition-all duration-300 hover:border-blue-500/50 hover:bg-slate-700/90">
-    <Avatar className="w-16 h-16 mb-3 border-2 border-blue-400">
-      <AvatarImage src={player.avatarUrl} alt={`Avatar de ${player.displayName}`} />
-      <AvatarFallback className="bg-blue-600 text-white font-semibold">
-        {player.displayName.charAt(0).toUpperCase()}
-      </AvatarFallback>
-    </Avatar>
-    <span className="text-slate-100 font-medium text-sm text-center truncate w-full">
-      {player.displayName}
-    </span>
-    <div className="flex items-center mt-2 text-emerald-400 text-xs font-medium">
-      <div className="w-2 h-2 bg-emerald-400 rounded-full mr-2 animate-pulse" />
-      {isCurrentUser ? 'Você' : `Posição ${position}`}
-    </div>
-  </div>
-);
-
-const EmptySlot: React.FC<{ position: number }> = ({ position }) => (
-  <div className="flex flex-col items-center p-4 bg-slate-900/50 rounded-xl border border-slate-800/50 transition-all duration-300">
-    <div className="w-16 h-16 mb-3 rounded-full border-2 border-dashed border-slate-600 flex items-center justify-center">
-      <UserPlus className="w-8 h-8 text-slate-500" />
-    </div>
-    <span className="text-slate-400 text-sm text-center">Aguardando...</span>
-    <div className="flex items-center mt-2 text-slate-500 text-xs">
-      <Clock className="w-3 h-3 mr-1" />
-      Posição {position}
-    </div>
-  </div>
-);
-
-const LoadingSkeleton: React.FC = () => (
-  <div className="flex flex-col items-center p-4 bg-slate-800/50 rounded-xl border border-slate-700/30">
-    <Skeleton className="w-16 h-16 rounded-full mb-3 bg-slate-700" />
-    <Skeleton className="h-4 w-20 mb-2 bg-slate-700" />
-    <Skeleton className="h-3 w-16 bg-slate-700" />
-  </div>
-);
-
-// --- Componente Principal ---
 const MatchmakingQueue: React.FC = () => {
-  const { user } = useAuth();
-  const navigate = useNavigate();
-  const { 
-    queuePlayers, 
-    queueCount, 
-    isInQueue, 
-    isLoading, 
-    joinQueue, 
+  const {
+    isInQueue,
+    queueCount,
+    isLoading,
+    queuePlayers,
+    joinQueue,
     leaveQueue,
-    refreshQueue,
-    isGameCreating,
-  } = useMatchmaking();
-
-  const handleJoinQueue = async () => {
-    if (!user) {
-      toast.error('Você precisa estar logado para entrar na fila');
-      return;
-    }
-    
-    console.log('🎯 Usuário tentando entrar na fila...');
-    await joinQueue();
-  };
-
-  const handleLeaveQueue = async () => {
-    if (!user) {
-      toast.error('Você precisa estar logado');
-      return;
-    }
-    
-    console.log('🚪 Usuário saindo da fila...');
-    await leaveQueue();
-  };
-
-  const handleRefresh = async () => {
-    console.log('🔄 Atualizando fila manualmente...');
-    await refreshQueue();
-    toast.success('Fila atualizada!');
-  };
-
-  // Se está carregando inicialmente
-  if (isLoading && queuePlayers.length === 0) {
-    return (
-      <Card className="max-w-2xl mx-auto bg-slate-900/95">
-        <CardHeader className="text-center p-4 border-b border-slate-700/50">
-          <CardTitle className="text-slate-100">Carregando Sistema Seguro...</CardTitle>
-        </CardHeader>
-        <CardContent className="grid grid-cols-2 md:grid-cols-4 gap-4 p-6">
-          {Array.from({ length: 4 }).map((_, index) => <LoadingSkeleton key={index} />)}
-        </CardContent>
-      </Card>
-    );
-  }
+    refreshQueue
+  } = useSimpleMatchmaking();
 
   return (
-    <Card className="max-w-2xl mx-auto bg-slate-900/95 border-slate-700/50 shadow-2xl">
-      <CardHeader className="text-center p-4 border-b border-slate-700/50">
-        <CardTitle className="text-slate-100 flex items-center justify-center gap-2 text-xl font-bold">
-          <Users className="w-6 h-6 text-blue-400" />
-          {isGameCreating ? 'Criando Partida...' : 'Procurando Partida'}
-          <Button
-            onClick={handleRefresh}
-            variant="ghost"
-            size="sm"
-            className="ml-2 text-slate-400 hover:text-white"
-            disabled={isGameCreating}
-          >
-            <RefreshCw className={`w-4 h-4 ${isGameCreating ? 'animate-spin' : ''}`} />
-          </Button>
-        </CardTitle>
-        <p className="text-slate-300 text-sm font-medium">
-          {queueCount}/4 jogadores na fila
-          {isGameCreating && (
-            <span className="ml-2 text-emerald-400 animate-pulse flex items-center justify-center gap-1">
-              <Shield className="w-3 h-3" />
-              Sistema v5.0 ativo
-            </span>
-          )}
-        </p>
-      </CardHeader>
-      <CardContent className="space-y-6 p-6">
-        {/* Indicador de status simplificado */}
-        {isGameCreating && (
-          <div className="bg-blue-900/30 border border-blue-500/50 rounded-lg p-4 text-center">
-            <div className="flex items-center justify-center gap-2 text-blue-400 font-medium">
-              <Zap className="w-4 h-4 animate-pulse" />
-              Sala cheia! Criando jogo seguro...
-            </div>
-            <div className="text-blue-300 text-xs mt-2">
-              Aguarde, o líder da sala está preparando tudo.
-            </div>
-          </div>
-        )}
+    <div className="space-y-6">
+      <Card className="w-full max-w-2xl mx-auto">
+        <CardHeader className="text-center">
+          <CardTitle className="flex items-center justify-center gap-2">
+            <Users className="h-6 w-6" />
+            Fila de Matchmaking
+          </CardTitle>
+          <CardDescription>
+            Encontre jogadores para uma partida de dominó
+          </CardDescription>
+        </CardHeader>
         
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          {Array.from({ length: 4 }).map((_, index) => {
-            const player = queuePlayers[index];
-            return player ? (
-              <PlayerSlot 
-                key={player.id} 
-                player={player} 
-                isCurrentUser={player.id === user?.id}
-                position={player.position}
-              />
+        <CardContent className="space-y-6">
+          <div className="text-center">
+            <div className="flex items-center justify-center gap-4 mb-4">
+              <Badge variant={queueCount >= 4 ? "default" : "secondary"} className="text-lg px-4 py-2">
+                <Users className="h-4 w-4 mr-2" />
+                {queueCount}/4 Jogadores
+              </Badge>
+              {queueCount >= 4 && (
+                <Badge variant="default" className="text-green-600 border-green-600">
+                  <Crown className="h-4 w-4 mr-1" />
+                  Criando Jogo...
+                </Badge>
+              )}
+            </div>
+            
+            {!isInQueue ? (
+              <Button 
+                onClick={joinQueue} 
+                disabled={isLoading}
+                size="lg"
+                className="w-full max-w-sm"
+              >
+                {isLoading ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Entrando na fila...
+                  </>
+                ) : (
+                  <>
+                    <Users className="mr-2 h-4 w-4" />
+                    Entrar na Fila
+                  </>
+                )}
+              </Button>
             ) : (
-              <EmptySlot key={index} position={index + 1} />
-            );
-          })}
-        </div>
-        
-        <div className="bg-slate-800/70 rounded-lg p-4 border border-slate-700/30">
-          <div className="grid grid-cols-2 gap-4 text-sm">
-            <div className="text-center">
-              <span className="text-slate-400 font-medium">Taxa de entrada:</span>
-              <div className="text-slate-100 font-bold text-lg">R$ 1,10</div>
-            </div>
-            <div className="text-center">
-              <span className="text-slate-400 font-medium">Prêmio total:</span>
-              <div className="text-emerald-400 font-bold text-lg">R$ 4,00</div>
-            </div>
+              <div className="space-y-3">
+                <div className="flex items-center justify-center gap-2 text-green-600">
+                  <Clock className="h-4 w-4 animate-pulse" />
+                  <span className="font-medium">Você está na fila</span>
+                </div>
+                <Button 
+                  onClick={leaveQueue} 
+                  disabled={isLoading}
+                  variant="outline"
+                  size="lg"
+                  className="w-full max-w-sm"
+                >
+                  {isLoading ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Saindo da fila...
+                    </>
+                  ) : (
+                    'Sair da Fila'
+                  )}
+                </Button>
+              </div>
+            )}
           </div>
-        </div>
 
-        <Button
-          onClick={isInQueue ? handleLeaveQueue : handleJoinQueue}
-          disabled={!user || isLoading || (isGameCreating && !isInQueue)}
-          className={`w-full transition-all duration-300 font-semibold text-base py-3 ${
-            isInQueue 
-              ? 'bg-red-600 hover:bg-red-700 text-white shadow-lg' 
-              : isGameCreating
-              ? 'bg-slate-600 text-slate-400 cursor-not-allowed'
-              : 'bg-blue-600 hover:bg-blue-700 text-white shadow-lg'
-          }`}
-        >
-          {isLoading ? (
-            <Loader2 className="w-5 h-5 mr-2 animate-spin" />
-          ) : isInQueue ? (
-            <UserMinus className="w-5 h-5 mr-2" />
-          ) : (
-            <UserPlus className="w-5 h-5 mr-2" />
+          {queuePlayers.length > 0 && (
+            <div className="space-y-3">
+              <h3 className="text-lg font-semibold text-center">Jogadores na Fila</h3>
+              <div className="grid gap-3">
+                {queuePlayers.map((player, index) => (
+                  <div 
+                    key={player.id} 
+                    className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg border"
+                  >
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-medium text-gray-500">
+                        #{index + 1}
+                      </span>
+                      {index === 0 && (
+                        <Crown className="h-4 w-4 text-yellow-500" title="Líder da fila" />
+                      )}
+                    </div>
+                    
+                    <Avatar className="h-8 w-8">
+                      <AvatarImage src={player.avatarUrl} />
+                      <AvatarFallback>
+                        {player.displayName.charAt(0).toUpperCase()}
+                      </AvatarFallback>
+                    </Avatar>
+                    
+                    <div className="flex-1">
+                      <div className="font-medium text-sm">{player.displayName}</div>
+                    </div>
+                    
+                    <Badge variant="outline" size="sm">
+                      Esperando
+                    </Badge>
+                  </div>
+                ))}
+              </div>
+            </div>
           )}
-          {isLoading ? (isInQueue ? 'Saindo...' : 'Entrando...') : 
-           isInQueue ? 'Sair da Fila' : 
-           isGameCreating ? 'Criando Partida...' : 'Entrar na Fila'}
-        </Button>
 
-        {queueCount > 0 && (
-          <div className="text-center text-xs text-slate-400">
-            {isGameCreating 
-              ? '🛡️ Algoritmo v5.0: Lógica de criação no cliente com líder eleito.'
-              : '🔄 Realtime ativo + polling de segurança para garantir a integridade.'
-            }
+          <div className="text-center">
+            <Button 
+              onClick={refreshQueue} 
+              variant="ghost" 
+              size="sm"
+              disabled={isLoading}
+            >
+              {isLoading ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                'Atualizar Fila'
+              )}
+            </Button>
           </div>
-        )}
-      </CardContent>
-    </Card>
+        </CardContent>
+      </Card>
+    </div>
   );
 };
 
