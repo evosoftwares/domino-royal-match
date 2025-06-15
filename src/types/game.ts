@@ -11,6 +11,7 @@ export interface GameData {
   board_state: any;
   created_at: string;
   consecutive_passes: number;
+  turn_start_time?: string | null;
 }
 
 export interface PlayerData {
