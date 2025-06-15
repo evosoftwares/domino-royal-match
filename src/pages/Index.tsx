@@ -3,6 +3,7 @@ import React, { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { useGameCheck } from '@/hooks/useGameCheck';
+import { useForceExit } from '@/hooks/useForceExit';
 import MatchmakingQueue from '@/components/MatchmakingQueue';
 import UserBalance from '@/components/UserBalance';
 import { LogOut } from 'lucide-react';
@@ -12,8 +13,9 @@ const Index = () => {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   const { checkUserActiveGame } = useGameCheck();
+  const { clearForceExit } = useForceExit();
 
-  // Verificar jogo ativo na inicialização - APENAS UMA VEZ
+  // Verificar jogo ativo na inicialização - com controle de força de saída
   useEffect(() => {
     let mounted = true;
     
@@ -21,6 +23,9 @@ const Index = () => {
       if (!user || !mounted) return;
       
       console.log('🏠 Index: Inicializando verificação de jogo ativo');
+      
+      // Limpar qualquer flag de saída antiga ao entrar no lobby
+      clearForceExit();
       
       // Pequeno delay para garantir que tudo está carregado
       setTimeout(async () => {
@@ -40,9 +45,10 @@ const Index = () => {
     return () => {
       mounted = false;
     };
-  }, [user, checkUserActiveGame]);
+  }, [user, checkUserActiveGame, clearForceExit]);
 
   const handleLogout = async () => {
+    clearForceExit(); // Limpar flags ao fazer logout
     await logout();
     navigate('/auth');
   };

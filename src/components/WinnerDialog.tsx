@@ -3,7 +3,7 @@ import React from 'react';
 import { ProcessedPlayer } from '@/types/game';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
-import { useNavigate } from 'react-router-dom';
+import { useForceExit } from '@/hooks/useForceExit';
 
 interface WinnerDialogProps {
   winner: ProcessedPlayer | null;
@@ -18,7 +18,7 @@ const WinnerDialog: React.FC<WinnerDialogProps> = ({
   isVisible,
   currentUserId
 }) => {
-  const navigate = useNavigate();
+  const { forceExitToLobby } = useForceExit();
   
   if (!isVisible || !winner) return null;
 
@@ -44,7 +44,8 @@ const WinnerDialog: React.FC<WinnerDialogProps> = ({
   };
 
   const handleBackToLobby = () => {
-    navigate('/');
+    console.log('🏠 WinnerDialog: Usuário solicitou volta ao lobby');
+    forceExitToLobby();
   };
 
   return (

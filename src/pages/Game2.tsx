@@ -11,6 +11,7 @@ import { useIsMobile } from '@/hooks/use-mobile';
 import { useRobustGameData } from '@/hooks/useRobustGameData';
 import ErrorBoundary from '@/components/ErrorBoundary';
 import GameStateRecoveryDialog from '@/components/game/GameStateRecoveryDialog';
+import { useForceExit } from '@/hooks/useForceExit';
 
 const Game2: React.FC = () => {
   const { gameId } = useParams<{ gameId: string; }>();
@@ -18,6 +19,7 @@ const Game2: React.FC = () => {
   const { user } = useAuth();
   const isMobile = useIsMobile();
   const [isLandscape, setIsLandscape] = useState(false);
+  const { forceExitToLobby } = useForceExit();
 
   const {
     gameData,
@@ -51,7 +53,8 @@ const Game2: React.FC = () => {
   }, []);
 
   const handleBackToLobby = () => {
-    navigate('/');
+    console.log('🏠 Game2: Usuário solicitou volta ao lobby');
+    forceExitToLobby();
   };
 
   if (isMobile && !isLandscape) {

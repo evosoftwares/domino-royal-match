@@ -2,13 +2,22 @@
 import { useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
+import { useForceExit } from './useForceExit';
 
 export const useGameCheck = () => {
   const navigate = useNavigate();
+  const { hasForceExit, clearForceExit } = useForceExit();
 
   const checkUserActiveGame = useCallback(async (): Promise<boolean> => {
     try {
       console.log('🔍 Verificando jogo ativo do usuário...');
+      
+      // Verificar se há intenção de sair forçadamente
+      if (hasForceExit()) {
+        console.log('🚪 Usuário quer sair do jogo - ignorando redirecionamento automático');
+        clearForceExit();
+        return false;
+      }
       
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) {
@@ -18,7 +27,7 @@ export const useGameCheck = () => {
 
       console.log('👤 Verificando jogos para usuário:', user.id);
 
-      // Verificar se usuário está em jogo ativo - CORRIGIDO: removido .order() problemático
+      // Verificar se usuário está em jogo ativo
       const { data: gameData, error } = await supabase
         .from('game_players')
         .select(`
@@ -43,8 +52,15 @@ export const useGameCheck = () => {
       if (gameData && gameData.length > 0) {
         const gameId = gameData[0].game_id;
         console.log(`🎮 Jogo ativo encontrado: ${gameId}`);
-        console.log('🚀 Redirecionando para o jogo...');
         
+        // Verificar novamente se não há intenção de sair (double-check)
+        if (hasForceExit()) {
+          console.log('🚪 Usuário quer sair do jogo - não redirecionando');
+          clearForceExit();
+          return false;
+        }
+        
+        console.log('🚀 Redirecionando para o jogo...');
         navigate(`/game2/${gameId}`);
         return true;
       }
@@ -55,7 +71,7 @@ export const useGameCheck = () => {
       console.error('❌ Erro crítico ao verificar jogo ativo:', error);
       return false;
     }
-  }, [navigate]);
+  }, [navigate, hasForceExit, clearForceExit]);
 
   return {
     checkUserActiveGame
