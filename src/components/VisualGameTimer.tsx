@@ -25,8 +25,9 @@ const VisualGameTimer: React.FC<VisualGameTimerProps> = ({
   pendingSolicitations = 0,
   isProcessingSolicitation = false
 }) => {
-  const progressPercent = (timeLeft / totalTime) * 100;
+  const progressPercent = Math.max(0, (timeLeft / totalTime) * 100);
   
+  // Sempre mostrar o timer quando é a vez do jogador atual ou há atividade de solicitações
   if (!isMyTurn && pendingSolicitations === 0 && !isProcessingSolicitation) {
     return null;
   }
@@ -109,19 +110,20 @@ const VisualGameTimer: React.FC<VisualGameTimerProps> = ({
         </div>
       )}
 
-      {/* Feedback visual aprimorado para solicitações */}
-      {!isMyTurn && pendingSolicitations > 0 && (
-        <div className="mt-2 text-center">
-          <span className="text-blue-400 text-xs font-semibold animate-pulse">
-            🤖 Sistema monitorando timeout ({pendingSolicitations} na fila)
-          </span>
-        </div>
-      )}
-      
+      {/* Status de timeout e solicitações */}
       {timeLeft <= 0 && (isMyTurn || pendingSolicitations > 0) && (
         <div className="mt-2 text-center">
           <span className="text-red-400 text-xs font-semibold animate-pulse">
             🤖 Sistema executando jogada automática...
+          </span>
+        </div>
+      )}
+      
+      {/* Feedback para solicitações pendentes quando não é a vez do jogador */}
+      {!isMyTurn && pendingSolicitations > 0 && timeLeft > 0 && (
+        <div className="mt-2 text-center">
+          <span className="text-blue-400 text-xs font-semibold">
+            🕒 Monitorando timeout de outros jogadores...
           </span>
         </div>
       )}

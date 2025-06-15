@@ -77,22 +77,42 @@ const Game2Room: React.FC<Game2RoomProps> = ({
     userId: user?.id
   });
 
-  // Sistema de solicitações automáticas - NOVO
+  // Sistema de solicitações automáticas
   const allPlayerIds = React.useMemo(() => 
     playersState.map(p => p.user_id), 
     [playersState]
   );
 
-  const { createSolicitation } = useAutoPlaySolicitations({
-    gameId: gameState.id,
-    isGameActive: gameState.status === 'active',
-    timeLeft: 10, // Será atualizado pelo timer
-    allPlayerIds
-  });
-
   const solicitationsMonitor = useSolicitationsMonitor({
     gameId: gameState.id,
     isActive: gameState.status === 'active'
+  });
+
+  const { createSolicitation } = useAutoPlaySolicitations({
+    gameId: gameState.id,
+    isGameActive: gameState.status === 'active',
+    timeLeft: 0, // Será atualizado pelo callback do timer
+    allPlayerIds
+  });
+
+  // Timer otimizado com integração corrigida
+  const { timeLeft, isWarning } = useOptimizedGameTimer({
+    isMyTurn: isMyTurn,
+    onTimeout: () => {
+      console.log('⏰ Timer expirado para jogador atual:', gameState.current_player_turn);
+      if (!isProcessingMove && gameState.current_player_turn) {
+        createSolicitation(gameState.current_player_turn);
+      }
+    },
+    onTimeoutWarning: (currentTimeLeft) => {
+      // Criar solicitações preventivas quando restam 2 segundos
+      if (currentTimeLeft === 2 && gameState.current_player_turn) {
+        console.log('⚠️ Criando solicitação preventiva para jogador atual:', gameState.current_player_turn);
+        createSolicitation(gameState.current_player_turn);
+      }
+    },
+    isGameActive: gameState.status === 'active',
+    timerDuration: 10
   });
 
   // Handlers do jogo simplificados
@@ -104,29 +124,6 @@ const Game2Room: React.FC<Game2RoomProps> = ({
     playPiece,
     passTurn,
     playAutomatic
-  });
-
-  // Timer otimizado com integração de solicitações
-  const { timeLeft, isWarning } = useOptimizedGameTimer({
-    isMyTurn: isMyTurn,
-    onTimeout: () => {
-      if (!isProcessingMove) {
-        console.log('⏰ Timer callback - criando solicitação para jogador atual');
-        if (gameState.current_player_turn) {
-          createSolicitation(gameState.current_player_turn);
-        }
-      }
-    },
-    onTimeoutWarning: (timeLeft) => {
-      // Criar solicitações preventivas quando restam 2 segundos
-      if (timeLeft === 2) {
-        console.log('⚠️ Criando solicitações preventivas para todos os jogadores');
-        allPlayerIds.forEach(playerId => {
-          createSolicitation(playerId);
-        });
-      }
-    },
-    isGameActive: gameState.status === 'active',
   });
 
   // Verificação de vitória
@@ -172,18 +169,20 @@ const Game2Room: React.FC<Game2RoomProps> = ({
         onHealthClick={() => {}}
       />
       
-      {/* Debug info atualizado com solicitações */}
+      {/* Debug info atualizado com timer e solicitações */}
       {process.env.NODE_ENV === 'development' && (
         <div className="fixed top-20 right-4 bg-black/90 text-white p-3 rounded text-xs max-w-xs z-30">
           <div className="space-y-1">
-            <div className="text-green-400 font-bold">🎯 Sistema Solicitações v1.0</div>
+            <div className="text-green-400 font-bold">🎯 Timer & Solicitações v1.1</div>
             <div>Sync: <span className={syncStatus === 'synced' ? 'text-green-400' : 'text-red-400'}>{syncStatus}</span></div>
             <div>My Turn: {isMyTurn ? '✅' : '❌'}</div>
+            <div>Timer: <span className={timeLeft <= 3 ? 'text-red-400' : 'text-yellow-400'}>{timeLeft}s</span></div>
+            <div>Warning: {isWarning ? '⚠️' : '✅'}</div>
             <div>Processing: {isProcessingMove ? '⏳' : '✅'}</div>
+            <div>Current Player: {gameState.current_player_turn === user?.id ? 'EU' : 'OUTRO'}</div>
             <div className="text-blue-400">📝 Pendentes: {solicitationsMonitor.pendingSolicitations.length}</div>
             <div className="text-yellow-400">⚙️ Processando: {solicitationsMonitor.processingCount}</div>
             <div className="text-green-400">✅ Completas: {solicitationsMonitor.recentlyCompleted.length}</div>
-            <div className="text-purple-400">👥 Monitor offline ativo</div>
           </div>
           
           <div className="flex gap-1 mt-2">

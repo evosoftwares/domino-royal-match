@@ -6,7 +6,7 @@ interface UseOptimizedGameTimerProps {
   onTimeout: () => void;
   timerDuration?: number;
   isGameActive?: boolean;
-  onTimeoutWarning?: (timeLeft: number) => void; // Novo callback para avisos
+  onTimeoutWarning?: (timeLeft: number) => void;
 }
 
 export const useOptimizedGameTimer = ({ 
@@ -21,6 +21,7 @@ export const useOptimizedGameTimer = ({
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const onTimeoutRef = useRef(onTimeout);
   const onTimeoutWarningRef = useRef(onTimeoutWarning);
+  const lastMyTurn = useRef(isMyTurn);
 
   // Atualizar refs sem causar re-render
   useEffect(() => {
@@ -41,9 +42,19 @@ export const useOptimizedGameTimer = ({
 
   // Reset timer quando necessário
   const resetTimer = useCallback(() => {
+    console.log('🔄 Resetando timer para', timerDuration, 'segundos');
     setTimeLeft(timerDuration);
     setIsWarning(false);
   }, [timerDuration]);
+
+  // Detectar mudança de turno e resetar timer
+  useEffect(() => {
+    if (lastMyTurn.current !== isMyTurn) {
+      console.log('🔄 Mudança de turno detectada. É minha vez:', isMyTurn);
+      lastMyTurn.current = isMyTurn;
+      resetTimer();
+    }
+  }, [isMyTurn, resetTimer]);
 
   useEffect(() => {
     // Limpar timer anterior
@@ -52,13 +63,12 @@ export const useOptimizedGameTimer = ({
       timerRef.current = null;
     }
 
-    // Se não é minha vez ou jogo não está ativo, resetar
+    // Se não é minha vez ou jogo não está ativo, não iniciar timer
     if (!isMyTurn || !isGameActive) {
-      resetTimer();
       return;
     }
 
-    console.log('⏱️ Iniciando timer de 10 segundos para jogada');
+    console.log('⏱️ Iniciando timer de', timerDuration, 'segundos para o jogador atual');
 
     // Iniciar novo timer
     timerRef.current = setInterval(() => {
@@ -71,15 +81,16 @@ export const useOptimizedGameTimer = ({
         }
         
         // Aviso quando restam 3 segundos
-        if (newTime <= 3 && !isWarning) {
+        if (newTime <= 3 && newTime > 0) {
           setIsWarning(true);
-          console.log('⚠️ Aviso: restam apenas 3 segundos!');
+          console.log('⚠️ Aviso: restam apenas', newTime, 'segundos!');
         }
         
         // Timeout
         if (newTime <= 0) {
+          console.log('⏰ Timer chegou a zero, executando timeout');
           handleTimeout();
-          return timerDuration;
+          return 0; // Manter em 0 até reset
         }
         
         return newTime;
@@ -92,12 +103,7 @@ export const useOptimizedGameTimer = ({
         timerRef.current = null;
       }
     };
-  }, [isMyTurn, isGameActive, handleTimeout, resetTimer, timerDuration, isWarning]);
-
-  // Reset quando muda a vez
-  useEffect(() => {
-    resetTimer();
-  }, [isMyTurn, resetTimer]);
+  }, [isMyTurn, isGameActive, handleTimeout, timerDuration]);
 
   return { 
     timeLeft, 
