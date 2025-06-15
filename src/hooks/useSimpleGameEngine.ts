@@ -26,17 +26,51 @@ export const useSimpleGameEngine = ({
   
   const { currentAction, setCurrentAction, syncStatus, setSyncStatus, isProcessingMove } = useGameStatus();
 
-  // Computed values
-  const isMyTurn = useMemo(() => gameState.current_player_turn === userId, [gameState.current_player_turn, userId]);
+  // Computed values com lógica corrigida para verificar se é a vez do jogador
+  const isMyTurn = useMemo(() => {
+    const currentTurn = gameState.current_player_turn;
+    const isMyTurnResult = currentTurn === userId;
+    
+    // Log detalhado para debug
+    console.log('🎯 Verificando se é minha vez:', {
+      currentTurn,
+      userId,
+      isMyTurn: isMyTurnResult,
+      gameStatus: gameState.status
+    });
+
+    // Verificar se o jogador existe na lista
+    const playerExists = playersState.find(p => p.user_id === userId);
+    if (!playerExists) {
+      console.warn('⚠️ Jogador atual não encontrado na lista de jogadores');
+    }
+
+    // Verificar se o jogador da vez existe
+    const currentPlayerExists = playersState.find(p => p.user_id === currentTurn);
+    if (!currentPlayerExists && currentTurn) {
+      console.warn('⚠️ Jogador da vez não encontrado na lista:', currentTurn);
+    }
+
+    return isMyTurnResult;
+  }, [gameState.current_player_turn, userId, playersState, gameState.status]);
   
   // Sincronização realtime simplificada
   useRealtimeSync({
     gameId: gameState.id,
     userId,
     onGameUpdate: (updatedGame) => {
+      console.log('📥 Atualização do jogo recebida via realtime:', {
+        gameId: updatedGame.id,
+        currentPlayerTurn: updatedGame.current_player_turn,
+        status: updatedGame.status
+      });
       setGameState(updatedGame);
     },
     onPlayerUpdate: (updatedPlayer) => {
+      console.log('📥 Atualização de jogador recebida via realtime:', {
+        playerId: updatedPlayer.id,
+        userId: updatedPlayer.user_id
+      });
       setPlayersState(prev => prev.map(p => 
         p.id === updatedPlayer.id ? updatedPlayer : p
       ));
@@ -110,27 +144,34 @@ export const useSimpleGameEngine = ({
     gameMetrics: mockGameMetrics
   });
   
-  // Função de sincronização forçada simplificada
+  // Função de sincronização forçada melhorada
   const forceSync = useCallback(async () => {
     try {
+      console.log('🔄 Iniciando sincronização forçada...');
       setSyncStatus('pending');
       
       const [gameResult, playersResult] = await Promise.all([
         supabase.from('games').select('*').eq('id', gameState.id).single(),
-        supabase.from('game_players').select('*').eq('game_id', gameState.id)
+        supabase.from('game_players').select(`
+          id, user_id, game_id, position, hand, 
+          profiles(full_name, avatar_url)
+        `).eq('game_id', gameState.id).order('position')
       ]);
 
       if (gameResult.data) {
+        console.log('📥 Dados do jogo sincronizados:', gameResult.data);
         setGameState(gameResult.data);
       }
       
       if (playersResult.data) {
+        console.log('📥 Dados dos jogadores sincronizados:', playersResult.data.length, 'jogadores');
         setPlayersState(playersResult.data);
       }
       
       setSyncStatus('synced');
+      console.log('✅ Sincronização forçada concluída com sucesso');
     } catch (error) {
-      console.error('Erro ao sincronizar:', error);
+      console.error('❌ Erro ao sincronizar:', error);
       setSyncStatus('failed');
     }
   }, [gameState.id, setGameState, setPlayersState, setSyncStatus]);
@@ -156,11 +197,15 @@ export const useSimpleGameEngine = ({
     // Métricas simplificadas
     pendingMovesCount: 0,
     
-    // Debug simplificado
+    // Debug melhorado
     debugInfo: {
       syncStatus,
       isProcessingMove,
-      currentAction
+      currentAction,
+      isMyTurn,
+      currentPlayerTurn: gameState.current_player_turn,
+      userId,
+      playersCount: playersState.length
     }
   };
 };

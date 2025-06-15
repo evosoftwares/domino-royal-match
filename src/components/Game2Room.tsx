@@ -10,6 +10,8 @@ import { usePlayerPresence } from '@/hooks/usePlayerPresence';
 import { useOfflinePlayerMonitor } from '@/hooks/useOfflinePlayerMonitor';
 import { useAutoPlaySolicitations } from '@/hooks/useAutoPlaySolicitations';
 import { useSolicitationsMonitor } from '@/hooks/useSolicitationsMonitor';
+import { useAutoRefresh } from '@/hooks/useAutoRefresh';
+import { usePlayerOrder } from '@/hooks/usePlayerOrder';
 import WinnerDialog from './WinnerDialog';
 import ActionFeedback from './ActionFeedback';
 import { useGameWinCheck } from '@/hooks/useGameWinCheck';
@@ -53,6 +55,22 @@ const Game2Room: React.FC<Game2RoomProps> = ({
     userId: user?.id,
   });
 
+  // Verificação da ordem dos jogadores
+  const playerOrder = usePlayerOrder({
+    players: playersState,
+    currentPlayerTurn: gameState.current_player_turn
+  });
+
+  // Auto-refresh da página a cada 10 segundos
+  const { manualRefresh } = useAutoRefresh({
+    intervalMs: 10000,
+    isActive: gameState.status === 'active',
+    onRefresh: () => {
+      console.log('🔄 Auto-refresh executado, forçando sincronização');
+      forceSync();
+    }
+  });
+
   // Gerenciamento de presença do jogador
   usePlayerPresence({
     gameId: gameState.id,
@@ -91,7 +109,7 @@ const Game2Room: React.FC<Game2RoomProps> = ({
   const { createSolicitation } = useAutoPlaySolicitations({
     gameId: gameState.id,
     isGameActive: gameState.status === 'active',
-    timeLeft: 0, // Será atualizado pelo callback do timer
+    timeLeft: 0,
     allPlayerIds
   });
 
@@ -105,7 +123,6 @@ const Game2Room: React.FC<Game2RoomProps> = ({
       }
     },
     onTimeoutWarning: (currentTimeLeft) => {
-      // Criar solicitações preventivas quando restam 2 segundos
       if (currentTimeLeft === 2 && gameState.current_player_turn) {
         console.log('⚠️ Criando solicitação preventiva para jogador atual:', gameState.current_player_turn);
         createSolicitation(gameState.current_player_turn);
@@ -169,20 +186,31 @@ const Game2Room: React.FC<Game2RoomProps> = ({
         onHealthClick={() => {}}
       />
       
-      {/* Debug info atualizado com timer e solicitações */}
+      {/* Debug info atualizado com timer, solicitações e ordem dos jogadores */}
       {process.env.NODE_ENV === 'development' && (
-        <div className="fixed top-20 right-4 bg-black/90 text-white p-3 rounded text-xs max-w-xs z-30">
+        <div className="fixed top-20 right-4 bg-black/90 text-white p-3 rounded text-xs max-w-sm z-30">
           <div className="space-y-1">
-            <div className="text-green-400 font-bold">🎯 Timer & Solicitações v1.1</div>
+            <div className="text-green-400 font-bold">🎯 Timer & Ordem v1.2</div>
             <div>Sync: <span className={syncStatus === 'synced' ? 'text-green-400' : 'text-red-400'}>{syncStatus}</span></div>
             <div>My Turn: {isMyTurn ? '✅' : '❌'}</div>
             <div>Timer: <span className={timeLeft <= 3 ? 'text-red-400' : 'text-yellow-400'}>{timeLeft}s</span></div>
             <div>Warning: {isWarning ? '⚠️' : '✅'}</div>
             <div>Processing: {isProcessingMove ? '⏳' : '✅'}</div>
             <div>Current Player: {gameState.current_player_turn === user?.id ? 'EU' : 'OUTRO'}</div>
+            <div>Ordem Válida: {playerOrder.isOrderValid ? '✅' : '❌'}</div>
             <div className="text-blue-400">📝 Pendentes: {solicitationsMonitor.pendingSolicitations.length}</div>
             <div className="text-yellow-400">⚙️ Processando: {solicitationsMonitor.processingCount}</div>
             <div className="text-green-400">✅ Completas: {solicitationsMonitor.recentlyCompleted.length}</div>
+            
+            {/* Debug da ordem dos jogadores */}
+            <div className="border-t border-gray-600 pt-1 mt-2">
+              <div className="text-purple-400 font-bold">Ordem dos Jogadores:</div>
+              {playerOrder.debugInfo.playersOrder.map((p, index) => (
+                <div key={p.userId} className={`text-xs ${p.isCurrent ? 'text-yellow-400' : 'text-gray-400'}`}>
+                  {index + 1}. {p.name} {p.isCurrent ? '👑' : ''}
+                </div>
+              ))}
+            </div>
           </div>
           
           <div className="flex gap-1 mt-2">
@@ -193,10 +221,16 @@ const Game2Room: React.FC<Game2RoomProps> = ({
               Sync
             </button>
             <button 
-              onClick={solicitationsMonitor.refresh}
+              onClick={manualRefresh}
               className="bg-green-600 px-2 py-1 rounded text-xs"
             >
               Refresh
+            </button>
+            <button 
+              onClick={solicitationsMonitor.refresh}
+              className="bg-purple-600 px-2 py-1 rounded text-xs"
+            >
+              Sol.
             </button>
           </div>
         </div>
