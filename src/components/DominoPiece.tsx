@@ -1,3 +1,4 @@
+
 import React from 'react';
 import { cn } from '@/lib/utils';
 
@@ -24,51 +25,34 @@ const DominoPiece: React.FC<DominoPieceProps> = ({
   className,
   orientation = 'vertical'
 }) => {
+  // Renderizar pontos usando CSS classes
   const renderDots = (value: number) => {
     const safeValue = Math.max(0, Math.min(6, Math.floor(value || 0)));
+    const dots = [];
     
-    // Posições dos pontos em um grid 3x3 para um layout clássico.
-    const dotPatterns = {
-      0: [],
-      1: ["center"],
-      2: ["top-left", "bottom-right"],
-      3: ["top-left", "center", "bottom-right"],
-      4: ["top-left", "top-right", "bottom-left", "bottom-right"],
-      5: ["top-left", "top-right", "center", "bottom-left", "bottom-right"],
-      6: ["top-left", "top-right", "middle-left", "middle-right", "bottom-left", "bottom-right"],
-    };
-    const positions = dotPatterns[safeValue as keyof typeof dotPatterns] || [];
+    // Criar o número correto de spans para os pontos
+    for (let i = 0; i < safeValue; i++) {
+      dots.push(<span key={i} className="dot"></span>);
+    }
     
-    return (
-      <div className="relative w-full h-full">
-        {positions.map(pos => (
-          <div key={pos} className={cn("absolute w-1 h-1 bg-white rounded-full", {
-            "top-1/4 left-1/4 -translate-x-1/2 -translate-y-1/2": pos === 'top-left',
-            "top-1/4 right-1/4 translate-x-1/2 -translate-y-1/2": pos === 'top-right',
-            "top-1/2 left-1/4 -translate-x-1/2 -translate-y-1/2": pos === 'middle-left',
-            "top-1/2 right-1/4 translate-x-1/2 -translate-y-1/2": pos === 'middle-right',
-            "bottom-1/4 left-1/4 -translate-x-1/2 translate-y-1/2": pos === 'bottom-left',
-            "bottom-1/4 right-1/4 translate-x-1/2 translate-y-1/2": pos === 'bottom-right',
-            "top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2": pos === 'center',
-          })} />
-        ))}
-      </div>
-    );
+    return dots;
   };
 
-  const isVertical = orientation === 'vertical';
+  // Determinar se é uma peça dupla
+  const isDupla = topValue === bottomValue && topValue > 0;
+  
+  // Determinar a orientação final
+  const finalOrientation = isDupla ? 'dupla' : orientation;
 
   return (
     <div
       className={cn(
-        "flex rounded-lg shadow-lg border-gray-700 border",
-        "bg-gradient-to-br from-gray-900 to-black",
-        isVertical ? "w-8 h-16 flex-col" : "w-16 h-8 flex-row",
-        "transition-all duration-200",
-        isPlayable && "cursor-pointer hover:shadow-cyan-400/30 hover:border-cyan-400",
-        isDragging && "opacity-50 scale-105 rotate-3",
+        "domino",
+        finalOrientation === 'vertical' && "vertical",
+        finalOrientation === 'dupla' && "dupla",
+        isDragging && "opacity-70 scale-105 rotate-6",
         !isPlayable && "opacity-60 cursor-not-allowed grayscale",
-        
+        isPlayable && "cursor-pointer hover:shadow-cyan-400/30",
         className
       )}
       draggable={isPlayable}
@@ -76,12 +60,12 @@ const DominoPiece: React.FC<DominoPieceProps> = ({
       onDragStart={isPlayable ? onDragStart : undefined}
       onDragEnd={isPlayable ? onDragEnd : undefined}
     >
-      <div className="flex-1 p-1">{renderDots(topValue)}</div>
-      <div className={cn(
-        "bg-gray-600",
-        isVertical ? "h-0.5 w-11/12 self-center" : "w-0.5 h-11/12 self-center"
-      )} />
-      <div className="flex-1 p-1">{renderDots(bottomValue)}</div>
+      <div className={cn("face", `face-${topValue}`)}>
+        {renderDots(topValue)}
+      </div>
+      <div className={cn("face", `face-${bottomValue}`)}>
+        {renderDots(bottomValue)}
+      </div>
     </div>
   );
 };

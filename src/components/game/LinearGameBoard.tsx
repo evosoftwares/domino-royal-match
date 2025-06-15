@@ -67,8 +67,8 @@ const LinearGameBoard: React.FC<LinearGameBoardProps> = ({
   return (
     <div className={cn("flex flex-col justify-center", className)}>
       <div className={cn(
-        "w-full max-w-5xl min-h-[400px]",
-        "bg-gradient-to-br from-green-800/30 to-green-900/30",
+        "w-full max-w-6xl min-h-[500px]",
+        "bg-gradient-to-br from-green-800/20 to-green-900/20",
         "rounded-3xl border-4 border-green-600/30 backdrop-blur-sm"
       )}>
         
@@ -128,11 +128,11 @@ const LinearGameBoard: React.FC<LinearGameBoardProps> = ({
         <div className="h-full p-6">
           <div 
             className={cn(
-              "w-full h-full rounded-2xl border-2 border-dashed transition-all duration-300",
+              "w-full h-full rounded-2xl transition-all duration-300",
               "flex items-center justify-center overflow-auto",
               placedPieces.length === 0 
-                ? "border-yellow-400/50 bg-yellow-400/5 min-h-[300px]" 
-                : "border-green-400/50 min-h-[250px]"
+                ? "min-h-[400px]" 
+                : "min-h-[350px]"
             )}
             onDrop={handleDrop}
             onDragOver={handleDragOver}
@@ -141,7 +141,7 @@ const LinearGameBoard: React.FC<LinearGameBoardProps> = ({
             data-testid="linear-game-board"
           >
             {placedPieces.length === 0 ? (
-              <div className="text-center text-green-200">
+              <div className="text-center text-green-200 bg-green-800/30 p-8 rounded-xl border-2 border-dashed border-green-400/50">
                 <div className="text-5xl mb-3">🎯</div>
                 <p className="text-lg font-semibold">Arraste a primeira peça aqui</p>
                 <p className="text-sm opacity-75 mt-2">O jogo começará com sua jogada</p>
@@ -155,7 +155,7 @@ const LinearGameBoard: React.FC<LinearGameBoardProps> = ({
                   minWidth: '100%'
                 }}
               >
-                {/* Renderizar peças por linha com conexões CSS */}
+                {/* Renderizar peças por linha usando o novo sistema CSS */}
                 {layout.rows.map((row, rowIndex) => (
                   <div 
                     key={`row-${rowIndex}`}
@@ -176,16 +176,13 @@ const LinearGameBoard: React.FC<LinearGameBoardProps> = ({
                       return (
                         <div 
                           key={`${piece.id}-${globalIndex}`}
-                          className={cn(
-                            "domino-piece-container",
-                            connection.orientation === 'vertical' ? 'vertical-piece' : 'horizontal-piece'
-                          )}
+                          className="domino-piece-container"
                         >
                           <DominoPiece 
                             topValue={displayTop} 
                             bottomValue={displayBottom} 
                             isPlayable={false} 
-                            className="domino-piece" 
+                            className="transition-all duration-200" 
                             orientation={connection.orientation}
                           />
                         </div>
@@ -202,7 +199,7 @@ const LinearGameBoard: React.FC<LinearGameBoardProps> = ({
         {process.env.NODE_ENV === 'development' && showControls && (
           <div className="p-3 border-t border-green-600/20 bg-black/30 rounded-b-3xl">
             <div className="text-xs text-green-200 space-y-1">
-              <div className="font-bold text-green-400">🎯 Tabuleiro de Dominó</div>
+              <div className="font-bold text-green-400">🎯 Mesa de Dominó Realista</div>
               <div className="flex flex-wrap gap-4">
                 <span>Peças: {debugInfo.totalPieces}</span>
                 <span>Linhas: {layout.rows.length}</span>
