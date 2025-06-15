@@ -44,6 +44,7 @@ export const useSimpleGameHandlers = ({
       return;
     }
     
+    console.log('👤 Passando a vez manualmente');
     passTurn();
   }, [isMyTurn, isProcessingMove, currentUserPlayer, canPiecePlay, passTurn]);
 
@@ -54,7 +55,10 @@ export const useSimpleGameHandlers = ({
     }
     
     if (playAutomatic) {
-      toast.info("Iniciando jogada automática...");
+      console.log('🤖 Iniciando jogada automática por timeout de 10 segundos');
+      toast.info("⏰ Tempo esgotado - executando jogada automática...", {
+        duration: 2000
+      });
       playAutomatic();
     } else {
       toast.error("Função de jogada automática não disponível no momento.");
@@ -88,6 +92,7 @@ export const useSimpleGameHandlers = ({
           return;
       }
       
+      console.log('🎯 Jogando peça por drag&drop:', piece);
       playPiece(piece);
 
     } catch (error) {

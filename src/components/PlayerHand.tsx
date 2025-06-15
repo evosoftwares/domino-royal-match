@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import DominoPiece from './DominoPiece';
 import { DominoPieceType } from '@/types/game';
@@ -23,7 +24,7 @@ const PlayerHand: React.FC<PlayerHandProps> = ({
   onPiecePlay,
   isCurrentPlayer,
   playerName,
-  timeLeft = 30,
+  timeLeft = 10, // Atualizado para 10 segundos
   isWarning = false,
   onAutoPlay,
   onPassTurn,
@@ -117,11 +118,16 @@ const PlayerHand: React.FC<PlayerHandProps> = ({
           
           {isCurrentPlayer && (
             <div className={cn(
-              "font-mono px-3 py-1 rounded-full",
-              isWarning ? "bg-red-500 text-white animate-pulse" : "bg-yellow-400 text-black",
+              "font-mono px-3 py-1 rounded-full transition-all duration-300",
+              isWarning 
+                ? "bg-red-500 text-white animate-pulse shadow-lg shadow-red-500/50" 
+                : "bg-yellow-400 text-black",
               isMobile ? "text-xs" : "text-sm"
             )}>
               {timeLeft}s
+              {isWarning && !isMobile && (
+                <span className="ml-1 text-xs">⚠️</span>
+              )}
             </div>
           )}
         </div>
@@ -166,6 +172,12 @@ const PlayerHand: React.FC<PlayerHandProps> = ({
           {isCurrentPlayer && canPiecePlay && (
             <div className="text-xs text-yellow-400">
               {playerPieces.filter(piece => canPiecePlay(piece)).length} peças jogáveis
+            </div>
+          )}
+          
+          {isCurrentPlayer && isWarning && (
+            <div className="text-xs text-red-400 animate-pulse font-semibold">
+              ⚠️ Jogada automática em {timeLeft}s!
             </div>
           )}
         </div>

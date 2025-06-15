@@ -80,6 +80,7 @@ export const useGameActions = ({
             board_state: newBoardState,
             current_player_turn: nextPlayerUserId,
             consecutive_passes: 0,
+            turn_start_time: new Date().toISOString(),
             updated_at: new Date().toISOString(),
           })
           .eq('id', gameState.id);
@@ -140,6 +141,7 @@ export const useGameActions = ({
             .update({
                 current_player_turn: nextPlayerUserId,
                 consecutive_passes: newConsecutivePasses,
+                turn_start_time: new Date().toISOString(),
                 updated_at: new Date().toISOString(),
             })
             .eq('id', gameState.id);
@@ -173,38 +175,61 @@ export const useGameActions = ({
     const startTime = performance.now();
     gameMetrics.recordGameAction('playAutomatic_start');
 
+    console.log('🤖 Iniciando jogada automática...');
+
     const currentPlayer = playersState.find(p => p.user_id === userId);
     if (!currentPlayer || !currentPlayer.hand || !Array.isArray(currentPlayer.hand)) {
+        console.error('❌ Jogador não encontrado ou mão inválida');
         toast.error('Não foi possível encontrar seus dados ou sua mão está vazia.');
         setCurrentAction(null);
         return false;
     }
 
     const boardEnds = extractBoardEnds(gameState.board_state);
+    console.log('📊 Extremidades do tabuleiro:', boardEnds);
+    console.log('🎯 Analisando', currentPlayer.hand.length, 'peças na mão');
     
     let pieceToPlay: DominoPieceType | null = null;
+    let playableCount = 0;
 
-    // Encontra a primeira peça jogável na mão
+    // Encontra todas as peças jogáveis e escolhe a melhor
     for (const p of currentPlayer.hand) {
         const standardPiece = standardizePieceFormat(p);
         if (canPieceConnect(standardPiece, boardEnds)) {
-            pieceToPlay = {
-                ...standardPiece,
-                id: `auto-${standardPiece.top}-${standardPiece.bottom}-${Math.random()}`,
-                originalFormat: p,
-            };
-            break; 
+            playableCount++;
+            // Prioriza peças duplas ou peças com valores altos
+            if (!pieceToPlay || 
+                (standardPiece.top === standardPiece.bottom) || 
+                (standardPiece.top + standardPiece.bottom > pieceToPlay.top + pieceToPlay.bottom)) {
+                pieceToPlay = {
+                    ...standardPiece,
+                    id: `auto-${standardPiece.top}-${standardPiece.bottom}-${Date.now()}`,
+                    originalFormat: p,
+                };
+            }
         }
     }
+
+    console.log(`🔍 Encontradas ${playableCount} peças jogáveis`);
 
     try {
         let success = false;
         if (pieceToPlay) {
-            toast.info(`Jogando peça automaticamente: [${pieceToPlay.top}|${pieceToPlay.bottom}]`);
+            console.log(`🎮 Jogando automaticamente: [${pieceToPlay.top}|${pieceToPlay.bottom}]`);
+            toast.info(`🤖 Jogada automática: [${pieceToPlay.top}|${pieceToPlay.bottom}]`, {
+                duration: 3000
+            });
             success = await playPiece(pieceToPlay);
         } else {
-            toast.info('Nenhuma peça jogável, passando a vez automaticamente.');
+            console.log('🚫 Nenhuma peça jogável encontrada, passando a vez');
+            toast.info('🤖 Sem peças jogáveis - passando a vez automaticamente', {
+                duration: 3000
+            });
             success = await passTurn();
+        }
+        
+        if (success) {
+            gameMetrics.recordGameSuccess('Auto Play', performance.now() - startTime);
         }
         return success;
     } catch (error: any) {
@@ -213,7 +238,6 @@ export const useGameActions = ({
         toast.error('Erro na jogada automática');
         return false;
     } finally {
-        gameMetrics.recordGameSuccess('Auto Play', performance.now() - startTime);
         setCurrentAction(null);
     }
   }, [isMyTurn, isProcessingMove, gameState.board_state, playersState, userId, playPiece, passTurn, setCurrentAction, gameMetrics]);

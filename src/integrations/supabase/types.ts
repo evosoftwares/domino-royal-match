@@ -304,6 +304,10 @@ export type Database = {
         Args: Record<PropertyKey, never>
         Returns: Json
       }
+      cleanup_timed_out_games: {
+        Args: Record<PropertyKey, never>
+        Returns: undefined
+      }
       get_matchmaking_queue: {
         Args: Record<PropertyKey, never>
         Returns: {

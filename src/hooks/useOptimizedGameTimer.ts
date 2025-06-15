@@ -11,7 +11,7 @@ interface UseOptimizedGameTimerProps {
 export const useOptimizedGameTimer = ({ 
   isMyTurn, 
   onTimeout, 
-  timerDuration = 15,
+  timerDuration = 10, // Reduzido de 15 para 10 segundos
   isGameActive = true 
 }: UseOptimizedGameTimerProps) => {
   const [timeLeft, setTimeLeft] = useState(timerDuration);
@@ -26,6 +26,7 @@ export const useOptimizedGameTimer = ({
 
   // Callback memoizado para timeout
   const handleTimeout = useCallback(() => {
+    console.log('⏰ Timer expirado - executando jogada automática');
     onTimeoutRef.current();
     setTimeLeft(timerDuration);
     setIsWarning(false);
@@ -50,14 +51,17 @@ export const useOptimizedGameTimer = ({
       return;
     }
 
+    console.log('⏱️ Iniciando timer de 10 segundos para jogada');
+
     // Iniciar novo timer
     timerRef.current = setInterval(() => {
       setTimeLeft(prev => {
         const newTime = prev - 1;
         
-        // Aviso quando restam 5 segundos
-        if (newTime <= 5 && !isWarning) {
+        // Aviso quando restam 3 segundos (modificado de 5 para 3)
+        if (newTime <= 3 && !isWarning) {
           setIsWarning(true);
+          console.log('⚠️ Aviso: restam apenas 3 segundos!');
         }
         
         // Timeout
