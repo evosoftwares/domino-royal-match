@@ -1,23 +1,38 @@
-
 import React from 'react';
-import DominoPiece from './DominoPiece';
 import { DominoPieceType } from '@/types/game';
 import { cn } from '@/lib/utils';
-import { chunkPiecesIntoColumns, findPiecePosition } from '@/utils/boardLayoutUtils';
+import LinearGameBoard from './game/LinearGameBoard';
 
 interface GameBoardProps {
   placedPieces: DominoPieceType[];
   onDrop: (e: React.DragEvent) => void;
   onDragOver: (e: React.DragEvent) => void;
   className?: string;
+  useLinearLayout?: boolean;
 }
 
 const GameBoard: React.FC<GameBoardProps> = ({
   placedPieces,
   onDrop,
   onDragOver,
-  className
+  className,
+  useLinearLayout = true // Usar o novo layout por padrão
 }) => {
+  // Usar o novo layout linear por padrão
+  if (useLinearLayout) {
+    return (
+      <LinearGameBoard
+        placedPieces={placedPieces}
+        onDrop={onDrop}
+        onDragOver={onDragOver}
+        className={className}
+        showControls={true}
+        autoScroll="center"
+      />
+    );
+  }
+
+  // Layout antigo (mantido para compatibilidade)
   const handleDrop = (e: React.DragEvent) => {
     console.log('Board drop event triggered');
     e.preventDefault();
@@ -115,7 +130,29 @@ const GameBoard: React.FC<GameBoardProps> = ({
         </div>
       </div>
     </div>
-  );
+  ); // O layout antigo foi removido, usar apenas o linear
 };
 
 export default GameBoard;
+
+import { DominoPieceType } from '@/types/game';
+
+export const chunkPiecesIntoColumns = (pieces: DominoPieceType[], piecesPerColumn: number = 5) => {
+  const chunks: DominoPieceType[][] = [];
+  
+  for (let i = 0; i < pieces.length; i += piecesPerColumn) {
+    chunks.push(pieces.slice(i, i + piecesPerColumn));
+  }
+  
+  return chunks;
+};
+
+export const findPiecePosition = (pieces: DominoPieceType[], targetPiece: DominoPieceType, piecesPerColumn: number = 5) => {
+  const pieceIndex = pieces.findIndex(p => p.id === targetPiece.id);
+  if (pieceIndex === -1) return null;
+  
+  const columnIndex = Math.floor(pieceIndex / piecesPerColumn);
+  const positionInColumn = pieceIndex % piecesPerColumn;
+  
+  return { columnIndex, positionInColumn, isFirstPiece: pieceIndex === 0, isLastPiece: pieceIndex === pieces.length - 1 };
+};
