@@ -1,4 +1,3 @@
-
 import { useCallback } from 'react';
 import { DominoPieceType } from '@/types/game';
 import { toast } from 'sonner';
@@ -62,22 +61,18 @@ export const useGameHandlers = ({
   }, [isMyTurn, isProcessingMove, currentUserPlayer, canPiecePlay, passTurn]);
 
   const handleAutoPlay = useCallback(() => {
-    if (!currentUserPlayer || !isMyTurn || isProcessingMove) return;
-
-    const playablePieces = currentUserPlayer.pieces.filter(canPiecePlay);
-    if (playablePieces.length > 0) {
-      const pieceToPlay = playablePieces[0];
-      toast.info(`Jogando peça automaticamente: [${pieceToPlay.top}|${pieceToPlay.bottom}]`);
-      playPiece(pieceToPlay);
-    } else {
-      toast.info('Nenhuma peça jogável, passando a vez automaticamente.');
-      if (playAutomatic) {
-        playAutomatic();
-      } else {
-        passTurn();
-      }
+    if (!isMyTurn || isProcessingMove) {
+        toast.warning("Aguarde, não é sua vez ou uma jogada está em processamento.");
+        return;
     }
-  }, [currentUserPlayer, isMyTurn, isProcessingMove, canPiecePlay, playPiece, passTurn, playAutomatic]);
+    
+    if (playAutomatic) {
+      toast.info("Iniciando jogada automática...");
+      playAutomatic();
+    } else {
+      toast.error("Função de jogada automática não disponível no momento.");
+    }
+  }, [isMyTurn, isProcessingMove, playAutomatic]);
 
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault();

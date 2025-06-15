@@ -4,7 +4,7 @@ import { GameData, PlayerData, DominoPieceType } from '@/types/game';
 import { useOptimisticLocking } from '../useOptimisticLocking';
 import { usePersistentQueue } from '../usePersistentQueue';
 import { useGameMetricsIntegration } from '../useGameMetricsIntegration';
-import { standardizePieceFormat, validateMove } from '@/utils/standardPieceValidation';
+import { standardizePieceFormat, validateMove, canPieceConnect, extractBoardEnds } from '@/utils/standardPieceValidation';
 import { getNextPlayerId, calculateNewBoardState, removePieceFromHand } from '@/utils/gameLogic';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
@@ -162,30 +162,59 @@ export const useGameActions = ({
   }, [isMyTurn, isProcessingMove, gameState, playersState, executeGameOperation, gameMetrics, persistentQueue, setGameState, setCurrentAction, setSyncStatus]);
 
   const playAutomatic = useCallback(async (): Promise<boolean> => {
-    if (isProcessingMove) return false;
+    if (!isMyTurn || isProcessingMove) {
+        toast.warning('Não é sua vez ou uma jogada já está em processamento.');
+        return false;
+    }
 
     setCurrentAction('auto_playing');
     const startTime = performance.now();
-    
-    try {
-      const { data, error } = await supabase.rpc('play_piece_periodically', {
-        p_game_id: gameState.id,
-      });
-      
-      if (error) throw error;
-      
-      gameMetrics.recordGameSuccess('Auto Play', performance.now() - startTime);
-      toast.success('Jogada automática realizada!');
-      return true;
-    } catch (error: any) {
-      console.error('❌ Erro no auto play:', error);
-      gameMetrics.recordGameError('Auto Play', error, performance.now() - startTime);
-      toast.error('Erro no jogo automático');
-      return false;
-    } finally {
-      setCurrentAction(null);
+    gameMetrics.recordGameAction('playAutomatic_start');
+
+    const currentPlayer = playersState.find(p => p.user_id === userId);
+    if (!currentPlayer || !currentPlayer.hand || !Array.isArray(currentPlayer.hand)) {
+        toast.error('Não foi possível encontrar seus dados ou sua mão está vazia.');
+        setCurrentAction(null);
+        return false;
     }
-  }, [isProcessingMove, gameState.id, gameMetrics, setCurrentAction]);
+
+    const boardEnds = extractBoardEnds(gameState.board_state);
+    
+    let pieceToPlay: DominoPieceType | null = null;
+
+    // Encontra a primeira peça jogável na mão
+    for (const p of currentPlayer.hand) {
+        const standardPiece = standardizePieceFormat(p);
+        if (canPieceConnect(standardPiece, boardEnds)) {
+            pieceToPlay = {
+                ...standardPiece,
+                id: `auto-${standardPiece.top}-${standardPiece.bottom}-${Math.random()}`,
+                originalFormat: p,
+            };
+            break; 
+        }
+    }
+
+    try {
+        let success = false;
+        if (pieceToPlay) {
+            toast.info(`Jogando peça automaticamente: [${pieceToPlay.top}|${pieceToPlay.bottom}]`);
+            success = await playPiece(pieceToPlay);
+        } else {
+            toast.info('Nenhuma peça jogável, passando a vez automaticamente.');
+            success = await passTurn();
+        }
+        return success;
+    } catch (error: any) {
+        console.error('❌ Erro na jogada automática:', error);
+        gameMetrics.recordGameError('Auto Play', error, performance.now() - startTime);
+        toast.error('Erro na jogada automática');
+        return false;
+    } finally {
+        gameMetrics.recordGameSuccess('Auto Play', performance.now() - startTime);
+        setCurrentAction(null);
+    }
+  }, [isMyTurn, isProcessingMove, gameState.board_state, playersState, userId, playPiece, passTurn, setCurrentAction, gameMetrics]);
 
   return { playPiece, passTurn, playAutomatic };
 };

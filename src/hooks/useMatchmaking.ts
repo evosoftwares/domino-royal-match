@@ -20,15 +20,6 @@ export interface MatchmakingState {
   isGameCreating: boolean;
 }
 
-interface MatchmakingResponse {
-  success: boolean;
-  error?: string;
-  message?: string;
-  queue_count?: number;
-  game_id?: string;
-  idjogopleiteado?: number;
-}
-
 export const useMatchmaking = () => {
   const navigate = useNavigate();
   const { checkUserActiveGame } = useGameCheck();
@@ -100,7 +91,7 @@ export const useMatchmaking = () => {
         .from('games')
         .insert({
           status: 'active',
-          board_state: initialBoardState as any, // Cast to any to fix TS error with strict Json type
+          board_state: JSON.parse(JSON.stringify(initialBoardState)),
           current_player_turn: startingPlayerId,
           turn_start_time: new Date().toISOString(),
           prize_pool: 4.00,
@@ -120,7 +111,7 @@ export const useMatchmaking = () => {
         game_id: newGame.id,
         user_id: player.id,
         position: index + 1,
-        hand: hands[index] as any // Cast to any to fix TS error with strict Json type
+        hand: JSON.parse(JSON.stringify(hands[index]))
       }));
 
       const { error: playersError } = await supabase.from('game_players').insert(gamePlayersData);
@@ -291,6 +282,13 @@ export const useMatchmaking = () => {
     console.log('🚪 Iniciando entrada na fila...');
     setState(prev => ({ ...prev, isLoading: true }));
     
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      toast.error("Você precisa estar autenticado para entrar na fila.");
+      setState(prev => ({ ...prev, isLoading: false }));
+      return;
+    }
+    
     try {
       const hasMinimumBalance = await checkUserBalance();
       if (!hasMinimumBalance) {
@@ -298,36 +296,45 @@ export const useMatchmaking = () => {
         return;
       }
 
-      console.log('💰 Tentando entrar na fila com saldo válido...');
-      const { data, error } = await supabase.rpc('join_matchmaking_queue');
-      
-      if (error) {
-        console.error('❌ Erro RPC join_matchmaking_queue:', error);
-        throw error;
+      console.log('🕵️ Verificando se já está na fila...');
+      const { data: existing, error: checkError } = await supabase
+        .from('matchmaking_queue')
+        .select('user_id')
+        .eq('user_id', user.id)
+        .eq('status', 'searching')
+        .maybeSingle();
+
+      if (checkError) {
+        console.error('❌ Erro ao verificar fila existente:', checkError);
+        throw checkError;
       }
       
-      console.log('📝 Resposta do RPC:', data);
-      const response = data as unknown as MatchmakingResponse;
-      
-      if (response.success) {
-        console.log(`✅ Entrou na fila com sucesso! Total: ${response.queue_count} jogadores`);
-        setState(prev => ({ 
-          ...prev, 
-          isInQueue: true, 
-          queueCount: response.queue_count || 0
-        }));
-        toast.success(response.message || 'Adicionado à fila');
-        
+      if (existing) {
+        toast.info("Você já está na fila.");
         await fetchQueuePlayers();
-      } else {
-        console.error('❌ Falha na entrada da fila:', response.error);
-        toast.error(response.error || 'Erro ao entrar na fila');
+        return;
       }
+      
+      console.log('➕ Adicionando à fila...');
+      const { error: insertError } = await supabase
+        .from('matchmaking_queue')
+        .insert({ user_id: user.id, status: 'searching', idjogopleiteado: 1 });
+
+      if (insertError) {
+        console.error('❌ Erro ao inserir na fila:', insertError);
+        throw insertError;
+      }
+
+      toast.success('Adicionado à fila com sucesso!');
+      await fetchQueuePlayers();
+
     } catch (error: any) {
       console.error('❌ Erro crítico ao entrar na fila:', error);
       toast.error(error.message || 'Erro ao entrar na fila');
     } finally {
-      setState(prev => ({ ...prev, isLoading: false }));
+      if (mountedRef.current) {
+        setState(prev => ({ ...prev, isLoading: false }));
+      }
     }
   };
 
@@ -335,37 +342,41 @@ export const useMatchmaking = () => {
     console.log('🚪 Iniciando saída da fila...');
     setState(prev => ({ ...prev, isLoading: true }));
     
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      toast.error("Você precisa estar autenticado.");
+      setState(prev => ({ ...prev, isLoading: false }));
+      return;
+    }
+    
     try {
-      const { data, error } = await supabase.rpc('leave_matchmaking_queue');
+      const { error } = await supabase
+        .from('matchmaking_queue')
+        .delete()
+        .eq('user_id', user.id);
       
       if (error) {
-        console.error('❌ Erro RPC leave_matchmaking_queue:', error);
+        console.error('❌ Erro ao remover da fila:', error);
         throw error;
       }
       
-      console.log('📝 Resposta do RPC:', data);
-      const response = data as unknown as MatchmakingResponse;
+      console.log('✅ Saiu da fila com sucesso');
+      setState(prev => ({ 
+        ...prev, 
+        isInQueue: false, 
+        queueCount: 0,
+        queuePlayers: [],
+        isGameCreating: false
+      }));
+      toast.success('Removido da fila');
       
-      if (response.success) {
-        console.log('✅ Saiu da fila com sucesso');
-        setState(prev => ({ 
-          ...prev, 
-          isInQueue: false, 
-          queueCount: 0,
-          queuePlayers: [],
-          isGameCreating: false
-        }));
-        toast.success(response.message || 'Removido da fila');
-        
-      } else {
-        console.error('❌ Falha na saída da fila:', response.error);
-        toast.error(response.error || 'Erro ao sair da fila');
-      }
     } catch (error: any) {
       console.error('❌ Erro crítico ao sair da fila:', error);
       toast.error(error.message || 'Erro ao sair da fila');
     } finally {
-      setState(prev => ({ ...prev, isLoading: false }));
+      if (mountedRef.current) {
+        setState(prev => ({ ...prev, isLoading: false }));
+      }
     }
   };
 
@@ -452,8 +463,9 @@ export const useMatchmaking = () => {
         { event: 'INSERT', schema: 'public', table: 'game_players' },
         async (payload) => {
           console.log('👤 Jogador adicionado:', payload.new);
-          const { data: user } = await supabase.auth.getUser();
-          if (user.user && payload.new.user_id === user.user.id) {
+          // Corrigido: Acessar o usuário corretamente com 'user.id'
+          const { data: { user } } = await supabase.auth.getUser();
+          if (user && payload.new.user_id === user.id) {
             console.log('🎮 Usuário atual adicionado ao jogo!');
             setTimeout(async () => {
               if (mountedRef.current) {
