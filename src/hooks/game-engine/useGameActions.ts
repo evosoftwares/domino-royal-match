@@ -1,7 +1,6 @@
 
 import { useCallback } from 'react';
 import { GameData, PlayerData, DominoPieceType } from '@/types/game';
-import { useOptimisticLocking } from '../useOptimisticLocking';
 import { usePersistentQueue } from '../usePersistentQueue';
 import { useGameMetricsIntegration } from '../useGameMetricsIntegration';
 import { standardizePieceFormat, validateMove, canPieceConnect, extractBoardEnds } from '@/utils/standardPieceValidation';
@@ -37,7 +36,6 @@ export const useGameActions = ({
   persistentQueue,
   gameMetrics,
 }: UseGameActionsProps) => {
-  const { executeGameOperation, executePlayerOperation } = useOptimisticLocking();
 
   const playPiece = useCallback(async (piece: DominoPieceType): Promise<boolean> => {
     if (!isMyTurn || isProcessingMove) {
@@ -76,25 +74,31 @@ export const useGameActions = ({
     setPlayersState(prev => prev.map(p => p.id === currentPlayer.id ? { ...p, hand: newPlayerHand } : p));
     
     try {
-        const gameUpdateResult = await executeGameOperation(
-            gameState.id,
-            () => Promise.resolve({
-                board_state: newBoardState,
-                current_player_turn: nextPlayerUserId,
-                consecutive_passes: 0
-            })
-        );
+        const gameUpdatePromise = supabase
+          .from('games')
+          .update({
+            board_state: newBoardState,
+            current_player_turn: nextPlayerUserId,
+            consecutive_passes: 0,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', gameState.id);
 
-        const playerUpdateResult = await executePlayerOperation(
-            currentPlayer.id,
-            () => Promise.resolve({ hand: newPlayerHand })
-        );
+        const playerUpdatePromise = supabase
+          .from('game_players')
+          .update({ 
+            hand: newPlayerHand,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', currentPlayer.id);
 
-        if (!gameUpdateResult.success || !playerUpdateResult.success) {
-            toast.error("Conflito de sincronização. A reconciliação será iniciada.");
-            setSyncStatus('conflict');
-            gameMetrics.recordGameError('Play Piece Conflict', new Error(gameUpdateResult.error || playerUpdateResult.error), performance.now() - startTime);
-            return false;
+        const [gameUpdateResult, playerUpdateResult] = await Promise.all([
+            gameUpdatePromise,
+            playerUpdatePromise,
+        ]);
+
+        if (gameUpdateResult.error || playerUpdateResult.error) {
+            throw gameUpdateResult.error || playerUpdateResult.error;
         }
 
         persistentQueue.cleanupExpired();
@@ -103,14 +107,14 @@ export const useGameActions = ({
         toast.success("Jogada sincronizada!");
         return true;
     } catch (error: any) {
-        gameMetrics.recordGameError('Play Piece', error, performance.now() - startTime);
+        gameMetrics.recordGameError('Play Piece Sync', error, performance.now() - startTime);
         setSyncStatus('failed');
         toast.error(`Erro ao sincronizar jogada: ${error.message}`);
         return false;
     } finally {
         setCurrentAction(null);
     }
-  }, [isMyTurn, isProcessingMove, gameState, playersState, userId, executeGameOperation, executePlayerOperation, gameMetrics, persistentQueue, setGameState, setPlayersState, setCurrentAction, setSyncStatus]);
+  }, [isMyTurn, isProcessingMove, gameState, playersState, userId, gameMetrics, persistentQueue, setGameState, setPlayersState, setCurrentAction, setSyncStatus]);
 
   const passTurn = useCallback(async (): Promise<boolean> => {
     if (!isMyTurn || isProcessingMove) {
@@ -131,19 +135,17 @@ export const useGameActions = ({
     setGameState(prev => ({...prev, current_player_turn: nextPlayerUserId, consecutive_passes: newConsecutivePasses }));
     
     try {
-        const result = await executeGameOperation(
-            gameState.id,
-            (serverGame) => Promise.resolve({
+        const { error } = await supabase
+            .from('games')
+            .update({
                 current_player_turn: nextPlayerUserId,
-                consecutive_passes: (serverGame.consecutive_passes || 0) + 1
+                consecutive_passes: newConsecutivePasses,
+                updated_at: new Date().toISOString(),
             })
-        );
+            .eq('id', gameState.id);
 
-        if (!result.success) {
-            toast.error("Conflito ao passar o turno.");
-            setSyncStatus('conflict');
-            gameMetrics.recordGameError('Pass Turn Conflict', new Error(result.error), performance.now() - startTime);
-            return false;
+        if (error) {
+            throw error;
         }
 
         persistentQueue.cleanupExpired();
@@ -152,14 +154,14 @@ export const useGameActions = ({
         toast.info("Você passou a vez.");
         return true;
     } catch (error: any) {
-        gameMetrics.recordGameError('Pass Turn', error, performance.now() - startTime);
+        gameMetrics.recordGameError('Pass Turn Sync', error, performance.now() - startTime);
         setSyncStatus('failed');
         toast.error(`Erro ao passar a vez: ${error.message}`);
         return false;
     } finally {
         setCurrentAction(null);
     }
-  }, [isMyTurn, isProcessingMove, gameState, playersState, executeGameOperation, gameMetrics, persistentQueue, setGameState, setCurrentAction, setSyncStatus]);
+  }, [isMyTurn, isProcessingMove, gameState, playersState, gameMetrics, persistentQueue, setGameState, setCurrentAction, setSyncStatus]);
 
   const playAutomatic = useCallback(async (): Promise<boolean> => {
     if (!isMyTurn || isProcessingMove) {
