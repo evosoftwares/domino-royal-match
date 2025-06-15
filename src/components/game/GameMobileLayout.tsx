@@ -4,6 +4,7 @@ import { ProcessedPlayer, DominoPieceType } from '@/types/game';
 import GameBoard from '../GameBoard';
 import PlayerHand from '../PlayerHand';
 import MobileOpponentsList from './MobileOpponentsList';
+import VisualGameTimer from '../VisualGameTimer';
 
 interface GameMobileLayoutProps {
   opponents: ProcessedPlayer[];
@@ -35,6 +36,17 @@ const GameMobileLayout: React.FC<GameMobileLayoutProps> = ({
   return (
     <div className="h-screen flex flex-col relative">
       <MobileOpponentsList opponents={opponents} />
+
+      {/* Timer Visual Mobile */}
+      <div className="flex-shrink-0 p-2">
+        <VisualGameTimer
+          timeLeft={timeLeft}
+          isMyTurn={currentUserPlayer?.isCurrentPlayer || false}
+          isWarning={isWarning}
+          onAutoPlay={gameHandlers.handleAutoPlay}
+          className="w-full"
+        />
+      </div>
 
       <div className="flex-1 flex items-center justify-center p-2">
         <GameBoard 

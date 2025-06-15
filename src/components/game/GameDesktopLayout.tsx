@@ -4,6 +4,7 @@ import { ProcessedPlayer, DominoPieceType } from '@/types/game';
 import GameBoard from '../GameBoard';
 import PlayerHand from '../PlayerHand';
 import OptimizedOpponentsList from '../OptimizedOpponentsList';
+import VisualGameTimer from '../VisualGameTimer';
 
 interface GameDesktopLayoutProps {
   opponents: ProcessedPlayer[];
@@ -37,6 +38,20 @@ const GameDesktopLayout: React.FC<GameDesktopLayoutProps> = ({
       <div className="flex-shrink-0 p-4">
         <OptimizedOpponentsList opponents={opponents} />
       </div>
+      
+      {/* Timer Visual Desktop - Centralizado */}
+      <div className="flex-shrink-0 px-4 pb-2">
+        <div className="flex justify-center">
+          <VisualGameTimer
+            timeLeft={timeLeft}
+            isMyTurn={currentUserPlayer?.isCurrentPlayer || false}
+            isWarning={isWarning}
+            onAutoPlay={gameHandlers.handleAutoPlay}
+            className="max-w-md"
+          />
+        </div>
+      </div>
+      
       <div className="flex-1 flex items-center justify-center p-4 px-0 py-[56px] my-0">
         <GameBoard 
           placedPieces={placedPieces} 
