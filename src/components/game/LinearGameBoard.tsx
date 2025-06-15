@@ -148,18 +148,18 @@ const LinearGameBoard: React.FC<LinearGameBoardProps> = ({
               </div>
             ) : (
               <div 
-                className="domino-board relative p-4"
+                className="domino-board"
                 style={{ 
                   width: layout.totalWidth + 'px',
                   height: layout.totalHeight + 'px',
                   minWidth: '100%'
                 }}
               >
-                {/* Renderizar peças por linha com conexões corretas */}
+                {/* Renderizar peças por linha com conexões CSS */}
                 {layout.rows.map((row, rowIndex) => (
                   <div 
                     key={`row-${rowIndex}`}
-                    className="domino-row absolute"
+                    className="domino-row"
                     style={{
                       top: row.yOffset + 'px',
                       left: '0px'
@@ -168,9 +168,6 @@ const LinearGameBoard: React.FC<LinearGameBoardProps> = ({
                     {row.pieces.map((connection, pieceIndex) => {
                       const piece = connection.piece;
                       const globalIndex = connection.index;
-                      const isFirstInRow = pieceIndex === 0;
-                      const isLastInRow = pieceIndex === row.pieces.length - 1;
-                      const isLastPiece = globalIndex === placedPieces.length - 1;
                       
                       // Determinar os valores a exibir baseado na conexão
                       const displayTop = connection.isFlipped ? piece.bottom : piece.top;
@@ -180,45 +177,17 @@ const LinearGameBoard: React.FC<LinearGameBoardProps> = ({
                         <div 
                           key={`${piece.id}-${globalIndex}`}
                           className={cn(
-                            "domino-piece-container relative",
-                            connection.orientation === 'vertical' ? 'vertical-piece' : 'horizontal-piece',
-                            isFirstInRow && 'first-piece',
-                            isLastInRow && 'last-piece',
-                            !isLastPiece && 'connected-right'
+                            "domino-piece-container",
+                            connection.orientation === 'vertical' ? 'vertical-piece' : 'horizontal-piece'
                           )}
                         >
                           <DominoPiece 
                             topValue={displayTop} 
                             bottomValue={displayBottom} 
                             isPlayable={false} 
-                            className="shadow-lg hover:shadow-xl transition-shadow relative z-10" 
+                            className="domino-piece" 
                             orientation={connection.orientation}
                           />
-                          
-                          {/* Conexão visual com a próxima peça */}
-                          {!isLastPiece && (
-                            <>
-                              {/* Conexão horizontal dentro da linha */}
-                              {!isLastInRow && (
-                                <>
-                                  <div className="domino-connection horizontal" />
-                                  <div className="connection-value right">
-                                    {connection.rightConnection}
-                                  </div>
-                                </>
-                              )}
-                              
-                              {/* Conexão para quebra de linha */}
-                              {isLastInRow && rowIndex < layout.rows.length - 1 && (
-                                <>
-                                  <div className="line-break-connector curved" />
-                                  <div className="connection-value bottom">
-                                    {connection.rightConnection}
-                                  </div>
-                                </>
-                              )}
-                            </>
-                          )}
                         </div>
                       );
                     })}
