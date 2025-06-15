@@ -3,7 +3,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { useNavigate } from 'react-router-dom';
 import { useGameCheck } from './useGameCheck';
-import { generateDeck, shuffleDeck, dealHands, findStartingPlayer } from '@/utils/dominoSetup';
+import { generateDeck, shuffleDeck, dealHands, findStartingPlayer, DominoPiece } from '@/utils/dominoSetup';
 
 export interface QueuePlayer {
   id: string;
@@ -100,7 +100,7 @@ export const useMatchmaking = () => {
         .from('games')
         .insert({
           status: 'active',
-          board_state: initialBoardState,
+          board_state: initialBoardState as any, // Cast to any to fix TS error with strict Json type
           current_player_turn: startingPlayerId,
           turn_start_time: new Date().toISOString(),
           prize_pool: 4.00,
@@ -120,7 +120,7 @@ export const useMatchmaking = () => {
         game_id: newGame.id,
         user_id: player.id,
         position: index + 1,
-        hand: hands[index]
+        hand: hands[index] as any // Cast to any to fix TS error with strict Json type
       }));
 
       const { error: playersError } = await supabase.from('game_players').insert(gamePlayersData);
@@ -229,9 +229,9 @@ export const useMatchmaking = () => {
 
       // Verificar se o usuário atual está na fila
       const { data: { user } } = await supabase.auth.getUser();
-      if (user?.user && mountedRef.current) {
-        const isUserInQueue = players.some(player => player.id === user.user.id);
-        console.log(`👤 Usuário ${user.user.id} na fila:`, isUserInQueue);
+      if (user && mountedRef.current) {
+        const isUserInQueue = players.some(player => player.id === user.id);
+        console.log(`👤 Usuário ${user.id} na fila:`, isUserInQueue);
         
         setState(prev => ({ ...prev, isInQueue: isUserInQueue }));
         
@@ -252,8 +252,8 @@ export const useMatchmaking = () => {
     try {
       console.log('💰 Verificando saldo do usuário...');
       
-      const { data: user } = await supabase.auth.getUser();
-      if (!user.user) {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
         console.error('❌ Usuário não autenticado');
         return false;
       }
@@ -261,7 +261,7 @@ export const useMatchmaking = () => {
       const { data: profile, error } = await supabase
         .from('profiles')
         .select('balance')
-        .eq('id', user.user.id)
+        .eq('id', user.id)
         .single();
 
       if (error) {
@@ -376,11 +376,11 @@ export const useMatchmaking = () => {
       if (!mountedRef.current) return;
       
       try {
-        const { data: user } = await supabase.auth.getUser();
-        if (!user.user || !mountedRef.current) return;
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user || !mountedRef.current) return;
 
         console.log('🔍 Matchmaking: Verificando status inicial do sistema...');
-        console.log('👤 Usuário autenticado:', user.user.id);
+        console.log('👤 Usuário autenticado:', user.id);
         await fetchQueuePlayers();
       } catch (error) {
         console.error('❌ Erro ao verificar status inicial:', error);

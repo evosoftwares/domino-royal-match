@@ -1,4 +1,3 @@
-
 import { useState, useCallback, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { GameData, PlayerData } from '@/types/game';
@@ -113,33 +112,6 @@ export const useGameStateRecovery = () => {
         toast.info('Restaurando último estado válido...');
         console.groupEnd();
         return lastKnownGoodStateRef.current;
-      }
-
-      // Estratégia 3: Reconstrução específica por tipo de corrupção
-      if (corruption.corruptionType === 'empty_board') {
-        console.log('🏗️ Tentando reconstruir board vazio...');
-        
-        // Tentar forçar execução da função que joga a primeira peça
-        try {
-          await supabase.rpc('play_highest_piece', { p_game_id: gameId });
-        } catch (error) {
-          console.warn('Não foi possível executar play_highest_piece:', error);
-        }
-        
-        // Aguardar um pouco e tentar novamente
-        await new Promise(resolve => setTimeout(resolve, 1000));
-        
-        const recoveredGame = await supabase
-          .from('games')
-          .select('*')
-          .eq('id', gameId)
-          .single();
-
-        if (!recoveredGame.error && recoveredGame.data) {
-          toast.success('Board do jogo reconstruído!');
-          console.groupEnd();
-          return { game: recoveredGame.data, players: [] };
-        }
       }
 
       console.log('❌ Todas as estratégias de recuperação falharam');

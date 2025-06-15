@@ -10,13 +10,13 @@ export const useGameCheck = () => {
     try {
       console.log('🔍 Verificando jogo ativo do usuário...');
       
-      const { data: user } = await supabase.auth.getUser();
-      if (!user.user) {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
         console.warn('⚠️ Usuário não autenticado para verificação de jogo');
         return false;
       }
 
-      console.log('👤 Verificando jogos para usuário:', user.user.id);
+      console.log('👤 Verificando jogos para usuário:', user.id);
 
       // Verificar se usuário está em jogo ativo
       const { data: gameData, error } = await supabase
@@ -29,7 +29,7 @@ export const useGameCheck = () => {
             created_at
           )
         `)
-        .eq('user_id', user.user.id)
+        .eq('user_id', user.id)
         .eq('games.status', 'active')
         .order('games.created_at', { ascending: false })
         .limit(1);

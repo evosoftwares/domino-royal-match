@@ -1,5 +1,4 @@
-
-import { Piece } from '@/types/game';
+import { DominoPieceType } from '@/types/game';
 
 // A peça de dominó é representada como um objeto com lados 'l' e 'r'.
 export interface DominoPiece {
