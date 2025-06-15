@@ -13,6 +13,7 @@ export interface LayoutRow {
   pieces: PieceConnection[];
   width: number;
   yOffset: number;
+  rowIndex: number; // Adicionar índice da linha
 }
 
 export interface LinearLayout {
@@ -31,6 +32,7 @@ const DEFAULT_DIMENSIONS: LayoutDimensions = {
 
 /**
  * Calcula o layout das peças em múltiplas linhas com conexões corretas
+ * REGRA: Primeira linha segue orientação normal, linhas subsequentes são sempre verticais
  */
 export const calculateLinearLayout = (
   pieces: DominoPieceType[],
@@ -58,7 +60,14 @@ export const calculateLinearLayout = (
     
     // Calcular posições das peças na linha considerando orientação
     rowPieces.forEach((connection, index) => {
-      const pieceWidth = connection.orientation === 'horizontal' ? dimensions.pieceWidth : dimensions.pieceHeight;
+      // REGRA: Primeira linha mantém orientação original, outras linhas são sempre verticais
+      const forceVertical = rowIndex > 0;
+      const finalOrientation = forceVertical ? 'vertical' : connection.orientation;
+      
+      // Atualizar a orientação da conexão
+      connection.orientation = finalOrientation;
+      
+      const pieceWidth = finalOrientation === 'horizontal' ? dimensions.pieceWidth : dimensions.pieceHeight;
       
       connection.position = {
         x: rowWidth,
@@ -71,7 +80,8 @@ export const calculateLinearLayout = (
     rows.push({
       pieces: rowPieces,
       width: rowWidth,
-      yOffset: rowIndex * (Math.max(dimensions.pieceHeight, dimensions.pieceWidth) + dimensions.spacing)
+      yOffset: rowIndex * (Math.max(dimensions.pieceHeight, dimensions.pieceWidth) + dimensions.spacing),
+      rowIndex
     });
   }
 

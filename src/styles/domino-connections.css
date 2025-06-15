@@ -40,6 +40,37 @@
   margin-top: -2px;
 }
 
+/* REGRA PRINCIPAL: Peças na segunda linha em diante devem ser SEMPRE verticais */
+.domino-row:not(:first-child) .domino-piece-container .domino-piece {
+  width: 32px !important;
+  height: 64px !important;
+  flex-direction: column !important;
+}
+
+.domino-row:not(:first-child) .domino-piece-container .domino-piece .flex-1 {
+  width: 100% !important;
+  height: 50% !important;
+}
+
+.domino-row:not(:first-child) .domino-piece-container .domino-piece .bg-gray-600 {
+  width: 90% !important;
+  height: 2px !important;
+  align-self: center !important;
+}
+
+/* Primeira linha mantém orientação normal (horizontal/vertical conforme regra) */
+.domino-row:first-child .domino-piece-container.horizontal-piece .domino-piece {
+  width: 64px;
+  height: 32px;
+  flex-direction: row;
+}
+
+.domino-row:first-child .domino-piece-container.vertical-piece .domino-piece {
+  width: 32px;
+  height: 64px;
+  flex-direction: column;
+}
+
 /* Sobreposição visual para conexões perfeitas */
 .domino-piece-container .domino-piece {
   position: relative;
@@ -76,6 +107,19 @@
   left: 0;
   background: rgba(55, 65, 81, 0.6);
   z-index: 3;
+}
+
+/* Conexão vertical especial para peças que mudam de linha */
+.domino-row:first-child .domino-piece-container:last-child::after {
+  content: '';
+  position: absolute;
+  width: 4px;
+  height: 20px;
+  bottom: -10px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(55, 65, 81, 0.8);
+  z-index: 4;
 }
 
 /* Ajustes para peças horizontais e verticais */
@@ -120,4 +164,15 @@
 /* Garantir alinhamento perfeito */
 .domino-piece-container {
   flex-shrink: 0;
+}
+
+/* Espaçamento uniforme entre linhas */
+.domino-row:not(:first-child) {
+  margin-top: 8px;
+}
+
+/* Centralizar peças verticais nas linhas inferiores */
+.domino-row:not(:first-child) {
+  justify-content: flex-start;
+  gap: 4px;
 }
