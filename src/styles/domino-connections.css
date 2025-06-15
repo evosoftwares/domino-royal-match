@@ -1,5 +1,5 @@
 
-/* Mesa de Dominó Realista com CSS Grid */
+/* Mesa de Dominó Realista com Layout Linear */
 
 /* Estilo da Mesa */
 .domino-board {
@@ -16,18 +16,15 @@
   box-shadow: inset 0 0 20px rgba(0, 0, 0, 0.3);
 }
 
-.domino-row {
+/* Container principal das peças - layout linear */
+.domino-sequence {
   display: flex;
   align-items: center;
-  margin: 5px 0;
-  gap: 2px;
-}
-
-.domino-piece-container {
-  position: relative;
-  display: flex;
-  align-items: center;
-  margin: 2px;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 4px;
+  min-height: 120px;
+  width: 100%;
 }
 
 /* Estrutura Principal da Peça */
@@ -43,6 +40,7 @@
   transition: transform 0.3s ease-in-out, box-shadow 0.2s ease;
   position: relative;
   z-index: 5;
+  margin: 0 2px;
 }
 
 .domino:hover {
@@ -163,7 +161,7 @@
 /* Peças Duplas (Cruzadas) - Rotação de 90° */
 .domino.dupla {
   transform: rotate(90deg);
-  margin: 0 40px;
+  margin: 0 30px;
   width: 60px;
   height: 120px;
 }
@@ -195,12 +193,12 @@
   border-bottom: 3px solid #333;
 }
 
-/* Conexões Visuais entre Peças */
-.domino-piece-container:not(:last-child)::after {
+/* Conectores visuais entre peças adjacentes */
+.domino-sequence .domino:not(:last-child)::after {
   content: '';
   position: absolute;
-  width: 8px;
-  height: 4px;
+  width: 6px;
+  height: 3px;
   right: -5px;
   top: 50%;
   transform: translateY(-50%);
@@ -209,21 +207,8 @@
   z-index: 3;
 }
 
-/* Conexões entre linhas */
-.domino-row:not(:last-child)::after {
-  content: '';
-  position: absolute;
-  width: 100%;
-  height: 6px;
-  bottom: -8px;
-  left: 0;
-  background: linear-gradient(180deg, #8B4513, #A0522D);
-  border-radius: 3px;
-  z-index: 2;
-}
-
 /* Efeitos especiais para primeira e última peça */
-.domino-row:first-child .domino-piece-container:first-child .domino::before {
+.domino-sequence .domino:first-child::before {
   content: '🎯';
   position: absolute;
   top: -25px;
@@ -233,7 +218,7 @@
   z-index: 20;
 }
 
-.domino-row:last-child .domino-piece-container:last-child .domino::after {
+.domino-sequence .domino:last-child::after {
   content: '🏁';
   position: absolute;
   top: -25px;
@@ -263,19 +248,8 @@
   .face {
     padding: 3px;
   }
-}
-
-/* Layout grid básico para compatibilidade */
-.domino-board {
-  border-radius: 12px;
-  padding: 8px;
-}
-
-.domino-row {
-  flex-wrap: nowrap;
-  overflow: visible;
-}
-
-.domino-piece-container {
-  flex-shrink: 0;
+  
+  .domino-sequence {
+    gap: 2px;
+  }
 }

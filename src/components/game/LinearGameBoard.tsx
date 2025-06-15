@@ -147,49 +147,25 @@ const LinearGameBoard: React.FC<LinearGameBoardProps> = ({
                 <p className="text-sm opacity-75 mt-2">O jogo começará com sua jogada</p>
               </div>
             ) : (
-              <div 
-                className="domino-board"
-                style={{ 
-                  width: layout.totalWidth + 'px',
-                  height: layout.totalHeight + 'px',
-                  minWidth: '100%'
-                }}
-              >
-                {/* Renderizar peças por linha usando o novo sistema CSS */}
-                {layout.rows.map((row, rowIndex) => (
-                  <div 
-                    key={`row-${rowIndex}`}
-                    className="domino-row"
-                    style={{
-                      top: row.yOffset + 'px',
-                      left: '0px'
-                    }}
-                  >
-                    {row.pieces.map((connection, pieceIndex) => {
-                      const piece = connection.piece;
-                      const globalIndex = connection.index;
-                      
-                      // Determinar os valores a exibir baseado na conexão
-                      const displayTop = connection.isFlipped ? piece.bottom : piece.top;
-                      const displayBottom = connection.isFlipped ? piece.top : piece.bottom;
-                      
-                      return (
-                        <div 
-                          key={`${piece.id}-${globalIndex}`}
-                          className="domino-piece-container"
-                        >
-                          <DominoPiece 
-                            topValue={displayTop} 
-                            bottomValue={displayBottom} 
-                            isPlayable={false} 
-                            className="transition-all duration-200" 
-                            orientation={connection.orientation}
-                          />
-                        </div>
-                      );
-                    })}
-                  </div>
-                ))}
+              <div className="domino-board">
+                <div className="domino-sequence">
+                  {placedPieces.map((piece, index) => {
+                    // Determinar orientação da peça
+                    const isDupla = piece.top === piece.bottom && piece.top > 0;
+                    const orientation = isDupla ? 'dupla' : 'horizontal';
+                    
+                    return (
+                      <DominoPiece 
+                        key={`${piece.id}-${index}`}
+                        topValue={piece.top} 
+                        bottomValue={piece.bottom} 
+                        isPlayable={false} 
+                        className="transition-all duration-200" 
+                        orientation={orientation}
+                      />
+                    );
+                  })}
+                </div>
               </div>
             )}
           </div>
@@ -199,11 +175,10 @@ const LinearGameBoard: React.FC<LinearGameBoardProps> = ({
         {process.env.NODE_ENV === 'development' && showControls && (
           <div className="p-3 border-t border-green-600/20 bg-black/30 rounded-b-3xl">
             <div className="text-xs text-green-200 space-y-1">
-              <div className="font-bold text-green-400">🎯 Mesa de Dominó Realista</div>
+              <div className="font-bold text-green-400">🎯 Mesa de Dominó Linear</div>
               <div className="flex flex-wrap gap-4">
                 <span>Peças: {debugInfo.totalPieces}</span>
-                <span>Linhas: {layout.rows.length}</span>
-                <span>Conexões: {debugInfo.isSequenceValid ? '✅ Válidas' : '❌ Inválidas'}</span>
+                <span>Sequência: {debugInfo.isSequenceValid ? '✅ Válida' : '❌ Inválida'}</span>
                 <span>Extremidades: {boardEnds.leftEnd} ↔ {boardEnds.rightEnd}</span>
               </div>
               {!debugInfo.isSequenceValid && (
