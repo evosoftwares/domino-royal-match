@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { GameData, PlayerData } from '@/types/game';
@@ -6,6 +5,8 @@ import GamePlayersHeader from './GamePlayersHeader';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { useSimpleGameEngine } from '@/hooks/useSimpleGameEngine';
 import { useOptimizedGameTimer } from '@/hooks/useOptimizedGameTimer';
+import { usePlayerPresence } from '@/hooks/usePlayerPresence';
+import { useOfflinePlayerMonitor } from '@/hooks/useOfflinePlayerMonitor';
 import WinnerDialog from './WinnerDialog';
 import ActionFeedback from './ActionFeedback';
 import { useGameWinCheck } from '@/hooks/useGameWinCheck';
@@ -47,6 +48,18 @@ const Game2Room: React.FC<Game2RoomProps> = ({
     gameData: initialGameData,
     players: initialPlayers,
     userId: user?.id,
+  });
+
+  // Gerenciamento de presença do jogador
+  usePlayerPresence({
+    gameId: gameState.id,
+    isActive: gameState.status === 'active'
+  });
+
+  // Monitoramento de jogadores offline
+  useOfflinePlayerMonitor({
+    gameState,
+    isActive: gameState.status === 'active'
   });
 
   // Processamento de dados do jogo
@@ -126,14 +139,16 @@ const Game2Room: React.FC<Game2RoomProps> = ({
         onHealthClick={() => {}}
       />
       
-      {/* Debug info simplificado */}
+      {/* Debug info atualizado */}
       {process.env.NODE_ENV === 'development' && (
         <div className="fixed top-20 right-4 bg-black/90 text-white p-3 rounded text-xs max-w-xs z-30">
           <div className="space-y-1">
-            <div className="text-green-400 font-bold">🎯 Sistema Simplificado v3.0</div>
+            <div className="text-green-400 font-bold">🎯 Sistema com Presença v4.0</div>
             <div>Sync: <span className={syncStatus === 'synced' ? 'text-green-400' : 'text-red-400'}>{syncStatus}</span></div>
             <div>My Turn: {isMyTurn ? '✅' : '❌'}</div>
             <div>Processing: {isProcessingMove ? '⏳' : '✅'}</div>
+            <div className="text-blue-400">🟢 Presença ativa</div>
+            <div className="text-blue-400">👥 Monitor offline ativo</div>
           </div>
           
           <div className="flex gap-1 mt-2">

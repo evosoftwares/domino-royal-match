@@ -294,6 +294,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      auto_play_for_offline_player: {
+        Args: { game_id_param: string }
+        Returns: boolean
+      }
       check_user_in_active_game: {
         Args: { p_user_id: string }
         Returns: {
@@ -303,6 +307,10 @@ export type Database = {
       cleanup_malformed_games: {
         Args: Record<PropertyKey, never>
         Returns: Json
+      }
+      cleanup_offline_player_games: {
+        Args: Record<PropertyKey, never>
+        Returns: undefined
       }
       cleanup_timed_out_games: {
         Args: Record<PropertyKey, never>
@@ -315,6 +323,10 @@ export type Database = {
           status: string
           created_at: string
         }[]
+      }
+      is_player_online: {
+        Args: { player_user_id: string }
+        Returns: boolean
       }
       join_matchmaking_queue: {
         Args: Record<PropertyKey, never> | { p_id_jogo_pleiteado: number }
