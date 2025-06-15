@@ -93,7 +93,7 @@ export const useGameCreation = () => {
 
       console.log('✅ Jogadores adicionados ao jogo');
 
-      // Remover jogadores da fila
+      // Remover TODOS os jogadores da fila, não apenas os do jogo
       const { error: queueError } = await supabase
         .from('matchmaking_queue')
         .delete()
@@ -102,21 +102,28 @@ export const useGameCreation = () => {
       if (queueError) {
         console.error('⚠️ Erro ao limpar fila:', queueError);
       } else {
-        console.log('✅ Fila limpa para jogadores do jogo');
+        console.log('✅ Fila completamente limpa');
       }
 
-      toast.success('🎮 Jogo criado! Redirecionando...');
+      // Mostrar toast de sucesso mais informativo
+      toast.success('🎮 Jogo criado! Todos os jogadores serão redirecionados...', {
+        duration: 3000
+      });
       
-      // Aguardar um pouco para sincronização
+      // Aguardar um pouco mais para garantir sincronização
       setTimeout(() => {
+        console.log('🚀 Navegando para o jogo:', newGame.id);
         navigate(`/game2/${newGame.id}`);
-      }, 1000);
+      }, 1500);
 
     } catch (error: any) {
       console.error('❌ Erro ao criar jogo:', error);
       toast.error(`Falha ao criar o jogo: ${error.message}`);
     } finally {
-      gameCreationLockRef.current = false;
+      // Garantir que o lock seja liberado mesmo em caso de erro
+      setTimeout(() => {
+        gameCreationLockRef.current = false;
+      }, 2000);
     }
   }, [navigate]);
 

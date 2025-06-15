@@ -67,10 +67,22 @@ export const useQueueManagement = ({ setState, mountedRef, createGameFromQueue }
         const isUserInQueue = players.some(player => player.id === user.id);
         setState(prev => ({ ...prev, isInQueue: isUserInQueue }));
         
-        // Verificar se pode criar jogo (4+ jogadores)
+        // Criar jogo quando 4+ jogadores (com melhor sincronização)
         if (players.length >= 4) {
-          console.log('🎯 4+ jogadores na fila, criando jogo...');
-          await createGameFromQueue(players);
+          console.log('🎯 4+ jogadores detectados, iniciando criação de jogo...');
+          // Timeout para limpeza automática se jogo não for criado
+          const timeoutId = setTimeout(async () => {
+            console.log('⚠️ Timeout na criação do jogo, limpando fila órfã');
+            await cleanupStaleQueue();
+          }, 10000); // 10 segundos
+          
+          try {
+            await createGameFromQueue(players);
+            clearTimeout(timeoutId);
+          } catch (error) {
+            clearTimeout(timeoutId);
+            console.error('❌ Erro na criação do jogo:', error);
+          }
         }
       }
 
@@ -78,6 +90,24 @@ export const useQueueManagement = ({ setState, mountedRef, createGameFromQueue }
       console.error('❌ Erro ao buscar fila:', error);
     }
   }, [setState, mountedRef, createGameFromQueue]);
+
+  const cleanupStaleQueue = useCallback(async () => {
+    try {
+      // Remove entradas antigas da fila (mais de 2 minutos)
+      const { error } = await supabase
+        .from('matchmaking_queue')
+        .delete()
+        .lt('created_at', new Date(Date.now() - 2 * 60 * 1000).toISOString());
+      
+      if (error) {
+        console.error('❌ Erro ao limpar fila:', error);
+      } else {
+        console.log('🧹 Fila limpa com sucesso');
+      }
+    } catch (error) {
+      console.error('❌ Erro crítico na limpeza da fila:', error);
+    }
+  }, []);
 
   const joinQueue = useCallback(async () => {
     setState(prev => ({ ...prev, isLoading: true }));
@@ -117,8 +147,10 @@ export const useQueueManagement = ({ setState, mountedRef, createGameFromQueue }
       // Atualizar estado imediatamente
       setState(prev => ({ ...prev, isInQueue: true }));
       
-      // Buscar fila atualizada
-      await fetchQueuePlayers();
+      // Buscar fila atualizada com delay mínimo
+      setTimeout(() => {
+        fetchQueuePlayers();
+      }, 100);
 
     } catch (error: any) {
       console.error('❌ Erro ao entrar na fila:', error);
